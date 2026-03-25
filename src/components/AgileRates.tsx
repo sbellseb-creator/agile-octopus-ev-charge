@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
@@ -13,13 +14,16 @@ function rateColor(p: number): string {
 }
 
 export default function AgileRates() {
-  const now = new Date();
-  const periodFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const now = useMemo(() => new Date(), []);
+  const periodFrom = useMemo(() => new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), [now]);
 
   const { data: rates, isLoading, error } = useQuery({
     queryKey: ["agile-rates", periodFrom],
     queryFn: () => fetchAgileRates(undefined, periodFrom),
     refetchInterval: 30 * 60 * 1000,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const currentRate = rates?.find((r) => {
@@ -89,6 +93,10 @@ export default function AgileRates() {
           ) : error ? (
             <p className="text-destructive text-sm py-4 text-center">
               Failed to load rates. Check your API key and try again.
+            </p>
+          ) : rates && rates.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4 text-center">
+              No rates available. The tariff code may not match your account, or rates haven't been published yet for this period.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={300}>

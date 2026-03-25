@@ -47,9 +47,9 @@ export default function ChargePlanner({ vehicles }: Props) {
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
   );
 
-  const now = new Date();
-  const periodFrom = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
-  const periodTo = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const now = useMemo(() => new Date(), []);
+  const periodFrom = useMemo(() => new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), [now]);
+  const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);
 
   const { data: rates, isLoading } = useQuery({
     queryKey: ["planner-rates", periodFrom],

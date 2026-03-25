@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
@@ -13,8 +14,8 @@ function rateColor(p: number): string {
 }
 
 export default function AgileRates() {
-  const now = new Date();
-  const periodFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const now = useMemo(() => new Date(), []);
+  const periodFrom = useMemo(() => new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), [now]);
 
   const { data: rates, isLoading, error } = useQuery({
     queryKey: ["agile-rates", periodFrom],

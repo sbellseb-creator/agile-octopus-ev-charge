@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,12 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
+import { CHARGE_MODE_LABELS, type ChargeMode } from "@/lib/charge-data";
 
 interface Props {
   onAdd: (data: {
     session_date: string;
     vehicle_id: string;
     vehicle_name: string;
+    charge_mode: ChargeMode;
+    target_time?: string;
     start_soc: number;
     end_soc: number;
     energy_added_kwh: number;
@@ -30,6 +33,8 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
   const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicle?.id || "");
+  const [chargeMode, setChargeMode] = useState<ChargeMode>("immediate");
+  const [targetTime, setTargetTime] = useState("");
   const [startSoc, setStartSoc] = useState("");
   const [endSoc, setEndSoc] = useState("");
   const [energyAdded, setEnergyAdded] = useState("");
@@ -47,6 +52,8 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
       session_date: date,
       vehicle_id: selected?.id || "",
       vehicle_name: selected?.name || "",
+      charge_mode: chargeMode,
+      target_time: chargeMode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
       energy_added_kwh: parseFloat(energyAdded) || 0,
@@ -96,6 +103,23 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
               <p className="text-sm text-muted-foreground pt-2">Add a vehicle first</p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label>Charge Mode</Label>
+            <Select value={chargeMode} onValueChange={(v) => setChargeMode(v as ChargeMode)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.entries(CHARGE_MODE_LABELS) as [ChargeMode, string][]).map(([k, label]) => (
+                  <SelectItem key={k} value={k}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {chargeMode === "target_time" && (
+            <div className="space-y-2">
+              <Label>Target Time</Label>
+              <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Start SoC %</Label>
             <Input type="number" step="1" placeholder="e.g. 20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} />

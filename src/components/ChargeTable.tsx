@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Trash2, Zap } from "lucide-react";
-import type { ChargeSession } from "@/lib/charge-data";
+import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   sessions: ChargeSession[];
@@ -28,6 +29,7 @@ export default function ChargeTable({ sessions, onDelete }: Props) {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Vehicle</TableHead>
+                  <TableHead>Mode</TableHead>
                   <TableHead className="text-right">SoC</TableHead>
                   <TableHead className="text-right">kWh</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
@@ -42,6 +44,11 @@ export default function ChargeTable({ sessions, onDelete }: Props) {
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.session_date}</TableCell>
                     <TableCell>{s.vehicle_name || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {CHARGE_MODE_LABELS[s.charge_mode] || "—"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">{s.start_soc}→{s.end_soc}%</TableCell>
                     <TableCell className="text-right">{s.energy_added_kwh}</TableCell>
                     <TableCell className="text-right">£{s.total_cost_gbp.toFixed(2)}</TableCell>

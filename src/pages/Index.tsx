@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Zap, Car, TrendingDown } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadSessions, addSession, deleteSession } from "@/lib/charge-data";
 import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";
@@ -10,6 +10,7 @@ import ChargeTable from "@/components/ChargeTable";
 import ChargeStats from "@/components/ChargeStats";
 import VehicleManager from "@/components/VehicleManager";
 import AgileRates from "@/components/AgileRates";
+import ChargePlanner from "@/components/ChargePlanner";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -35,6 +36,9 @@ export default function Index() {
             <TabsTrigger value="agile" className="gap-1.5">
               <TrendingDown className="h-4 w-4" /> Agile Rates
             </TabsTrigger>
+            <TabsTrigger value="planner" className="gap-1.5">
+              <CalendarClock className="h-4 w-4" /> Charge Planner
+            </TabsTrigger>
             <TabsTrigger value="charging" className="gap-1.5">
               <Zap className="h-4 w-4" /> Charge Sessions
             </TabsTrigger>
@@ -45,6 +49,10 @@ export default function Index() {
 
           <TabsContent value="agile" className="space-y-6">
             <AgileRates />
+          </TabsContent>
+
+          <TabsContent value="planner" className="space-y-6">
+            <ChargePlanner vehicles={vehicles} />
           </TabsContent>
 
           <TabsContent value="charging" className="space-y-6">

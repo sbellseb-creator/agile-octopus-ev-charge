@@ -55,6 +55,9 @@ export default function ChargePlanner({ vehicles }: Props) {
     queryKey: ["planner-rates", periodFrom],
     queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo),
     refetchInterval: 15 * 60 * 1000,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const futureRates = useMemo(() => {

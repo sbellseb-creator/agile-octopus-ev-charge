@@ -20,6 +20,9 @@ export default function AgileRates() {
     queryKey: ["agile-rates", periodFrom],
     queryFn: () => fetchAgileRates(undefined, periodFrom),
     refetchInterval: 30 * 60 * 1000,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const currentRate = rates?.find((r) => {
@@ -89,6 +92,10 @@ export default function AgileRates() {
           ) : error ? (
             <p className="text-destructive text-sm py-4 text-center">
               Failed to load rates. Check your API key and try again.
+            </p>
+          ) : rates && rates.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4 text-center">
+              No rates available. The tariff code may not match your account, or rates haven't been published yet for this period.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={300}>

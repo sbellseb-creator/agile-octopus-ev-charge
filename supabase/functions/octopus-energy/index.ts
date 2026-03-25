@@ -43,11 +43,12 @@ serve(async (req) => {
     }
 
     if (action === 'rates') {
-      const tariffCode = url.searchParams.get('tariff_code') || 'AGILE-FLEX-22-11-25';
+      const tariffCode = url.searchParams.get('tariff_code') || 'AGILE-24-10-01';
+      const region = url.searchParams.get('region') || 'C';
       const periodFrom = url.searchParams.get('period_from') || '';
       const periodTo = url.searchParams.get('period_to') || '';
 
-      let ratesUrl = `${OCTOPUS_BASE}/products/${tariffCode}/electricity-tariffs/E-1R-${tariffCode}-C/standard-unit-rates/`;
+      let ratesUrl = `${OCTOPUS_BASE}/products/${tariffCode}/electricity-tariffs/E-1R-${tariffCode}-${region}/standard-unit-rates/`;
       const params = new URLSearchParams();
       if (periodFrom) params.set('period_from', periodFrom);
       if (periodTo) params.set('period_to', periodTo);

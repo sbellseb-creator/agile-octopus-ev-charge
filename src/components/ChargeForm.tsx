@@ -42,10 +42,11 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const selected = vehicles.find((v) => v.id === selectedVehicleId);
     onAdd({
       session_date: date,
-      vehicle_id: vehicleName.toLowerCase().replace(/\s+/g, "-"),
-      vehicle_name: vehicleName,
+      vehicle_id: selected?.id || "",
+      vehicle_name: selected?.name || "",
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
       energy_added_kwh: parseFloat(energyAdded) || 0,
@@ -82,7 +83,18 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Vehicle</Label>
-            <Input placeholder="e.g. Model 3" value={vehicleName} onChange={(e) => setVehicleName(e.target.value)} />
+            {vehicles.length > 0 ? (
+              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                <SelectContent>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground pt-2">Add a vehicle first</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Start SoC %</Label>

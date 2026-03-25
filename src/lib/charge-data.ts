@@ -1,8 +1,19 @@
+export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
+
+export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {
+  immediate: "Immediate",
+  target_time: "Ready By Target",
+  agile_cheapest: "Cheapest Slots",
+  realtime: "Real-time",
+};
+
 export interface ChargeSession {
   id: string;
   session_date: string;
   vehicle_id: string;
   vehicle_name: string;
+  charge_mode: ChargeMode;
+  target_time?: string;
   start_soc: number;
   end_soc: number;
   energy_added_kwh: number;

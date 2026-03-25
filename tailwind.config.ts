@@ -47,6 +47,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        chart: {
+          good: "hsl(var(--chart-good))",
+          warning: "hsl(var(--chart-warning))",
+          danger: "hsl(var(--chart-danger))",
+          line: "hsl(var(--chart-line))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

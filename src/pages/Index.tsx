@@ -1,16 +1,43 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { Battery } from "lucide-react";
+import { loadRecords, addRecord, deleteRecord } from "@/lib/battery-data";
+import BatteryForm from "@/components/BatteryForm";
+import BatteryChart from "@/components/BatteryChart";
+import BatteryTable from "@/components/BatteryTable";
+import StatCards from "@/components/StatCards";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+export default function Index() {
+  const [records, setRecords] = useState(loadRecords);
+
+  const handleAdd = (data: Parameters<typeof addRecord>[0]) => {
+    setRecords(addRecord(data));
+  };
+
+  const handleDelete = (id: string) => {
+    setRecords(deleteRecord(id));
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="container flex items-center gap-3 py-4">
+          <Battery className="h-7 w-7 text-primary" />
+          <h1 className="text-xl font-bold tracking-tight">Battery Health Tracker</h1>
+        </div>
+      </header>
+
+      <main className="container py-6 space-y-6">
+        <StatCards records={records} />
+        <BatteryChart records={records} />
+        <div className="grid gap-6 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <BatteryForm onAdd={handleAdd} />
+          </div>
+          <div className="lg:col-span-3">
+            <BatteryTable records={records} onDelete={handleDelete} />
+          </div>
+        </div>
+      </main>
     </div>
   );
-};
-
-const Index = PlaceholderIndex;
-
-export default Index;
+}

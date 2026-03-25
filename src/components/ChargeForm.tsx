@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
+import type { Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
   onAdd: (data: {
@@ -21,11 +23,13 @@ interface Props {
     tariff_code: string;
     notes: string;
   }) => void;
+  vehicles: Vehicle[];
 }
 
-export default function ChargeForm({ onAdd }: Props) {
+export default function ChargeForm({ onAdd, vehicles }: Props) {
+  const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [vehicleName, setVehicleName] = useState("");
+  const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicle?.id || "");
   const [startSoc, setStartSoc] = useState("");
   const [endSoc, setEndSoc] = useState("");
   const [energyAdded, setEnergyAdded] = useState("");
@@ -38,10 +42,11 @@ export default function ChargeForm({ onAdd }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const selected = vehicles.find((v) => v.id === selectedVehicleId);
     onAdd({
       session_date: date,
-      vehicle_id: vehicleName.toLowerCase().replace(/\s+/g, "-"),
-      vehicle_name: vehicleName,
+      vehicle_id: selected?.id || "",
+      vehicle_name: selected?.name || "",
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
       energy_added_kwh: parseFloat(energyAdded) || 0,
@@ -78,7 +83,18 @@ export default function ChargeForm({ onAdd }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Vehicle</Label>
-            <Input placeholder="e.g. Model 3" value={vehicleName} onChange={(e) => setVehicleName(e.target.value)} />
+            {vehicles.length > 0 ? (
+              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                <SelectContent>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground pt-2">Add a vehicle first</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Start SoC %</Label>

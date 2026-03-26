@@ -29,6 +29,9 @@ interface Props {
   vehicles: Vehicle[];
 }
 
+const CHARGER_KW = 6.9;
+const KWH_PER_SLOT = CHARGER_KW * 0.5;
+
 export default function ChargeForm({ onAdd, vehicles }: Props) {
   const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -38,12 +41,21 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
   const [startSoc, setStartSoc] = useState("");
   const [endSoc, setEndSoc] = useState("");
   const [energyAdded, setEnergyAdded] = useState("");
-  const [gridKwh, setGridKwh] = useState("");
   const [cost, setCost] = useState("");
   const [avgPrice, setAvgPrice] = useState("");
   const [numSlots, setNumSlots] = useState("");
-  const [tariff, setTariff] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Auto-estimate from SoC
+  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+  const autoEstimate = (() => {
+    if (!selectedVehicle || !startSoc || !endSoc) return null;
+    const socDelta = (parseFloat(endSoc) || 0) - (parseFloat(startSoc) || 0);
+    if (socDelta <= 0) return null;
+    const kwhNeeded = (selectedVehicle.battery_kwh * socDelta) / 100;
+    const slots = Math.ceil(kwhNeeded / KWH_PER_SLOT);
+    return { kwh: kwhNeeded.toFixed(1), slots };
+  })();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,18 +68,17 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
       target_time: chargeMode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
-      energy_added_kwh: parseFloat(energyAdded) || 0,
-      grid_kwh: parseFloat(gridKwh) || 0,
+      energy_added_kwh: parseFloat(energyAdded) || parseFloat(autoEstimate?.kwh || "0"),
+      grid_kwh: 0,
       total_cost_gbp: parseFloat(cost) || 0,
       avg_pence_per_kwh: parseFloat(avgPrice) || 0,
-      num_slots: parseInt(numSlots) || 0,
-      tariff_code: tariff,
+      num_slots: parseInt(numSlots) || parseInt(autoEstimate?.slots?.toString() || "0"),
+      tariff_code: "",
       notes,
     });
     setStartSoc("");
     setEndSoc("");
     setEnergyAdded("");
-    setGridKwh("");
     setCost("");
     setAvgPrice("");
     setNumSlots("");
@@ -75,7 +86,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
   };
 
   return (
-    <Card>
+    <Card className="neon-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Plus className="h-5 w-5 text-primary" />
@@ -130,11 +141,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Energy Added (kWh)</Label>
-            <Input type="number" step="0.1" placeholder="e.g. 35.2" value={energyAdded} onChange={(e) => setEnergyAdded(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Grid Draw (kWh)</Label>
-            <Input type="number" step="0.1" placeholder="e.g. 38.5" value={gridKwh} onChange={(e) => setGridKwh(e.target.value)} />
+            <Input type="number" step="0.1" placeholder={autoEstimate ? `est. ${autoEstimate.kwh}` : "e.g. 35.2"} value={energyAdded} onChange={(e) => setEnergyAdded(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Total Cost (£)</Label>
@@ -146,11 +153,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Slots Used</Label>
-            <Input type="number" step="1" placeholder="e.g. 6" value={numSlots} onChange={(e) => setNumSlots(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Tariff Code</Label>
-            <Input placeholder="e.g. AGILE-VAR-22-10-31" value={tariff} onChange={(e) => setTariff(e.target.value)} />
+            <Input type="number" step="1" placeholder={autoEstimate ? `est. ${autoEstimate.slots}` : "e.g. 6"} value={numSlots} onChange={(e) => setNumSlots(e.target.value)} />
           </div>
           <div className="space-y-2 sm:col-span-2 lg:col-span-2">
             <Label>Notes</Label>

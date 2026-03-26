@@ -5,44 +5,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { fetchAgileRates, type AgileRate } from "@/lib/octopus-api";
+import { fetchAgileRates } from "@/lib/octopus-api";
 import type { Vehicle } from "@/lib/vehicle-data";
 import type { ChargeMode } from "@/lib/charge-data";
-import { CHARGE_MODE_LABELS } from "@/lib/charge-data";
+import { CHARGE_MODE_LABELS, addSession } from "@/lib/charge-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Zap, Clock, TrendingDown, Activity,
-  BarChart3, CheckCircle2, Loader2,
+  CheckCircle2, Loader2, Save,
 } from "lucide-react";
 import { format } from "date-fns";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine,
-} from "recharts";
+import { toast } from "sonner";
+
+const CHARGER_KW = 6.9;
+const SLOT_HOURS = 0.5;
+const KWH_PER_SLOT = CHARGER_KW * SLOT_HOURS; // 3.45 kWh
 
 interface Props {
   vehicles: Vehicle[];
+  onSessionSaved?: () => void;
 }
 
 const MODE_INFO: Record<ChargeMode, { icon: typeof Zap; desc: string }> = {
-  immediate: { icon: Zap, desc: "Start charging now at whatever rate is current." },
-  target_time: { icon: Clock, desc: "Find cheapest slots to be fully charged by your target time." },
-  agile_cheapest: { icon: TrendingDown, desc: "Pick the cheapest half-hour slots from the Agile tariff." },
-  realtime: { icon: Activity, desc: "Monitor live rates and charge only when price drops below your threshold." },
+  immediate: { icon: Zap, desc: "Charge now at the current rate." },
+  target_time: { icon: Clock, desc: "Cheapest slots to be ready by your target time." },
+  agile_cheapest: { icon: TrendingDown, desc: "Pick the absolute cheapest slots available." },
+  realtime: { icon: Activity, desc: "Charge when price drops below your threshold." },
 };
 
-function rateColor(p: number): string {
-  if (p <= 0) return "hsl(var(--primary))";
-  if (p < 15) return "hsl(var(--chart-good))";
-  if (p < 25) return "hsl(var(--chart-warning))";
-  return "hsl(var(--chart-danger))";
-}
-
-export default function ChargePlanner({ vehicles }: Props) {
+export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [mode, setMode] = useState<ChargeMode>("target_time");
   const [targetTime, setTargetTime] = useState("07:30");
   const [threshold, setThreshold] = useState("15");
-  const [slotsNeeded, setSlotsNeeded] = useState("6");
+  const [startSoc, setStartSoc] = useState("20");
+  const [endSoc, setEndSoc] = useState("80");
+  const [notes, setNotes] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
   );
@@ -65,21 +63,25 @@ export default function ChargePlanner({ vehicles }: Props) {
     return rates
       .filter((r) => new Date(r.valid_to).getTime() > now.getTime())
       .sort((a, b) => a.valid_from.localeCompare(b.valid_from));
-  }, [rates]);
+  }, [rates, now]);
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
-  const slotsCount = parseInt(slotsNeeded) || 6;
+
+  // Calculate slots needed from SoC delta and vehicle battery
+  const slotsNeeded = useMemo(() => {
+    if (!selectedVehicle) return 6;
+    const socDelta = (parseFloat(endSoc) || 80) - (parseFloat(startSoc) || 20);
+    const kwhNeeded = (selectedVehicle.battery_kwh * socDelta) / 100;
+    return Math.max(1, Math.ceil(kwhNeeded / KWH_PER_SLOT));
+  }, [selectedVehicle, startSoc, endSoc]);
 
   const recommendation = useMemo(() => {
     if (futureRates.length === 0) return null;
 
     if (mode === "immediate") {
-      const current = futureRates[0];
-      return {
-        slots: [current],
-        avgPrice: current.value_inc_vat,
-        summary: `Charging now at ${current.value_inc_vat.toFixed(1)}p/kWh`,
-      };
+      const current = futureRates.slice(0, slotsNeeded);
+      const avg = current.reduce((s, r) => s + r.value_inc_vat, 0) / current.length;
+      return { slots: current, avgPrice: avg, summary: `Charging now — ${current.length} consecutive slots` };
     }
 
     if (mode === "target_time") {
@@ -87,32 +89,25 @@ export default function ChargePlanner({ vehicles }: Props) {
       const target = new Date(now);
       target.setHours(h, m, 0, 0);
       if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
-
-      const eligible = futureRates.filter(
-        (r) => new Date(r.valid_to).getTime() <= target.getTime()
-      );
+      const eligible = futureRates.filter(r => new Date(r.valid_to).getTime() <= target.getTime());
       const sorted = [...eligible].sort((a, b) => a.value_inc_vat - b.value_inc_vat);
-      const best = sorted.slice(0, slotsCount);
+      const best = sorted.slice(0, slotsNeeded);
       const avg = best.length > 0 ? best.reduce((s, r) => s + r.value_inc_vat, 0) / best.length : 0;
-
       return {
         slots: best.sort((a, b) => a.valid_from.localeCompare(b.valid_from)),
         avgPrice: avg,
-        summary: best.length > 0
-          ? `${best.length} cheapest slots before ${targetTime} — avg ${avg.toFixed(1)}p/kWh`
-          : "No slots available before target time",
+        summary: best.length > 0 ? `${best.length} cheapest slots before ${targetTime}` : "No slots available before target",
       };
     }
 
     if (mode === "agile_cheapest") {
       const sorted = [...futureRates].sort((a, b) => a.value_inc_vat - b.value_inc_vat);
-      const best = sorted.slice(0, slotsCount);
+      const best = sorted.slice(0, slotsNeeded);
       const avg = best.length > 0 ? best.reduce((s, r) => s + r.value_inc_vat, 0) / best.length : 0;
-
       return {
         slots: best.sort((a, b) => a.valid_from.localeCompare(b.valid_from)),
         avgPrice: avg,
-        summary: `${best.length} cheapest slots in next 24h — avg ${avg.toFixed(1)}p/kWh`,
+        summary: `${best.length} cheapest slots in next 24h`,
       };
     }
 
@@ -120,35 +115,47 @@ export default function ChargePlanner({ vehicles }: Props) {
       const thresholdVal = parseFloat(threshold) || 15;
       const below = futureRates.filter((r) => r.value_inc_vat <= thresholdVal);
       const avg = below.length > 0 ? below.reduce((s, r) => s + r.value_inc_vat, 0) / below.length : 0;
-
       return {
         slots: below,
         avgPrice: avg,
         summary: below.length > 0
-          ? `${below.length} slots below ${thresholdVal}p — avg ${avg.toFixed(1)}p/kWh`
-          : `No upcoming slots below ${thresholdVal}p/kWh`,
+          ? `${below.length} slots below ${thresholdVal}p`
+          : `No slots below ${thresholdVal}p`,
       };
     }
 
     return null;
-  }, [mode, futureRates, targetTime, slotsCount, threshold]);
+  }, [mode, futureRates, targetTime, slotsNeeded, threshold, now]);
 
-  const chartData = futureRates.map((r) => {
-    const isSelected = recommendation?.slots.some((s) => s.valid_from === r.valid_from);
-    return {
-      time: format(new Date(r.valid_from), "HH:mm"),
-      price: r.value_inc_vat,
-      isSelected,
-    };
-  });
+  const estimates = useMemo(() => {
+    if (!recommendation || recommendation.slots.length === 0) return null;
+    const totalKwh = KWH_PER_SLOT * recommendation.slots.length;
+    const totalCost = recommendation.slots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
+    const avgPrice = recommendation.avgPrice;
+    return { totalKwh, totalCost, avgPrice, numSlots: recommendation.slots.length };
+  }, [recommendation]);
 
-  const estimatedCost = useMemo(() => {
-    if (!recommendation || !selectedVehicle) return null;
-    const kwhPerSlot = (selectedVehicle.battery_kwh * (selectedVehicle.charge_efficiency_pct / 100)) / slotsCount;
-    const totalKwh = kwhPerSlot * recommendation.slots.length;
-    const cost = recommendation.slots.reduce((s, r) => s + (r.value_inc_vat * kwhPerSlot) / 100, 0);
-    return { totalKwh: totalKwh.toFixed(1), cost: cost.toFixed(2) };
-  }, [recommendation, selectedVehicle, slotsCount]);
+  const handleSave = () => {
+    if (!estimates || !selectedVehicle || !recommendation) return;
+    addSession({
+      session_date: new Date().toISOString().slice(0, 10),
+      vehicle_id: selectedVehicle.id,
+      vehicle_name: selectedVehicle.name,
+      charge_mode: mode,
+      target_time: mode === "target_time" ? targetTime : undefined,
+      start_soc: parseFloat(startSoc) || 0,
+      end_soc: parseFloat(endSoc) || 0,
+      energy_added_kwh: parseFloat(estimates.totalKwh.toFixed(1)),
+      grid_kwh: 0,
+      total_cost_gbp: parseFloat(estimates.totalCost.toFixed(2)),
+      avg_pence_per_kwh: parseFloat(estimates.avgPrice.toFixed(1)),
+      num_slots: estimates.numSlots,
+      tariff_code: "",
+      notes,
+    });
+    toast.success("Charge session saved!");
+    onSessionSaved?.();
+  };
 
   const ModeIcon = MODE_INFO[mode].icon;
 
@@ -165,7 +172,7 @@ export default function ChargePlanner({ vehicles }: Props) {
               onClick={() => setMode(m)}
               className={`flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-all ${
                 active
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-primary/10 text-primary neon-border"
                   : "border-border bg-card text-muted-foreground hover:border-primary/40"
               }`}
             >
@@ -177,7 +184,7 @@ export default function ChargePlanner({ vehicles }: Props) {
       </div>
 
       {/* Config */}
-      <Card>
+      <Card className="neon-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <ModeIcon className="h-5 w-5 text-primary" />
@@ -201,147 +208,89 @@ export default function ChargePlanner({ vehicles }: Props) {
               </div>
             )}
 
-            {(mode === "target_time" || mode === "agile_cheapest") && (
-              <div className="space-y-2">
-                <Label>Slots Needed</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={48}
-                  value={slotsNeeded}
-                  onChange={(e) => setSlotsNeeded(e.target.value)}
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Start SoC %</Label>
+              <Input type="number" min={0} max={100} value={startSoc} onChange={(e) => setStartSoc(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>End SoC %</Label>
+              <Input type="number" min={0} max={100} value={endSoc} onChange={(e) => setEndSoc(e.target.value)} />
+            </div>
 
             {mode === "target_time" && (
               <div className="space-y-2">
                 <Label>Ready By</Label>
-                <Input
-                  type="time"
-                  value={targetTime}
-                  onChange={(e) => setTargetTime(e.target.value)}
-                />
+                <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
               </div>
             )}
 
             {mode === "realtime" && (
               <div className="space-y-2">
                 <Label>Price Threshold (p/kWh)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={threshold}
-                  onChange={(e) => setThreshold(e.target.value)}
-                />
+                <Input type="number" step="0.5" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
               </div>
             )}
+          </div>
+
+          <div className="mt-4 text-sm text-muted-foreground">
+            Charger: {CHARGER_KW}kW (30A) • {KWH_PER_SLOT} kWh/slot • {slotsNeeded} slots needed
           </div>
         </CardContent>
       </Card>
 
-      {/* Recommendation */}
+      {/* Results */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : recommendation && (
-        <>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <CheckCircle2 className="h-8 w-8 shrink-0 text-primary" />
-              <div className="flex-1">
-                <p className="font-semibold">{recommendation.summary}</p>
-                {estimatedCost && (
-                  <p className="text-sm text-muted-foreground">
-                    Est. ~{estimatedCost.totalKwh} kWh — ~£{estimatedCost.cost}
-                  </p>
-                )}
+      ) : recommendation && estimates && (
+        <Card className="border-primary/30 neon-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              {recommendation.summary}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{estimates.numSlots}</p>
+                <p className="text-xs text-muted-foreground">Slots</p>
               </div>
-              {recommendation.slots.length > 0 && (
-                <Badge variant="secondary" className="text-sm">
-                  {recommendation.avgPrice.toFixed(1)}p avg
+              <div>
+                <p className="text-2xl font-bold">{estimates.totalKwh.toFixed(1)} kWh</p>
+                <p className="text-xs text-muted-foreground">Est. Energy</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-primary">£{estimates.totalCost.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Est. Cost</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{estimates.avgPrice.toFixed(1)}p</p>
+                <p className="text-xs text-muted-foreground">Avg p/kWh</p>
+              </div>
+            </div>
+
+            {/* Slot list */}
+            <div className="flex flex-wrap gap-2">
+              {recommendation.slots.map((slot) => (
+                <Badge key={slot.valid_from} variant="outline" className="border-primary/40 text-primary">
+                  {format(new Date(slot.valid_from), "HH:mm")}–{format(new Date(slot.valid_to), "HH:mm")} ({slot.value_inc_vat.toFixed(1)}p)
                 </Badge>
-              )}
-            </CardContent>
-          </Card>
+              ))}
+            </div>
 
-          {/* Chart with selected slots highlighted */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Rate Forecast — Selected Slots Highlighted
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={3} />
-                  <YAxis unit="p" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "var(--radius)",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--card))",
-                    }}
-                    formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
-                  />
-                  {mode === "realtime" && (
-                    <ReferenceLine
-                      y={parseFloat(threshold) || 15}
-                      stroke="hsl(var(--chart-warning))"
-                      strokeDasharray="4 4"
-                      label={{ value: `${threshold}p`, fill: "hsl(var(--chart-warning))", fontSize: 11 }}
-                    />
-                  )}
-                  <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                    {chartData.map((entry, i) => (
-                      <Cell
-                        key={i}
-                        fill={entry.isSelected ? "hsl(var(--primary))" : rateColor(entry.price)}
-                        opacity={entry.isSelected ? 1 : 0.4}
-                        stroke={entry.isSelected ? "hsl(var(--foreground))" : "none"}
-                        strokeWidth={entry.isSelected ? 1.5 : 0}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Selected slots list */}
-          {recommendation.slots.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Selected Charge Windows</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {recommendation.slots.map((slot) => (
-                    <div
-                      key={slot.valid_from}
-                      className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
-                    >
-                      <span className="text-sm font-medium">
-                        {format(new Date(slot.valid_from), "HH:mm")} – {format(new Date(slot.valid_to), "HH:mm")}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="text-xs"
-                        style={{ color: rateColor(slot.value_inc_vat) }}
-                      >
-                        {slot.value_inc_vat.toFixed(1)}p
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
+            {/* Notes + Save */}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+            </div>
+            <Button onClick={handleSave} className="w-full gap-2">
+              <Save className="h-4 w-4" /> Save as Charge Session
+            </Button>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

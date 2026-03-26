@@ -23,7 +23,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
+      <header className="border-b border-border bg-card">
         <div className="container flex items-center gap-3 py-4">
           <Zap className="h-7 w-7 text-primary" />
           <h1 className="text-xl font-bold tracking-tight">EV Charge Tracker</h1>
@@ -52,7 +52,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="planner" className="space-y-6">
-            <ChargePlanner vehicles={vehicles} />
+            <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
           </TabsContent>
 
           <TabsContent value="charging" className="space-y-6">

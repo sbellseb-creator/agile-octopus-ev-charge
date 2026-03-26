@@ -1,25 +1,41 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
-import { fetchAgileRates, type AgileRate } from "@/lib/octopus-api";
-import { Zap, Loader2 } from "lucide-react";
+import { fetchAgileRates } from "@/lib/octopus-api";
+import { Zap, Loader2, X, MousePointerClick } from "lucide-react";
 import { format } from "date-fns";
 
 function rateColor(p: number): string {
-  if (p <= 0) return "hsl(var(--primary))";
+  if (p <= 0) return "hsl(var(--neon-green))";
+  if (p < 8) return "hsl(var(--neon-cyan))";
   if (p < 15) return "hsl(var(--chart-good))";
   if (p < 25) return "hsl(var(--chart-warning))";
   return "hsl(var(--chart-danger))";
 }
 
-export default function AgileRates() {
+interface SelectedWindow {
+  valid_from: string;
+  valid_to: string;
+  price: number;
+}
+
+interface AgileRatesProps {
+  onWindowsChange?: (windows: SelectedWindow[]) => void;
+}
+
+export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
-  const periodFrom = useMemo(() => new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), [now]);
+  const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
+  const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);
+
+  const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
 
   const { data: rates, isLoading, error } = useQuery({
     queryKey: ["agile-rates", periodFrom],
-    queryFn: () => fetchAgileRates(undefined, periodFrom),
+    queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo),
     refetchInterval: 30 * 60 * 1000,
     retry: 2,
     staleTime: 5 * 60 * 1000,
@@ -32,58 +48,152 @@ export default function AgileRates() {
     return now.getTime() >= from && now.getTime() < to;
   });
 
-  const chartData = (rates || [])
-    .slice()
-    .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
-    .map((r) => ({
-      time: format(new Date(r.valid_from), "HH:mm"),
-      price: r.value_inc_vat,
-      isCurrent: currentRate?.valid_from === r.valid_from,
-    }));
+  // Filter: only show previous slot + current + future
+  const filteredRates = useMemo(() => {
+    if (!rates) return [];
+    const sorted = [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    const currentIdx = sorted.findIndex((r) => {
+      const from = new Date(r.valid_from).getTime();
+      const to = new Date(r.valid_to).getTime();
+      return now.getTime() >= from && now.getTime() < to;
+    });
+    if (currentIdx < 0) return sorted.filter(r => new Date(r.valid_to).getTime() > now.getTime());
+    const startIdx = Math.max(0, currentIdx - 1);
+    return sorted.slice(startIdx);
+  }, [rates, now]);
+
+  const chartData = filteredRates.map((r) => ({
+    time: format(new Date(r.valid_from), "HH:mm"),
+    price: r.value_inc_vat,
+    isCurrent: currentRate?.valid_from === r.valid_from,
+    isSelected: selectedWindows.some(w => w.valid_from === r.valid_from),
+    isCheap: r.value_inc_vat < 8 && r.value_inc_vat >= 0,
+    isNegative: r.value_inc_vat <= 0,
+    valid_from: r.valid_from,
+    valid_to: r.valid_to,
+  }));
 
   const avg = chartData.length > 0
     ? chartData.reduce((s, d) => s + d.price, 0) / chartData.length
     : 0;
 
+  const handleBarClick = useCallback((data: any) => {
+    if (!data?.activePayload?.[0]?.payload) return;
+    const p = data.activePayload[0].payload;
+    setSelectedWindows(prev => {
+      const exists = prev.some(w => w.valid_from === p.valid_from);
+      const next = exists
+        ? prev.filter(w => w.valid_from !== p.valid_from)
+        : [...prev, { valid_from: p.valid_from, valid_to: p.valid_to, price: p.price }];
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
+  const removeWindow = useCallback((valid_from: string) => {
+    setSelectedWindows(prev => {
+      const next = prev.filter(w => w.valid_from !== valid_from);
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
+  const selectedCost = useMemo(() => {
+    if (selectedWindows.length === 0) return null;
+    const kwhPerSlot = 6.9 * 0.5; // 6.9kW * 30min
+    const totalKwh = kwhPerSlot * selectedWindows.length;
+    const totalCost = selectedWindows.reduce((s, w) => s + (w.price * kwhPerSlot) / 100, 0);
+    const avgPrice = selectedWindows.reduce((s, w) => s + w.price, 0) / selectedWindows.length;
+    return { totalKwh: totalKwh.toFixed(1), totalCost: totalCost.toFixed(2), avgPrice: avgPrice.toFixed(1), slots: selectedWindows.length };
+  }, [selectedWindows]);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card className="neon-border">
           <CardContent className="flex items-center gap-3 p-4">
             <Zap className="h-8 w-8 shrink-0 text-primary" />
             <div>
-              <p className="text-2xl font-bold">
+              <p className={`text-2xl font-bold ${currentRate && currentRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
                 {currentRate ? `${currentRate.value_inc_vat.toFixed(1)}p` : "—"}
               </p>
               <p className="text-xs text-muted-foreground">Current Rate (inc VAT)</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="neon-border">
           <CardContent className="flex items-center gap-3 p-4">
             <Zap className="h-8 w-8 shrink-0 text-chart-good" />
             <div>
               <p className="text-2xl font-bold">
                 {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(1)}p` : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">Lowest (24h)</p>
+              <p className="text-xs text-muted-foreground">Lowest</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="neon-border">
           <CardContent className="flex items-center gap-3 p-4">
             <Zap className="h-8 w-8 shrink-0 text-chart-warning" />
             <div>
               <p className="text-2xl font-bold">{avg > 0 ? `${avg.toFixed(1)}p` : "—"}</p>
-              <p className="text-xs text-muted-foreground">Average (24h)</p>
+              <p className="text-xs text-muted-foreground">Average</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      {/* Selected windows summary */}
+      {selectedCost && (
+        <Card className="border-primary/40 neon-border">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <MousePointerClick className="h-4 w-4" />
+              Selected Charge Windows
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div>
+                <p className="text-xl font-bold">{selectedCost.slots}</p>
+                <p className="text-xs text-muted-foreground">Slots</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">{selectedCost.totalKwh} kWh</p>
+                <p className="text-xs text-muted-foreground">Est. Energy</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">£{selectedCost.totalCost}</p>
+                <p className="text-xs text-muted-foreground">Est. Cost</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">{selectedCost.avgPrice}p</p>
+                <p className="text-xs text-muted-foreground">Avg p/kWh</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedWindows
+                .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
+                .map((w) => (
+                <Badge
+                  key={w.valid_from}
+                  variant="outline"
+                  className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
+                  onClick={() => removeWindow(w.valid_from)}
+                >
+                  {format(new Date(w.valid_from), "HH:mm")}–{format(new Date(w.valid_to), "HH:mm")} ({w.price.toFixed(1)}p)
+                  <X className="h-3 w-3" />
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="neon-border">
         <CardHeader>
-          <CardTitle className="text-lg">Agile Tariff Rates (p/kWh inc VAT)</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            Agile Tariff Rates (p/kWh inc VAT)
+            <span className="text-xs text-muted-foreground font-normal">— click bars to select charge windows</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -94,13 +204,13 @@ export default function AgileRates() {
             <p className="text-destructive text-sm py-4 text-center">
               Failed to load rates. Check your API key and try again.
             </p>
-          ) : rates && rates.length === 0 ? (
+          ) : filteredRates.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4 text-center">
-              No rates available. The tariff code may not match your account, or rates haven't been published yet for this period.
+              No rates available.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={3} />
                 <YAxis unit="p" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
@@ -109,19 +219,40 @@ export default function AgileRates() {
                     borderRadius: "var(--radius)",
                     border: "1px solid hsl(var(--border))",
                     background: "hsl(var(--card))",
+                    color: "hsl(var(--foreground))",
                   }}
                   formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
                 />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
                 <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={rateColor(entry.price)}
-                      stroke={entry.isCurrent ? "hsl(var(--foreground))" : "none"}
-                      strokeWidth={entry.isCurrent ? 2 : 0}
-                    />
-                  ))}
+                  {chartData.map((entry, i) => {
+                    let fill = rateColor(entry.price);
+                    let opacity = 0.85;
+                    let strokeW = 0;
+                    let stroke = "none";
+
+                    if (entry.isSelected) {
+                      fill = "hsl(var(--accent))";
+                      opacity = 1;
+                      stroke = "hsl(var(--accent))";
+                      strokeW = 2;
+                    } else if (entry.isCurrent) {
+                      stroke = "hsl(var(--foreground))";
+                      strokeW = 2;
+                    }
+
+                    return (
+                      <Cell
+                        key={i}
+                        fill={fill}
+                        opacity={opacity}
+                        stroke={stroke}
+                        strokeWidth={strokeW}
+                        className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                      />
+                    );
+                  })}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

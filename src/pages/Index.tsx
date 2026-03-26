@@ -18,6 +18,7 @@ export default function Index() {
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
   const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
+  const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
   const handleAddVehicle = (v: Omit<Vehicle, "id">) => setVehicles(addVehicle(v));
   const handleDeleteVehicle = (id: string) => setVehicles(deleteVehicle(id));
 

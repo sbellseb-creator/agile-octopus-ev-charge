@@ -1,11 +1,10 @@
 import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from "recharts";
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { Zap, Loader2, X, MousePointerClick } from "lucide-react";
+import { Zap, Loader2, X, MousePointerClick, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 
 function rateColor(p: number): string {
@@ -25,6 +24,45 @@ interface SelectedWindow {
 interface AgileRatesProps {
   onWindowsChange?: (windows: SelectedWindow[]) => void;
 }
+
+// Group continuous windows into ranges for display
+function groupContinuousWindows(windows: SelectedWindow[]): { from: string; to: string; prices: number[]; count: number }[] {
+  if (windows.length === 0) return [];
+  const sorted = [...windows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  const groups: { from: string; to: string; prices: number[]; count: number }[] = [];
+  let current = { from: sorted[0].valid_from, to: sorted[0].valid_to, prices: [sorted[0].price], count: 1 };
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].valid_from === current.to) {
+      current.to = sorted[i].valid_to;
+      current.prices.push(sorted[i].price);
+      current.count++;
+    } else {
+      groups.push(current);
+      current = { from: sorted[i].valid_from, to: sorted[i].valid_to, prices: [sorted[i].price], count: 1 };
+    }
+  }
+  groups.push(current);
+  return groups;
+}
+
+// Custom label to show arrow on current slot
+const CurrentSlotArrow = (props: any) => {
+  const { x, y, width, value, index, chartData } = props;
+  if (!chartData?.[index]?.isCurrent) return null;
+  const cx = x + width / 2;
+  return (
+    <g>
+      <polygon
+        points={`${cx},${y - 18} ${cx - 6},${y - 8} ${cx + 6},${y - 8}`}
+        fill="hsl(var(--primary))"
+      />
+      <text x={cx} y={y - 22} textAnchor="middle" fontSize={9} fill="hsl(var(--primary))" fontWeight="bold">
+        NOW
+      </text>
+    </g>
+  );
+};
 
 export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
@@ -67,7 +105,7 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
     isSelected: selectedWindows.some(w => w.valid_from === r.valid_from),
-    isCheap: r.value_inc_vat < 8 && r.value_inc_vat >= 0,
+    isCheap: r.value_inc_vat < 8 && r.value_inc_vat > 0,
     isNegative: r.value_inc_vat <= 0,
     valid_from: r.valid_from,
     valid_to: r.valid_to,
@@ -76,6 +114,9 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
   const avg = chartData.length > 0
     ? chartData.reduce((s, d) => s + d.price, 0) / chartData.length
     : 0;
+
+  const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) : 0;
+  const yMin = Math.min(0, Math.floor(minPrice / 5) * 5 - 5);
 
   const handleBarClick = useCallback((data: any) => {
     if (!data?.activePayload?.[0]?.payload) return;
@@ -98,14 +139,24 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
     });
   }, [onWindowsChange]);
 
+  const removeGroup = useCallback((group: { from: string; to: string }) => {
+    setSelectedWindows(prev => {
+      const next = prev.filter(w => w.valid_from < group.from || w.valid_from >= group.to);
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
   const selectedCost = useMemo(() => {
     if (selectedWindows.length === 0) return null;
-    const kwhPerSlot = 6.9 * 0.5; // 6.9kW * 30min
+    const kwhPerSlot = 6.9 * 0.5;
     const totalKwh = kwhPerSlot * selectedWindows.length;
     const totalCost = selectedWindows.reduce((s, w) => s + (w.price * kwhPerSlot) / 100, 0);
     const avgPrice = selectedWindows.reduce((s, w) => s + w.price, 0) / selectedWindows.length;
     return { totalKwh: totalKwh.toFixed(1), totalCost: totalCost.toFixed(2), avgPrice: avgPrice.toFixed(1), slots: selectedWindows.length };
   }, [selectedWindows]);
+
+  const groupedWindows = useMemo(() => groupContinuousWindows(selectedWindows), [selectedWindows]);
 
   return (
     <div className="space-y-4">
@@ -170,19 +221,21 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {selectedWindows
-                .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
-                .map((w) => (
-                <Badge
-                  key={w.valid_from}
-                  variant="outline"
-                  className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
-                  onClick={() => removeWindow(w.valid_from)}
-                >
-                  {format(new Date(w.valid_from), "HH:mm")}–{format(new Date(w.valid_to), "HH:mm")} ({w.price.toFixed(1)}p)
-                  <X className="h-3 w-3" />
-                </Badge>
-              ))}
+              {groupedWindows.map((g) => {
+                const avgP = g.prices.reduce((s, p) => s + p, 0) / g.prices.length;
+                return (
+                  <Badge
+                    key={g.from}
+                    variant="outline"
+                    className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
+                    onClick={() => removeGroup(g)}
+                  >
+                    {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
+                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(1)}p)` : ` (${avgP.toFixed(1)}p)`}
+                    <X className="h-3 w-3" />
+                  </Badge>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -209,11 +262,24 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
               No rates available.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }}>
+            <ResponsiveContainer width="100%" height={360}>
+              <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 5, bottom: 5, left: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={3} />
-                <YAxis unit="p" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 9 }}
+                  stroke="hsl(var(--muted-foreground))"
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={50}
+                />
+                <YAxis
+                  unit="p"
+                  tick={{ fontSize: 11 }}
+                  stroke="hsl(var(--muted-foreground))"
+                  domain={[yMin, 'auto']}
+                />
                 <Tooltip
                   contentStyle={{
                     borderRadius: "var(--radius)",
@@ -226,6 +292,9 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                 <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
                 <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                  <LabelList
+                    content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
+                  />
                   {chartData.map((entry, i) => {
                     let fill = rateColor(entry.price);
                     let opacity = 0.85;

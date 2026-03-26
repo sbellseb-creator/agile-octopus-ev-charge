@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Zap, Car, TrendingDown, CalendarClock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { loadSessions, addSession, deleteSession } from "@/lib/charge-data";
+import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
 import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import ChargeForm from "@/components/ChargeForm";
@@ -18,6 +18,7 @@ export default function Index() {
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
   const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
+  const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
   const handleAddVehicle = (v: Omit<Vehicle, "id">) => setVehicles(addVehicle(v));
   const handleDeleteVehicle = (id: string) => setVehicles(deleteVehicle(id));
 
@@ -59,7 +60,7 @@ export default function Index() {
             <ChargeStats sessions={sessions} />
             <ChargeCharts sessions={sessions} />
             <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
-            <ChargeTable sessions={sessions} onDelete={handleDeleteSession} />
+            <ChargeTable sessions={sessions} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} />
           </TabsContent>
 
           <TabsContent value="vehicles" className="space-y-6">

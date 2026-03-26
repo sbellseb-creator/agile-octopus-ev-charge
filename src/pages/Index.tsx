@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Zap, Car, TrendingDown, CalendarClock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { loadSessions, addSession, deleteSession } from "@/lib/charge-data";
+import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
 import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import ChargeForm from "@/components/ChargeForm";

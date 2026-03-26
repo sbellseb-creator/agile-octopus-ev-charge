@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,8 @@ import { CHARGE_MODE_LABELS, type ChargeMode } from "@/lib/charge-data";
 interface Props {
   onAdd: (data: {
     session_date: string;
+    start_time?: string;
+    end_time?: string;
     vehicle_id: string;
     vehicle_name: string;
     charge_mode: ChargeMode;
@@ -31,57 +33,63 @@ interface Props {
 
 const CHARGER_KW = 6.9;
 const KWH_PER_SLOT = CHARGER_KW * 0.5;
+const DEFAULT_AVG_PRICE = 12; // fallback p/kWh
 
 export default function ChargeForm({ onAdd, vehicles }: Props) {
   const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicle?.id || "");
   const [chargeMode, setChargeMode] = useState<ChargeMode>("immediate");
   const [targetTime, setTargetTime] = useState("");
   const [startSoc, setStartSoc] = useState("");
   const [endSoc, setEndSoc] = useState("");
-  const [energyAdded, setEnergyAdded] = useState("");
-  const [cost, setCost] = useState("");
-  const [avgPrice, setAvgPrice] = useState("");
-  const [numSlots, setNumSlots] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Auto-estimate from SoC
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
-  const autoEstimate = (() => {
+
+  const estimates = useMemo(() => {
     if (!selectedVehicle || !startSoc || !endSoc) return null;
     const socDelta = (parseFloat(endSoc) || 0) - (parseFloat(startSoc) || 0);
     if (socDelta <= 0) return null;
     const kwhNeeded = (selectedVehicle.battery_kwh * socDelta) / 100;
     const slots = Math.ceil(kwhNeeded / KWH_PER_SLOT);
-    return { kwh: kwhNeeded.toFixed(1), slots };
-  })();
+    const totalCost = (kwhNeeded * DEFAULT_AVG_PRICE) / 100;
+    return {
+      kwh: parseFloat(kwhNeeded.toFixed(1)),
+      slots,
+      totalCost: parseFloat(totalCost.toFixed(2)),
+      avgPrice: DEFAULT_AVG_PRICE,
+    };
+  }, [selectedVehicle, startSoc, endSoc]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!startSoc || !endSoc) return;
     const selected = vehicles.find((v) => v.id === selectedVehicleId);
     onAdd({
       session_date: date,
+      start_time: startTime || undefined,
+      end_time: endTime || undefined,
       vehicle_id: selected?.id || "",
       vehicle_name: selected?.name || "",
       charge_mode: chargeMode,
       target_time: chargeMode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
-      energy_added_kwh: parseFloat(energyAdded) || parseFloat(autoEstimate?.kwh || "0"),
+      energy_added_kwh: estimates?.kwh || 0,
       grid_kwh: 0,
-      total_cost_gbp: parseFloat(cost) || 0,
-      avg_pence_per_kwh: parseFloat(avgPrice) || 0,
-      num_slots: parseInt(numSlots) || parseInt(autoEstimate?.slots?.toString() || "0"),
+      total_cost_gbp: estimates?.totalCost || 0,
+      avg_pence_per_kwh: estimates?.avgPrice || 0,
+      num_slots: estimates?.slots || 0,
       tariff_code: "",
       notes,
     });
     setStartSoc("");
     setEndSoc("");
-    setEnergyAdded("");
-    setCost("");
-    setAvgPrice("");
-    setNumSlots("");
+    setStartTime("");
+    setEndTime("");
     setNotes("");
   };
 
@@ -98,6 +106,14 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           <div className="space-y-2">
             <Label>Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label>Start Time</Label>
+            <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>End Time</Label>
+            <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Vehicle</Label>
@@ -132,35 +148,45 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
             </div>
           )}
           <div className="space-y-2">
-            <Label>Start SoC %</Label>
-            <Input type="number" step="1" placeholder="e.g. 20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} />
+            <Label>Start SoC % *</Label>
+            <Input type="number" step="1" placeholder="e.g. 20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label>End SoC %</Label>
-            <Input type="number" step="1" placeholder="e.g. 80" value={endSoc} onChange={(e) => setEndSoc(e.target.value)} />
+            <Label>End SoC % *</Label>
+            <Input type="number" step="1" placeholder="e.g. 80" value={endSoc} onChange={(e) => setEndSoc(e.target.value)} required />
           </div>
-          <div className="space-y-2">
-            <Label>Energy Added (kWh)</Label>
-            <Input type="number" step="0.1" placeholder={autoEstimate ? `est. ${autoEstimate.kwh}` : "e.g. 35.2"} value={energyAdded} onChange={(e) => setEnergyAdded(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Total Cost (£)</Label>
-            <Input type="number" step="0.01" placeholder="e.g. 4.50" value={cost} onChange={(e) => setCost(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Avg Price (p/kWh)</Label>
-            <Input type="number" step="0.01" placeholder="e.g. 12.5" value={avgPrice} onChange={(e) => setAvgPrice(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Slots Used</Label>
-            <Input type="number" step="1" placeholder={autoEstimate ? `est. ${autoEstimate.slots}` : "e.g. 6"} value={numSlots} onChange={(e) => setNumSlots(e.target.value)} />
-          </div>
+
+          {/* Auto-calculated estimates */}
+          {estimates && (
+            <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-2">Auto-calculated (6.9kW charger)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
+                <div>
+                  <p className="font-bold text-foreground">{estimates.kwh} kWh</p>
+                  <p className="text-xs text-muted-foreground">Energy</p>
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">{estimates.slots}</p>
+                  <p className="text-xs text-muted-foreground">Slots</p>
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">£{estimates.totalCost.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Est. Cost</p>
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">{estimates.avgPrice}p</p>
+                  <p className="text-xs text-muted-foreground">Avg p/kWh</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2 sm:col-span-2 lg:col-span-2">
             <Label>Notes</Label>
             <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
           <div className="sm:col-span-2 lg:col-span-3">
-            <Button type="submit" className="w-full">Log Session</Button>
+            <Button type="submit" className="w-full" disabled={!startSoc || !endSoc}>Log Session</Button>
           </div>
         </form>
       </CardContent>

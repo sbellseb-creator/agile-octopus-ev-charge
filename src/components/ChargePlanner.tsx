@@ -18,6 +18,31 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+interface SlotRate {
+  valid_from: string;
+  valid_to: string;
+  value_inc_vat: number;
+}
+
+function groupConsecutiveSlots(slots: SlotRate[]): { from: string; to: string; prices: number[]; count: number }[] {
+  if (slots.length === 0) return [];
+  const sorted = [...slots].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  const groups: { from: string; to: string; prices: number[]; count: number }[] = [];
+  let current = { from: sorted[0].valid_from, to: sorted[0].valid_to, prices: [sorted[0].value_inc_vat], count: 1 };
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].valid_from === current.to) {
+      current.to = sorted[i].valid_to;
+      current.prices.push(sorted[i].value_inc_vat);
+      current.count++;
+    } else {
+      groups.push(current);
+      current = { from: sorted[i].valid_from, to: sorted[i].valid_to, prices: [sorted[i].value_inc_vat], count: 1 };
+    }
+  }
+  groups.push(current);
+  return groups;
+}
+
 const CHARGER_KW = 6.9;
 const SLOT_HOURS = 0.5;
 const KWH_PER_SLOT = CHARGER_KW * SLOT_HOURS; // 3.45 kWh
@@ -267,18 +292,22 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
                 <p className="text-xs text-muted-foreground">Est. Cost</p>
               </div>
               <div>
-                <p className="text-2xl font-bold">{estimates.avgPrice.toFixed(1)}p</p>
+                <p className="text-2xl font-bold">{estimates.avgPrice.toFixed(2)}p</p>
                 <p className="text-xs text-muted-foreground">Avg p/kWh</p>
               </div>
             </div>
 
             {/* Slot list */}
             <div className="flex flex-wrap gap-2">
-              {recommendation.slots.map((slot) => (
-                <Badge key={slot.valid_from} variant="outline" className="border-primary/40 text-primary">
-                  {format(new Date(slot.valid_from), "HH:mm")}–{format(new Date(slot.valid_to), "HH:mm")} ({slot.value_inc_vat.toFixed(1)}p)
-                </Badge>
-              ))}
+              {groupConsecutiveSlots(recommendation.slots).map((g) => {
+                const avgP = g.prices.reduce((s, p) => s + p, 0) / g.prices.length;
+                return (
+                  <Badge key={g.from} variant="outline" className="border-primary/40 text-primary">
+                    {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
+                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
+                  </Badge>
+                );
+              })}
             </div>
 
             {/* Notes + Save */}

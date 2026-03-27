@@ -267,7 +267,7 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="time"
-                  tick={{ fontSize: 8 }}
+                  tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
                   stroke="hsl(var(--muted-foreground))"
                   interval={2}
                   angle={0}
@@ -276,7 +276,7 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                 />
                 <YAxis
                   unit="p"
-                  tick={{ fontSize: 9 }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
                   stroke="hsl(var(--muted-foreground))"
                   domain={[yMin, 'auto']}
                   width={35}

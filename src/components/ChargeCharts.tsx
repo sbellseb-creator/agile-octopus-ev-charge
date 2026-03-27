@@ -18,12 +18,16 @@ export default function ChargeCharts({ sessions }: Props) {
     );
   }
 
-  const data = sessions.map((s) => ({
-    date: s.session_date,
-    cost: s.total_cost_gbp,
-    kwh: s.energy_added_kwh,
-    price: s.avg_pence_per_kwh,
-  }));
+  const data = sessions.map((s) => {
+    const parts = s.session_date.split("-");
+    const ukDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0].slice(2)}` : s.session_date;
+    return {
+      date: ukDate,
+      cost: s.total_cost_gbp,
+      kwh: s.energy_added_kwh,
+      price: s.avg_pence_per_kwh,
+    };
+  });
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">

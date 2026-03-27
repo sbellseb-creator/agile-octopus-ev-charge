@@ -17,7 +17,7 @@ export default function ChargeStats({ sessions }: Props) {
     { label: "Total Sessions", value: sessions.length.toString(), icon: BatteryCharging, color: "text-primary" },
     { label: "Total Cost", value: `£${totalCost.toFixed(2)}`, icon: PoundSterling, color: "text-accent" },
     { label: "Energy Added", value: `${totalKwh.toFixed(1)} kWh`, icon: Zap, color: "text-chart-warning" },
-    { label: "Avg Price", value: `${avgPrice.toFixed(1)}p/kWh`, icon: Clock, color: "text-muted-foreground" },
+    { label: "Avg Price", value: `${avgPrice.toFixed(2)}p/kWh`, icon: Clock, color: "text-muted-foreground" },
   ];
 
   return (

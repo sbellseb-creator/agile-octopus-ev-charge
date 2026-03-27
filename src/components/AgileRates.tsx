@@ -243,9 +243,9 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
 
       <Card className="neon-border">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            Agile Tariff Rates (p/kWh inc VAT)
-            <span className="text-xs text-muted-foreground font-normal">— click bars to select charge windows</span>
+          <CardTitle className="text-sm sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+            Agile Rates (p/kWh)
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -262,23 +262,24 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
               No rates available.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={360}>
-              <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 5, bottom: 5, left: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="time"
-                  tick={{ fontSize: 9 }}
+                  tick={{ fontSize: 8 }}
                   stroke="hsl(var(--muted-foreground))"
-                  interval={0}
-                  angle={-45}
-                  textAnchor="end"
-                  height={50}
+                  interval={2}
+                  angle={0}
+                  textAnchor="middle"
+                  height={30}
                 />
                 <YAxis
                   unit="p"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 9 }}
                   stroke="hsl(var(--muted-foreground))"
                   domain={[yMin, 'auto']}
+                  width={35}
                 />
                 <Tooltip
                   contentStyle={{

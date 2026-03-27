@@ -79,7 +79,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
                       <TableCell className="font-medium">
                         {isEditing ? (
                           <div className="space-y-1">
-                            <div className="text-xs text-muted-foreground">{s.session_date}</div>
+                            <div className="text-xs text-muted-foreground">{formatUkDate(s.session_date)}</div>
                             <Input
                               type="time"
                               className="h-7 text-xs w-24"
@@ -97,7 +97,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
                           </div>
                         ) : (
                           <div>
-                            <div>{s.session_date}</div>
+                            <div>{formatUkDate(s.session_date)}</div>
                             {(s.start_time || s.end_time) && (
                               <div className="text-xs text-muted-foreground">
                                 {s.start_time || "?"} – {s.end_time || "?"}
@@ -163,7 +163,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
                             value={editValues.avg_pence_per_kwh ?? ""}
                             onChange={(e) => setEditValues(v => ({ ...v, avg_pence_per_kwh: parseFloat(e.target.value) || 0 }))}
                           />
-                        ) : `${s.avg_pence_per_kwh.toFixed(1)}p`}
+                        ) : `${s.avg_pence_per_kwh.toFixed(2)}p`}
                       </TableCell>
                       <TableCell className="text-right">
                         {isEditing ? (

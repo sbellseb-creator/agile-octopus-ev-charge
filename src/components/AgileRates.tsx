@@ -285,9 +285,11 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                   contentStyle={{
                     borderRadius: "var(--radius)",
                     border: "1px solid hsl(var(--border))",
-                    background: "hsl(var(--card))",
-                    color: "hsl(var(--foreground))",
+                    background: "hsl(var(--popover))",
+                    color: "hsl(var(--popover-foreground))",
                   }}
+                  labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                  itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                   formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
                 />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />

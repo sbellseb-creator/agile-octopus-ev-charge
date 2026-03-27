@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -11,33 +13,55 @@ export interface Vehicle {
   notes: string;
 }
 
-const STORAGE_KEY = "vehicles";
-
-export function loadVehicles(): Vehicle[] {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  return JSON.parse(raw) as Vehicle[];
+export async function loadVehicles(): Promise<Vehicle[]> {
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Failed to load vehicles:", error);
+    return [];
+  }
+  return (data ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    make: d.make ?? "",
+    model: d.model ?? "",
+    battery_kwh: Number(d.battery_kwh),
+    charge_efficiency_pct: Number(d.charge_efficiency_pct),
+    miles_per_kwh: Number(d.miles_per_kwh ?? 0),
+    is_default: d.is_default,
+    color: d.color ?? "#22c55e",
+    notes: d.notes ?? "",
+  }));
 }
 
-export function saveVehicles(vehicles: Vehicle[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+export async function addVehicle(v: Omit<Vehicle, "id">): Promise<Vehicle[]> {
+  if (v.is_default) {
+    await supabase.from("vehicles").update({ is_default: false }).eq("is_default", true);
+  }
+  const { error } = await supabase.from("vehicles").insert({
+    name: v.name,
+    make: v.make,
+    model: v.model,
+    battery_kwh: v.battery_kwh,
+    charge_efficiency_pct: v.charge_efficiency_pct,
+    miles_per_kwh: v.miles_per_kwh,
+    is_default: v.is_default,
+    color: v.color,
+    notes: v.notes,
+  });
+  if (error) console.error("Failed to add vehicle:", error);
+  return loadVehicles();
 }
 
-export function addVehicle(v: Omit<Vehicle, "id">): Vehicle[] {
-  const vehicles = loadVehicles();
-  if (v.is_default) vehicles.forEach((x) => (x.is_default = false));
-  vehicles.push({ ...v, id: crypto.randomUUID() });
-  saveVehicles(vehicles);
-  return vehicles;
+export async function deleteVehicle(id: string): Promise<Vehicle[]> {
+  const { error } = await supabase.from("vehicles").delete().eq("id", id);
+  if (error) console.error("Failed to delete vehicle:", error);
+  return loadVehicles();
 }
 
-export function deleteVehicle(id: string): Vehicle[] {
-  const vehicles = loadVehicles().filter((v) => v.id !== id);
-  saveVehicles(vehicles);
-  return vehicles;
-}
-
-export function getDefaultVehicle(): Vehicle | undefined {
-  const vehicles = loadVehicles();
+export async function getDefaultVehicle(): Promise<Vehicle | undefined> {
+  const vehicles = await loadVehicles();
   return vehicles.find((v) => v.is_default) || vehicles[0];
 }

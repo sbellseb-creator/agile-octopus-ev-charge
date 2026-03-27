@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      vehicles: {
+        Row: {
+          battery_kwh: number
+          charge_efficiency_pct: number
+          color: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          make: string | null
+          miles_per_kwh: number | null
+          model: string | null
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          battery_kwh: number
+          charge_efficiency_pct?: number
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          make?: string | null
+          miles_per_kwh?: number | null
+          model?: string | null
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          battery_kwh?: number
+          charge_efficiency_pct?: number
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          make?: string | null
+          miles_per_kwh?: number | null
+          model?: string | null
+          name?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Zap, Car, TrendingDown, CalendarClock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -14,13 +14,25 @@ import ChargePlanner from "@/components/ChargePlanner";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
-  const [vehicles, setVehicles] = useState(loadVehicles);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  useEffect(() => {
+    loadVehicles().then(setVehicles);
+  }, []);
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
   const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
   const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
-  const handleAddVehicle = (v: Omit<Vehicle, "id">) => setVehicles(addVehicle(v));
-  const handleDeleteVehicle = (id: string) => setVehicles(deleteVehicle(id));
+  
+  const handleAddVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
+    const updated = await addVehicle(v);
+    setVehicles(updated);
+  }, []);
+  
+  const handleDeleteVehicle = useCallback(async (id: string) => {
+    const updated = await deleteVehicle(id);
+    setVehicles(updated);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

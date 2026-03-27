@@ -7,6 +7,13 @@ import { Trash2, Zap, Pencil, Check, X } from "lucide-react";
 import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
 import { Badge } from "@/components/ui/badge";
 
+/** Format YYYY-MM-DD to DD-MM-YY */
+function formatUkDate(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}-${parts[1]}-${parts[0].slice(2)}`;
+}
+
 interface Props {
   sessions: ChargeSession[];
   onDelete: (id: string) => void;

@@ -153,20 +153,20 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
     const totalKwh = kwhPerSlot * selectedWindows.length;
     const totalCost = selectedWindows.reduce((s, w) => s + (w.price * kwhPerSlot) / 100, 0);
     const avgPrice = selectedWindows.reduce((s, w) => s + w.price, 0) / selectedWindows.length;
-    return { totalKwh: totalKwh.toFixed(1), totalCost: totalCost.toFixed(2), avgPrice: avgPrice.toFixed(1), slots: selectedWindows.length };
+    return { totalKwh: totalKwh.toFixed(1), totalCost: totalCost.toFixed(2), avgPrice: avgPrice.toFixed(2), slots: selectedWindows.length };
   }, [selectedWindows]);
 
   const groupedWindows = useMemo(() => groupContinuousWindows(selectedWindows), [selectedWindows]);
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="neon-border">
           <CardContent className="flex items-center gap-3 p-4">
             <Zap className="h-8 w-8 shrink-0 text-primary" />
             <div>
               <p className={`text-2xl font-bold ${currentRate && currentRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
-                {currentRate ? `${currentRate.value_inc_vat.toFixed(1)}p` : "—"}
+                {currentRate ? `${currentRate.value_inc_vat.toFixed(2)}p` : "—"}
               </p>
               <p className="text-xs text-muted-foreground">Current Rate (inc VAT)</p>
             </div>
@@ -177,7 +177,7 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
             <Zap className="h-8 w-8 shrink-0 text-chart-good" />
             <div>
               <p className="text-2xl font-bold">
-                {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(1)}p` : "—"}
+                {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
               <p className="text-xs text-muted-foreground">Lowest</p>
             </div>
@@ -185,9 +185,20 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
         </Card>
         <Card className="neon-border">
           <CardContent className="flex items-center gap-3 p-4">
+            <Zap className="h-8 w-8 shrink-0 text-chart-danger" />
+            <div>
+              <p className="text-2xl font-bold">
+                {chartData.length > 0 ? `${Math.max(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">Highest</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
+          <CardContent className="flex items-center gap-3 p-4">
             <Zap className="h-8 w-8 shrink-0 text-chart-warning" />
             <div>
-              <p className="text-2xl font-bold">{avg > 0 ? `${avg.toFixed(1)}p` : "—"}</p>
+              <p className="text-2xl font-bold">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
               <p className="text-xs text-muted-foreground">Average</p>
             </div>
           </CardContent>
@@ -231,7 +242,7 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                     onClick={() => removeGroup(g)}
                   >
                     {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
-                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(1)}p)` : ` (${avgP.toFixed(1)}p)`}
+                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
                     <X className="h-3 w-3" />
                   </Badge>
                 );

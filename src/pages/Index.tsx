@@ -45,18 +45,18 @@ export default function Index() {
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="agile" className="gap-1.5">
-              <TrendingDown className="h-4 w-4" /> Agile Rates
+          <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="agile" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
+              <TrendingDown className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Agile</span>
             </TabsTrigger>
-            <TabsTrigger value="planner" className="gap-1.5">
-              <CalendarClock className="h-4 w-4" /> Charge Planner
+            <TabsTrigger value="planner" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
+              <CalendarClock className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Planner</span>
             </TabsTrigger>
-            <TabsTrigger value="charging" className="gap-1.5">
-              <Zap className="h-4 w-4" /> Charge Sessions
+            <TabsTrigger value="charging" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
+              <Zap className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Sessions</span>
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="gap-1.5">
-              <Car className="h-4 w-4" /> Vehicles
+            <TabsTrigger value="vehicles" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
+              <Car className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Vehicles</span>
             </TabsTrigger>
           </TabsList>
 

@@ -24,11 +24,11 @@ export default function ChargeStats({ sessions }: Props) {
     <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
       {stats.map((s) => (
         <Card key={s.label}>
-          <CardContent className="flex items-center gap-3 p-4">
-            <s.icon className={`h-8 w-8 shrink-0 ${s.color}`} />
-            <div>
-              <p className="text-2xl font-bold">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
+          <CardContent className="flex items-center gap-2 p-3 sm:p-4">
+            <s.icon className={`h-6 w-6 sm:h-8 sm:w-8 shrink-0 ${s.color}`} />
+            <div className="min-w-0">
+              <p className="text-base sm:text-2xl font-bold truncate">{s.value}</p>
+              <p className="text-xs text-muted-foreground truncate">{s.label}</p>
             </div>
           </CardContent>
         </Card>

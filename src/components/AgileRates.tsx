@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,80 @@ const CurrentSlotArrow = (props: any) => {
     </g>
   );
 };
+
+function PinchZoomChart({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const pinchRef = useRef({ startDist: 0, startScale: 1, startMid: { x: 0, y: 0 }, startTranslate: { x: 0, y: 0 } });
+
+  const getDistance = (t1: React.Touch, t2: React.Touch) =>
+    Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      pinchRef.current = { startDist: dist, startScale: scale, startMid: { x: midX, y: midY }, startTranslate: { ...translate } };
+    }
+  }, [scale, translate]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const { startDist, startScale, startMid, startTranslate } = pinchRef.current;
+      const newScale = Math.min(Math.max(startScale * (dist / startDist), 1), 5);
+
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+      const newTranslateX = startTranslate.x + (midX - startMid.x);
+      const newTranslateY = startTranslate.y + (midY - startMid.y);
+
+      setScale(newScale);
+      setTranslate({ x: newTranslateX, y: newTranslateY });
+    }
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }, []);
+
+  const isZoomed = scale > 1;
+
+  return (
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="overflow-hidden"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onDoubleClick={handleDoubleClick}
+      >
+        <div
+          style={{
+            transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
+            transformOrigin: 'center center',
+            transition: isZoomed ? 'none' : 'transform 0.2s ease-out',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+      {isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1">Pinch to zoom · Double-tap to reset</p>
+      )}
+      {!isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1 sm:hidden">Pinch to zoom</p>
+      )}
+    </div>
+  );
+}
 
 export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
@@ -273,77 +347,74 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
               No rates available.
             </p>
           ) : (
-            <div className="overflow-x-auto -mx-2 px-2 pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ minWidth: `${Math.max(chartData.length * 18, 400)}px`, height: 320 }}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis
-                      dataKey="time"
-                      tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
-                      stroke="hsl(var(--muted-foreground))"
-                      interval={0}
-                      angle={-45}
-                      textAnchor="end"
-                      height={40}
+            <PinchZoomChart>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
+                    interval={2}
+                    angle={0}
+                    textAnchor="middle"
+                    height={30}
+                  />
+                  <YAxis
+                    unit="p"
+                    tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[yMin, 'auto']}
+                    width={35}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "var(--radius)",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--popover))",
+                      color: "hsl(var(--popover-foreground))",
+                    }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                    formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
+                  />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                  <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
+                  <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                    <LabelList
+                      content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
                     />
-                    <YAxis
-                      unit="p"
-                      tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
-                      stroke="hsl(var(--muted-foreground))"
-                      domain={[yMin, 'auto']}
-                      width={35}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: "var(--radius)",
-                        border: "1px solid hsl(var(--border))",
-                        background: "hsl(var(--popover))",
-                        color: "hsl(var(--popover-foreground))",
-                      }}
-                      labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                      itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                      formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
-                    />
-                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                    <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
-                    <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                      <LabelList
-                        content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
-                      />
-                      {chartData.map((entry, i) => {
-                        let fill = rateColor(entry.price);
-                        let opacity = 0.85;
-                        let strokeW = 0;
-                        let stroke = "none";
+                    {chartData.map((entry, i) => {
+                      let fill = rateColor(entry.price);
+                      let opacity = 0.85;
+                      let strokeW = 0;
+                      let stroke = "none";
 
-                        if (entry.isSelected) {
-                          fill = "hsl(var(--accent))";
-                          opacity = 1;
-                          stroke = "hsl(var(--accent))";
-                          strokeW = 2;
-                        } else if (entry.isCurrent) {
-                          stroke = "hsl(var(--foreground))";
-                          strokeW = 2;
-                        }
+                      if (entry.isSelected) {
+                        fill = "hsl(var(--accent))";
+                        opacity = 1;
+                        stroke = "hsl(var(--accent))";
+                        strokeW = 2;
+                      } else if (entry.isCurrent) {
+                        stroke = "hsl(var(--foreground))";
+                        strokeW = 2;
+                      }
 
-                        return (
-                          <Cell
-                            key={i}
-                            fill={fill}
-                            opacity={opacity}
-                            stroke={stroke}
-                            strokeWidth={strokeW}
-                            className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
-                          />
-                        );
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-1 sm:hidden">← Swipe to scroll →</p>
-            </div>
+                      return (
+                        <Cell
+                          key={i}
+                          fill={fill}
+                          opacity={opacity}
+                          stroke={stroke}
+                          strokeWidth={strokeW}
+                          className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </PinchZoomChart>
           )}
         </CardContent>
       </Card>

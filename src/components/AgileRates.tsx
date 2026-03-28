@@ -64,7 +64,81 @@ const CurrentSlotArrow = (props: any) => {
   );
 };
 
-export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
+function PinchZoomChart({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const pinchRef = useRef({ startDist: 0, startScale: 1, startMid: { x: 0, y: 0 }, startTranslate: { x: 0, y: 0 } });
+
+  const getDistance = (t1: React.Touch, t2: React.Touch) =>
+    Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      pinchRef.current = { startDist: dist, startScale: scale, startMid: { x: midX, y: midY }, startTranslate: { ...translate } };
+    }
+  }, [scale, translate]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const { startDist, startScale, startMid, startTranslate } = pinchRef.current;
+      const newScale = Math.min(Math.max(startScale * (dist / startDist), 1), 5);
+
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+      const newTranslateX = startTranslate.x + (midX - startMid.x);
+      const newTranslateY = startTranslate.y + (midY - startMid.y);
+
+      setScale(newScale);
+      setTranslate({ x: newTranslateX, y: newTranslateY });
+    }
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }, []);
+
+  const isZoomed = scale > 1;
+
+  return (
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="overflow-hidden"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onDoubleClick={handleDoubleClick}
+      >
+        <div
+          style={{
+            transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
+            transformOrigin: 'center center',
+            transition: isZoomed ? 'none' : 'transform 0.2s ease-out',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+      {isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1">Pinch to zoom · Double-tap to reset</p>
+      )}
+      {!isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1 sm:hidden">Pinch to zoom</p>
+      )}
+    </div>
+  );
+}
+
+
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
   const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);

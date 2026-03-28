@@ -45,18 +45,18 @@ export default function Index() {
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">
-          <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="agile" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
-              <TrendingDown className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Agile</span>
+          <TabsList className="grid grid-cols-4 w-full h-auto p-1">
+            <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <TrendingDown className="h-4 w-4 shrink-0" /> Agile
             </TabsTrigger>
-            <TabsTrigger value="planner" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
-              <CalendarClock className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Planner</span>
+            <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <CalendarClock className="h-4 w-4 shrink-0" /> Planner
             </TabsTrigger>
-            <TabsTrigger value="charging" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
-              <Zap className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Sessions</span>
+            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <Zap className="h-4 w-4 shrink-0" /> Sessions
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="gap-1 text-xs sm:text-sm flex-1 min-w-0">
-              <Car className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Vehicles</span>
+            <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <Car className="h-4 w-4 shrink-0" /> Vehicles
             </TabsTrigger>
           </TabsList>
 

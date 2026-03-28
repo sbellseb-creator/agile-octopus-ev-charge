@@ -138,7 +138,7 @@ function PinchZoomChart({ children }: { children: React.ReactNode }) {
   );
 }
 
-
+export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
   const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);

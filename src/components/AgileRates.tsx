@@ -273,77 +273,74 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
               No rates available.
             </p>
           ) : (
-            <div className="overflow-x-auto -mx-2 px-2 pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ minWidth: `${Math.max(chartData.length * 18, 400)}px`, height: 320 }}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis
-                      dataKey="time"
-                      tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
-                      stroke="hsl(var(--muted-foreground))"
-                      interval={0}
-                      angle={-45}
-                      textAnchor="end"
-                      height={40}
+            <PinchZoomChart>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
+                    interval={2}
+                    angle={0}
+                    textAnchor="middle"
+                    height={30}
+                  />
+                  <YAxis
+                    unit="p"
+                    tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[yMin, 'auto']}
+                    width={35}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "var(--radius)",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--popover))",
+                      color: "hsl(var(--popover-foreground))",
+                    }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                    formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
+                  />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                  <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
+                  <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                    <LabelList
+                      content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
                     />
-                    <YAxis
-                      unit="p"
-                      tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
-                      stroke="hsl(var(--muted-foreground))"
-                      domain={[yMin, 'auto']}
-                      width={35}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: "var(--radius)",
-                        border: "1px solid hsl(var(--border))",
-                        background: "hsl(var(--popover))",
-                        color: "hsl(var(--popover-foreground))",
-                      }}
-                      labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                      itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                      formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
-                    />
-                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                    <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
-                    <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                      <LabelList
-                        content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
-                      />
-                      {chartData.map((entry, i) => {
-                        let fill = rateColor(entry.price);
-                        let opacity = 0.85;
-                        let strokeW = 0;
-                        let stroke = "none";
+                    {chartData.map((entry, i) => {
+                      let fill = rateColor(entry.price);
+                      let opacity = 0.85;
+                      let strokeW = 0;
+                      let stroke = "none";
 
-                        if (entry.isSelected) {
-                          fill = "hsl(var(--accent))";
-                          opacity = 1;
-                          stroke = "hsl(var(--accent))";
-                          strokeW = 2;
-                        } else if (entry.isCurrent) {
-                          stroke = "hsl(var(--foreground))";
-                          strokeW = 2;
-                        }
+                      if (entry.isSelected) {
+                        fill = "hsl(var(--accent))";
+                        opacity = 1;
+                        stroke = "hsl(var(--accent))";
+                        strokeW = 2;
+                      } else if (entry.isCurrent) {
+                        stroke = "hsl(var(--foreground))";
+                        strokeW = 2;
+                      }
 
-                        return (
-                          <Cell
-                            key={i}
-                            fill={fill}
-                            opacity={opacity}
-                            stroke={stroke}
-                            strokeWidth={strokeW}
-                            className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
-                          />
-                        );
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-1 sm:hidden">← Swipe to scroll →</p>
-            </div>
+                      return (
+                        <Cell
+                          key={i}
+                          fill={fill}
+                          opacity={opacity}
+                          stroke={stroke}
+                          strokeWidth={strokeW}
+                          className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </PinchZoomChart>
           )}
         </CardContent>
       </Card>

@@ -340,6 +340,60 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                 );
               })}
             </div>
+
+            {/* Save as session */}
+            {vehicles.length > 0 && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Vehicle</Label>
+                    <Select value={saveVehicleId} onValueChange={setSaveVehicleId}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                      <SelectContent>
+                        {vehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Notes</Label>
+                    <Textarea className="h-8 text-xs min-h-[32px]" placeholder="Optional..." value={saveNotes} onChange={e => setSaveNotes(e.target.value)} rows={1} />
+                  </div>
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const vehicle = vehicles.find(v => v.id === saveVehicleId);
+                    if (!vehicle || !selectedCost) return;
+                    const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+                    addSession({
+                      session_date: new Date().toISOString().slice(0, 10),
+                      start_time: sorted.length > 0 ? format(new Date(sorted[0].valid_from), "HH:mm") : undefined,
+                      end_time: sorted.length > 0 ? format(new Date(sorted[sorted.length - 1].valid_to), "HH:mm") : undefined,
+                      vehicle_id: vehicle.id,
+                      vehicle_name: vehicle.name,
+                      charge_mode: "agile_cheapest",
+                      start_soc: 0,
+                      end_soc: 0,
+                      energy_added_kwh: parseFloat(selectedCost.totalKwh),
+                      grid_kwh: 0,
+                      total_cost_gbp: parseFloat(selectedCost.totalCost),
+                      avg_pence_per_kwh: parseFloat(selectedCost.avgPrice),
+                      num_slots: selectedCost.slots,
+                      tariff_code: "AGILE-24-10-01",
+                      notes: saveNotes,
+                    });
+                    toast.success("Charge session saved!");
+                    setSelectedWindows([]);
+                    setSaveNotes("");
+                    onSessionSaved?.();
+                  }}
+                >
+                  <Save className="h-4 w-4" /> Save as Charge Session
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

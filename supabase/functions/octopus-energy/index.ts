@@ -52,7 +52,7 @@ serve(async (req) => {
       const params = new URLSearchParams();
       if (periodFrom) params.set('period_from', periodFrom);
       if (periodTo) params.set('period_to', periodTo);
-      params.set('page_size', '96');
+      params.set('page_size', '200');
       if (params.toString()) ratesUrl += '?' + params.toString();
 
       const res = await fetch(ratesUrl, {

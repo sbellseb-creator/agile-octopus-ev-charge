@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Zap, Pencil, Check, X } from "lucide-react";
@@ -18,6 +17,141 @@ interface Props {
   sessions: ChargeSession[];
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<ChargeSession>) => void;
+}
+
+function SessionCard({
+  s,
+  isEditing,
+  editValues,
+  setEditValues,
+  onStartEdit,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  s: ChargeSession;
+  isEditing: boolean;
+  editValues: Partial<ChargeSession>;
+  setEditValues: React.Dispatch<React.SetStateAction<Partial<ChargeSession>>>;
+  onStartEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  if (isEditing) {
+    return (
+      <Card className="border-primary/40">
+        <CardContent className="p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{formatUkDate(s.session_date)}</span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon" onClick={onSave} className="text-primary h-7 w-7">
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onCancel} className="text-muted-foreground h-7 w-7">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Start Time</label>
+              <Input type="time" className="h-7 text-xs" value={editValues.start_time || ""} onChange={e => setEditValues(v => ({ ...v, start_time: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">End Time</label>
+              <Input type="time" className="h-7 text-xs" value={editValues.end_time || ""} onChange={e => setEditValues(v => ({ ...v, end_time: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Start SoC %</label>
+              <Input type="number" className="h-7 text-xs" value={editValues.start_soc ?? ""} onChange={e => setEditValues(v => ({ ...v, start_soc: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">End SoC %</label>
+              <Input type="number" className="h-7 text-xs" value={editValues.end_soc ?? ""} onChange={e => setEditValues(v => ({ ...v, end_soc: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">kWh</label>
+              <Input type="number" step="0.1" className="h-7 text-xs" value={editValues.energy_added_kwh ?? ""} onChange={e => setEditValues(v => ({ ...v, energy_added_kwh: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Cost £</label>
+              <Input type="number" step="0.01" className="h-7 text-xs" value={editValues.total_cost_gbp ?? ""} onChange={e => setEditValues(v => ({ ...v, total_cost_gbp: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">p/kWh</label>
+              <Input type="number" step="0.1" className="h-7 text-xs" value={editValues.avg_pence_per_kwh ?? ""} onChange={e => setEditValues(v => ({ ...v, avg_pence_per_kwh: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Slots</label>
+              <Input type="number" className="h-7 text-xs" value={editValues.num_slots ?? ""} onChange={e => setEditValues(v => ({ ...v, num_slots: parseInt(e.target.value) || 0 }))} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            {/* Top row: date, time, mode */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold">{formatUkDate(s.session_date)}</span>
+              {(s.start_time || s.end_time) && (
+                <span className="text-xs text-muted-foreground">
+                  {s.start_time || "?"} – {s.end_time || "?"}
+                </span>
+              )}
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {CHARGE_MODE_LABELS[s.charge_mode] || "—"}
+              </Badge>
+            </div>
+
+            {/* Vehicle */}
+            <p className="text-xs text-muted-foreground mt-0.5">{s.vehicle_name || "—"}</p>
+
+            {/* Stats grid */}
+            <div className="grid grid-cols-4 gap-x-3 gap-y-1 mt-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">SoC</span>
+                <p className="font-medium">{s.start_soc}→{s.end_soc}%</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">kWh</span>
+                <p className="font-medium">{s.energy_added_kwh}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Cost</span>
+                <p className="font-medium">£{s.total_cost_gbp.toFixed(2)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">p/kWh</span>
+                <p className="font-medium">{s.avg_pence_per_kwh.toFixed(2)}p</p>
+              </div>
+            </div>
+
+            {/* Notes */}
+            {s.notes && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">{s.notes}</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <Button variant="ghost" size="icon" onClick={onStartEdit} className="text-muted-foreground hover:text-primary h-7 w-7">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive hover:text-destructive h-7 w-7">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
@@ -62,155 +196,20 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
         {sessions.length === 0 ? (
           <p className="text-muted-foreground text-sm py-4 text-center">No sessions yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date / Time</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead className="text-right">SoC</TableHead>
-                  <TableHead className="text-right">kWh</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="text-right">p/kWh</TableHead>
-                  <TableHead className="text-right">Slots</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...sessions].reverse().map((s) => {
-                  const isEditing = editingId === s.id;
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">
-                        {isEditing ? (
-                          <div className="space-y-1">
-                            <div className="text-xs text-muted-foreground">{formatUkDate(s.session_date)}</div>
-                            <Input
-                              type="time"
-                              className="h-7 text-xs w-24"
-                              value={editValues.start_time || ""}
-                              onChange={(e) => setEditValues(v => ({ ...v, start_time: e.target.value }))}
-                              placeholder="Start"
-                            />
-                            <Input
-                              type="time"
-                              className="h-7 text-xs w-24"
-                              value={editValues.end_time || ""}
-                              onChange={(e) => setEditValues(v => ({ ...v, end_time: e.target.value }))}
-                              placeholder="End"
-                            />
-                          </div>
-                        ) : (
-                          <div>
-                            <div>{formatUkDate(s.session_date)}</div>
-                            {(s.start_time || s.end_time) && (
-                              <div className="text-xs text-muted-foreground">
-                                {s.start_time || "?"} – {s.end_time || "?"}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>{s.vehicle_name || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {CHARGE_MODE_LABELS[s.charge_mode] || "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <div className="space-y-1">
-                            <Input
-                              type="number"
-                              className="h-7 text-xs w-16 text-right"
-                              value={editValues.start_soc ?? ""}
-                              onChange={(e) => setEditValues(v => ({ ...v, start_soc: parseFloat(e.target.value) || 0 }))}
-                            />
-                            <Input
-                              type="number"
-                              className="h-7 text-xs w-16 text-right"
-                              value={editValues.end_soc ?? ""}
-                              onChange={(e) => setEditValues(v => ({ ...v, end_soc: parseFloat(e.target.value) || 0 }))}
-                            />
-                          </div>
-                        ) : (
-                          `${s.start_soc}→${s.end_soc}%`
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            step="0.1"
-                            className="h-7 text-xs w-16 text-right"
-                            value={editValues.energy_added_kwh ?? ""}
-                            onChange={(e) => setEditValues(v => ({ ...v, energy_added_kwh: parseFloat(e.target.value) || 0 }))}
-                          />
-                        ) : s.energy_added_kwh}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-7 text-xs w-16 text-right"
-                            value={editValues.total_cost_gbp ?? ""}
-                            onChange={(e) => setEditValues(v => ({ ...v, total_cost_gbp: parseFloat(e.target.value) || 0 }))}
-                          />
-                        ) : `£${s.total_cost_gbp.toFixed(2)}`}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            step="0.1"
-                            className="h-7 text-xs w-16 text-right"
-                            value={editValues.avg_pence_per_kwh ?? ""}
-                            onChange={(e) => setEditValues(v => ({ ...v, avg_pence_per_kwh: parseFloat(e.target.value) || 0 }))}
-                          />
-                        ) : `${s.avg_pence_per_kwh.toFixed(2)}p`}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            className="h-7 text-xs w-14 text-right"
-                            value={editValues.num_slots ?? ""}
-                            onChange={(e) => setEditValues(v => ({ ...v, num_slots: parseInt(e.target.value) || 0 }))}
-                          />
-                        ) : s.num_slots}
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate text-muted-foreground text-sm">{s.notes || "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {isEditing ? (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={saveEdit} className="text-primary hover:text-primary h-8 w-8">
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-muted-foreground h-8 w-8">
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => startEdit(s)} className="text-muted-foreground hover:text-primary h-8 w-8">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => onDelete(s.id)} className="text-destructive hover:text-destructive h-8 w-8">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="space-y-2">
+            {[...sessions].reverse().map((s) => (
+              <SessionCard
+                key={s.id}
+                s={s}
+                isEditing={editingId === s.id}
+                editValues={editValues}
+                setEditValues={setEditValues}
+                onStartEdit={() => startEdit(s)}
+                onSave={saveEdit}
+                onCancel={cancelEdit}
+                onDelete={() => onDelete(s.id)}
+              />
+            ))}
           </div>
         )}
       </CardContent>

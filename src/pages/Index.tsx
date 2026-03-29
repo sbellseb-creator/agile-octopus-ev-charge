@@ -61,7 +61,7 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="agile" className="space-y-6">
-            <AgileRates />
+            <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
           </TabsContent>
 
           <TabsContent value="planner" className="space-y-6">

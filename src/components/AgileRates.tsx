@@ -2,10 +2,17 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from "recharts";
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { Zap, Loader2, X, MousePointerClick, ChevronDown } from "lucide-react";
+import { addSession } from "@/lib/charge-data";
+import type { Vehicle } from "@/lib/vehicle-data";
+import { Zap, Loader2, X, MousePointerClick, Save } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 function rateColor(p: number): string {
   if (p <= 0) return "hsl(var(--neon-green))";
@@ -23,6 +30,8 @@ interface SelectedWindow {
 
 interface AgileRatesProps {
   onWindowsChange?: (windows: SelectedWindow[]) => void;
+  vehicles?: Vehicle[];
+  onSessionSaved?: () => void;
 }
 
 // Group continuous windows into ranges for display
@@ -138,10 +147,19 @@ function PinchZoomChart({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
+export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSaved }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
-  const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);
+  // Extend to end of tomorrow to capture all published slots (Octopus publishes until 23:00 next day)
+  const periodTo = useMemo(() => {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 30, 0, 0);
+    return tomorrow.toISOString();
+  }, [now]);
+
+  const [saveNotes, setSaveNotes] = useState("");
+  const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
 
   const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
 
@@ -322,6 +340,60 @@ export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
                 );
               })}
             </div>
+
+            {/* Save as session */}
+            {vehicles.length > 0 && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Vehicle</Label>
+                    <Select value={saveVehicleId} onValueChange={setSaveVehicleId}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                      <SelectContent>
+                        {vehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Notes</Label>
+                    <Textarea className="h-8 text-xs min-h-[32px]" placeholder="Optional..." value={saveNotes} onChange={e => setSaveNotes(e.target.value)} rows={1} />
+                  </div>
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const vehicle = vehicles.find(v => v.id === saveVehicleId);
+                    if (!vehicle || !selectedCost) return;
+                    const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+                    addSession({
+                      session_date: new Date().toISOString().slice(0, 10),
+                      start_time: sorted.length > 0 ? format(new Date(sorted[0].valid_from), "HH:mm") : undefined,
+                      end_time: sorted.length > 0 ? format(new Date(sorted[sorted.length - 1].valid_to), "HH:mm") : undefined,
+                      vehicle_id: vehicle.id,
+                      vehicle_name: vehicle.name,
+                      charge_mode: "agile_cheapest",
+                      start_soc: 0,
+                      end_soc: 0,
+                      energy_added_kwh: parseFloat(selectedCost.totalKwh),
+                      grid_kwh: 0,
+                      total_cost_gbp: parseFloat(selectedCost.totalCost),
+                      avg_pence_per_kwh: parseFloat(selectedCost.avgPrice),
+                      num_slots: selectedCost.slots,
+                      tariff_code: "AGILE-24-10-01",
+                      notes: saveNotes,
+                    });
+                    toast.success("Charge session saved!");
+                    setSelectedWindows([]);
+                    setSaveNotes("");
+                    onSessionSaved?.();
+                  }}
+                >
+                  <Save className="h-4 w-4" /> Save as Charge Session
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

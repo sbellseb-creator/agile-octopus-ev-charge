@@ -2,10 +2,17 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from "recharts";
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { Zap, Loader2, X, MousePointerClick, ChevronDown } from "lucide-react";
+import { addSession } from "@/lib/charge-data";
+import type { Vehicle } from "@/lib/vehicle-data";
+import { Zap, Loader2, X, MousePointerClick, Save } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 function rateColor(p: number): string {
   if (p <= 0) return "hsl(var(--neon-green))";
@@ -23,6 +30,8 @@ interface SelectedWindow {
 
 interface AgileRatesProps {
   onWindowsChange?: (windows: SelectedWindow[]) => void;
+  vehicles?: Vehicle[];
+  onSessionSaved?: () => void;
 }
 
 // Group continuous windows into ranges for display
@@ -138,10 +147,19 @@ function PinchZoomChart({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function AgileRates({ onWindowsChange }: AgileRatesProps) {
+export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSaved }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
-  const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);
+  // Extend to end of tomorrow to capture all published slots (Octopus publishes until 23:00 next day)
+  const periodTo = useMemo(() => {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 30, 0, 0);
+    return tomorrow.toISOString();
+  }, [now]);
+
+  const [saveNotes, setSaveNotes] = useState("");
+  const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
 
   const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
 

@@ -72,7 +72,12 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
 
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), [now]);
-  const periodTo = useMemo(() => new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), [now]);
+  const periodTo = useMemo(() => {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 30, 0, 0);
+    return tomorrow.toISOString();
+  }, [now]);
 
   const { data: rates, isLoading } = useQuery({
     queryKey: ["planner-rates", periodFrom],
@@ -92,13 +97,18 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
+  const requestedEnergyKwh = useMemo(() => {
+    if (!selectedVehicle) return 0;
+    const socDelta = (parseFloat(endSoc) || 80) - (parseFloat(startSoc) || 20);
+    if (socDelta <= 0) return 0;
+    return (selectedVehicle.battery_kwh * socDelta) / 100;
+  }, [selectedVehicle, startSoc, endSoc]);
+
   // Calculate slots needed from SoC delta and vehicle battery
   const slotsNeeded = useMemo(() => {
-    if (!selectedVehicle) return 6;
-    const socDelta = (parseFloat(endSoc) || 80) - (parseFloat(startSoc) || 20);
-    const kwhNeeded = (selectedVehicle.battery_kwh * socDelta) / 100;
-    return Math.max(1, Math.ceil(kwhNeeded / KWH_PER_SLOT));
-  }, [selectedVehicle, startSoc, endSoc]);
+    if (requestedEnergyKwh <= 0) return 1;
+    return Math.max(1, Math.ceil(requestedEnergyKwh / KWH_PER_SLOT));
+  }, [requestedEnergyKwh]);
 
   const recommendation = useMemo(() => {
     if (futureRates.length === 0) return null;
@@ -154,11 +164,20 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
 
   const estimates = useMemo(() => {
     if (!recommendation || recommendation.slots.length === 0) return null;
-    const totalKwh = KWH_PER_SLOT * recommendation.slots.length;
+    const plannedKwh = KWH_PER_SLOT * recommendation.slots.length;
     const totalCost = recommendation.slots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
     const avgPrice = recommendation.avgPrice;
-    return { totalKwh, totalCost, avgPrice, numSlots: recommendation.slots.length };
-  }, [recommendation]);
+    const remainingKwh = Math.max(0, requestedEnergyKwh - plannedKwh);
+    return {
+      plannedKwh,
+      requestedKwh: requestedEnergyKwh,
+      remainingKwh,
+      totalCost,
+      avgPrice,
+      numSlots: recommendation.slots.length,
+      isFullyCovered: remainingKwh <= 0.05,
+    };
+  }, [recommendation, requestedEnergyKwh]);
 
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;
@@ -172,7 +191,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       end_soc: parseFloat(endSoc) || 0,
       energy_added_kwh: parseFloat(estimates.totalKwh.toFixed(1)),
       grid_kwh: 0,
-      total_cost_gbp: parseFloat(estimates.totalCost.toFixed(2)),
+       total_cost_gbp: parseFloat(estimates.totalCost.toFixed(2)),
       avg_pence_per_kwh: parseFloat(estimates.avgPrice.toFixed(1)),
       num_slots: estimates.numSlots,
       tariff_code: "",
@@ -278,14 +297,18 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-3 lg:grid-cols-5">
               <div>
                 <p className="text-2xl font-bold">{estimates.numSlots}</p>
                 <p className="text-xs text-muted-foreground">Slots</p>
               </div>
               <div>
-                <p className="text-2xl font-bold">{estimates.totalKwh.toFixed(1)} kWh</p>
-                <p className="text-xs text-muted-foreground">Est. Energy</p>
+                <p className="text-2xl font-bold">{estimates.requestedKwh.toFixed(1)} kWh</p>
+                <p className="text-xs text-muted-foreground">Energy Needed</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{estimates.plannedKwh.toFixed(1)} kWh</p>
+                <p className="text-xs text-muted-foreground">Slots Cover</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">£{estimates.totalCost.toFixed(2)}</p>
@@ -296,6 +319,13 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
                 <p className="text-xs text-muted-foreground">Avg p/kWh</p>
               </div>
             </div>
+
+            {!estimates.isFullyCovered && (
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Current published slots only cover <span className="font-semibold text-foreground">{estimates.plannedKwh.toFixed(1)} kWh</span> of the
+                <span className="font-semibold text-foreground"> {estimates.requestedKwh.toFixed(1)} kWh</span> needed, so this is not a full 0–100% plan yet.
+              </div>
+            )}
 
             {/* Slot list */}
             <div className="flex flex-wrap gap-2">

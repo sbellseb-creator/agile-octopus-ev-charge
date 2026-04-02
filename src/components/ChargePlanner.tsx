@@ -189,7 +189,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       target_time: mode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,
       end_soc: parseFloat(endSoc) || 0,
-      energy_added_kwh: parseFloat(estimates.totalKwh.toFixed(1)),
+      energy_added_kwh: parseFloat(estimates.plannedKwh.toFixed(1)),
       grid_kwh: 0,
        total_cost_gbp: parseFloat(estimates.totalCost.toFixed(2)),
       avg_pence_per_kwh: parseFloat(estimates.avgPrice.toFixed(1)),

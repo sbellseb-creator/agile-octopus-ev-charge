@@ -11,6 +11,7 @@ import { fetchAgileRates } from "@/lib/octopus-api";
 import { addSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { Zap, Loader2, X, MousePointerClick, Save } from "lucide-react";
+import PriceList from "@/components/PriceList";
 import { format } from "date-fns";
 import { toast } from "sonner";
 

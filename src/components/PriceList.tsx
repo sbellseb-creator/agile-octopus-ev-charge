@@ -43,7 +43,10 @@ export default function PriceList({ rates, now }: Props) {
   }, [rates, now]);
 
   const sortedByPrice = useMemo(
-    () => [...futureRates].sort((a, b) => a.value_inc_vat - b.value_inc_vat),
+    () => {
+      const withIndex = futureRates.map((r, idx) => ({ ...r, timeOrder: idx + 1 }));
+      return withIndex.sort((a, b) => a.value_inc_vat - b.value_inc_vat);
+    },
     [futureRates]
   );
 
@@ -110,6 +113,11 @@ export default function PriceList({ rates, now }: Props) {
                     {tab === "cheapest" && i < 3 && (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">
                         #{i + 1}
+                      </Badge>
+                    )}
+                    {tab === "cheapest" && "timeOrder" in r && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">
+                        ⏱{(r as any).timeOrder}
                       </Badge>
                     )}
                   </div>

@@ -99,7 +99,9 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
 
   const requestedEnergyKwh = useMemo(() => {
     if (!selectedVehicle) return 0;
-    const socDelta = (parseFloat(endSoc) || 80) - (parseFloat(startSoc) || 20);
+    const start = parseFloat(startSoc);
+    const end = parseFloat(endSoc);
+    const socDelta = (isNaN(end) ? 80 : end) - (isNaN(start) ? 20 : start);
     if (socDelta <= 0) return 0;
     return (selectedVehicle.battery_kwh * socDelta) / 100;
   }, [selectedVehicle, startSoc, endSoc]);

@@ -115,6 +115,11 @@ export default function PriceList({ rates, now }: Props) {
                         #{i + 1}
                       </Badge>
                     )}
+                    {tab === "cheapest" && "timeOrder" in r && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">
+                        ⏱{(r as any).timeOrder}
+                      </Badge>
+                    )}
                   </div>
                   <span className={`font-bold tabular-nums ${rateColorClass(r.value_inc_vat)}`}>
                     {r.value_inc_vat.toFixed(2)}p

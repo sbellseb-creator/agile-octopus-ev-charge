@@ -43,7 +43,10 @@ export default function PriceList({ rates, now }: Props) {
   }, [rates, now]);
 
   const sortedByPrice = useMemo(
-    () => [...futureRates].sort((a, b) => a.value_inc_vat - b.value_inc_vat),
+    () => {
+      const withIndex = futureRates.map((r, idx) => ({ ...r, timeOrder: idx + 1 }));
+      return withIndex.sort((a, b) => a.value_inc_vat - b.value_inc_vat);
+    },
     [futureRates]
   );
 

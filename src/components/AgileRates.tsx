@@ -98,7 +98,10 @@ function PinchZoomChart({ children }: { children: React.ReactNode }) {
       e.preventDefault();
       const dist = getDistance(e.touches[0], e.touches[1]);
       const { startDist, startScale, startMid, startTranslate } = pinchRef.current;
-      const newScale = Math.min(Math.max(startScale * (dist / startDist), 1), 5);
+      // Dampen zoom: use square root of ratio for gentler response
+      const ratio = dist / startDist;
+      const dampened = ratio > 1 ? 1 + Math.sqrt(ratio - 1) * 0.5 : 1 - Math.sqrt(1 - ratio) * 0.5;
+      const newScale = Math.min(Math.max(startScale * dampened, 1), 3);
 
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
@@ -428,7 +431,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     dataKey="time"
                     tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
-                    interval={2}
+                    interval={5}
                     angle={0}
                     textAnchor="middle"
                     height={30}

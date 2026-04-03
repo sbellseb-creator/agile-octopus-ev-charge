@@ -46,9 +46,12 @@ export default function Index() {
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full h-auto p-1">
+          <TabsList className="grid grid-cols-5 w-full h-auto p-1">
             <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <TrendingDown className="h-4 w-4 shrink-0" /> Agile
+            </TabsTrigger>
+            <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <Gauge className="h-4 w-4 shrink-0" /> Tracker
             </TabsTrigger>
             <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <CalendarClock className="h-4 w-4 shrink-0" /> Planner
@@ -63,6 +66,10 @@ export default function Index() {
 
           <TabsContent value="agile" className="space-y-6">
             <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+          </TabsContent>
+
+          <TabsContent value="tracker" className="space-y-6">
+            <TrackerRates />
           </TabsContent>
 
           <TabsContent value="planner" className="space-y-6">

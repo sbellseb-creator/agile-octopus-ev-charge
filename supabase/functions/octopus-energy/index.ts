@@ -65,6 +65,29 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'tracker') {
+      const tariffCode = url.searchParams.get('tariff_code') || 'SILVER-25-04-01';
+      const region = url.searchParams.get('region') || 'F';
+      const periodFrom = url.searchParams.get('period_from') || '';
+      const periodTo = url.searchParams.get('period_to') || '';
+
+      let ratesUrl = `${OCTOPUS_BASE}/products/${tariffCode}/electricity-tariffs/E-1R-${tariffCode}-${region}/standard-unit-rates/`;
+      const params = new URLSearchParams();
+      if (periodFrom) params.set('period_from', periodFrom);
+      if (periodTo) params.set('period_to', periodTo);
+      params.set('page_size', '200');
+      if (params.toString()) ratesUrl += '?' + params.toString();
+
+      const res = await fetch(ratesUrl, {
+        headers: { 'Authorization': authHeader },
+      });
+      if (!res.ok) throw new Error(`Octopus tracker API error [${res.status}]: ${await res.text()}`);
+      const data = await res.json();
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: 'Unknown action' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

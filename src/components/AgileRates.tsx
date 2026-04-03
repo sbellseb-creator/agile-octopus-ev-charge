@@ -491,6 +491,10 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
           )}
         </CardContent>
       </Card>
+
+      {rates && rates.length > 0 && (
+        <PriceList rates={rates} now={now} />
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   Zap, Clock, TrendingDown, Activity,
-  CheckCircle2, Loader2, Save,
+  CheckCircle2, Loader2, Save, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -66,6 +66,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [startSoc, setStartSoc] = useState("20");
   const [endSoc, setEndSoc] = useState("80");
   const [notes, setNotes] = useState("");
+  const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
   );
@@ -164,11 +165,25 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     return null;
   }, [mode, futureRates, targetTime, slotsNeeded, threshold, now]);
 
+  // Filter out removed slots
+  const activeSlots = useMemo(() => {
+    if (!recommendation) return [];
+    return recommendation.slots.filter((s) => !removedSlots.has(s.valid_from));
+  }, [recommendation, removedSlots]);
+
+  // Reset removed slots when mode/settings change
+  const recKey = useMemo(() => `${mode}-${targetTime}-${slotsNeeded}-${threshold}`, [mode, targetTime, slotsNeeded, threshold]);
+  const [prevRecKey, setPrevRecKey] = useState(recKey);
+  if (recKey !== prevRecKey) {
+    setPrevRecKey(recKey);
+    setRemovedSlots(new Set());
+  }
+
   const estimates = useMemo(() => {
-    if (!recommendation || recommendation.slots.length === 0) return null;
-    const plannedKwh = KWH_PER_SLOT * recommendation.slots.length;
-    const totalCost = recommendation.slots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
-    const avgPrice = recommendation.avgPrice;
+    if (!recommendation || activeSlots.length === 0) return null;
+    const plannedKwh = KWH_PER_SLOT * activeSlots.length;
+    const totalCost = activeSlots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
+    const avgPrice = activeSlots.length > 0 ? activeSlots.reduce((s, r) => s + r.value_inc_vat, 0) / activeSlots.length : 0;
     const remainingKwh = Math.max(0, requestedEnergyKwh - plannedKwh);
     return {
       plannedKwh,
@@ -176,10 +191,10 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       remainingKwh,
       totalCost,
       avgPrice,
-      numSlots: recommendation.slots.length,
+      numSlots: activeSlots.length,
       isFullyCovered: remainingKwh <= 0.05,
     };
-  }, [recommendation, requestedEnergyKwh]);
+  }, [activeSlots, requestedEnergyKwh, recommendation]);
 
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;
@@ -329,17 +344,35 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               </div>
             )}
 
-            {/* Slot list */}
-            <div className="flex flex-wrap gap-2">
-              {groupConsecutiveSlots(recommendation.slots).map((g) => {
-                const avgP = g.prices.reduce((s, p) => s + p, 0) / g.prices.length;
-                return (
-                  <Badge key={g.from} variant="outline" className="border-primary/40 text-primary">
-                    {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
-                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
-                  </Badge>
-                );
-              })}
+            {/* Slot list — tap X to remove */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Tap ✕ to remove a slot</p>
+                {removedSlots.size > 0 && (
+                  <button
+                    onClick={() => setRemovedSlots(new Set())}
+                    className="text-xs text-primary underline"
+                  >
+                    Restore all
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {activeSlots
+                  .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
+                  .map((slot) => (
+                    <Badge key={slot.valid_from} variant="outline" className="border-primary/40 text-primary gap-1 pr-1">
+                      {format(new Date(slot.valid_from), "HH:mm")}–{format(new Date(slot.valid_to), "HH:mm")}
+                      {` (${slot.value_inc_vat.toFixed(2)}p)`}
+                      <button
+                        onClick={() => setRemovedSlots((prev) => new Set([...prev, slot.valid_from]))}
+                        className="ml-1 rounded-full p-0.5 hover:bg-destructive/20"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+              </div>
             </div>
 
             {/* Notes + Save */}

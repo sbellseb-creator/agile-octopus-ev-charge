@@ -66,6 +66,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [startSoc, setStartSoc] = useState("20");
   const [endSoc, setEndSoc] = useState("80");
   const [notes, setNotes] = useState("");
+  const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
   );

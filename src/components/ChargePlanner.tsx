@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   Zap, Clock, TrendingDown, Activity,
-  CheckCircle2, Loader2, Save,
+  CheckCircle2, Loader2, Save, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";

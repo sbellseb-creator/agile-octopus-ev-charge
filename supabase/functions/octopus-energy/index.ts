@@ -44,7 +44,7 @@ serve(async (req) => {
 
     if (action === 'rates') {
       const tariffCode = url.searchParams.get('tariff_code') || 'AGILE-24-10-01';
-      const region = url.searchParams.get('region') || 'C';
+      const region = url.searchParams.get('region') || 'F';
       const periodFrom = url.searchParams.get('period_from') || '';
       const periodTo = url.searchParams.get('period_to') || '';
 

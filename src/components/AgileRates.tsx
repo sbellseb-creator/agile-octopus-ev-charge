@@ -151,10 +151,26 @@ function PinchZoomChart({ children }: { children: React.ReactNode }) {
   );
 }
 
+const UK_REGIONS: { code: string; label: string }[] = [
+  { code: "F", label: "North Eastern" },
+  { code: "A", label: "Eastern" },
+  { code: "B", label: "East Midlands" },
+  { code: "C", label: "London" },
+  { code: "D", label: "Merseyside & N. Wales" },
+  { code: "E", label: "West Midlands" },
+  { code: "G", label: "North Western" },
+  { code: "H", label: "Southern" },
+  { code: "J", label: "South Eastern" },
+  { code: "K", label: "South Wales" },
+  { code: "L", label: "South Western" },
+  { code: "M", label: "Yorkshire" },
+  { code: "N", label: "South Scotland" },
+  { code: "P", label: "North Scotland" },
+];
+
 export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSaved }: AgileRatesProps) {
   const now = useMemo(() => new Date(), []);
   const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
-  // Extend to end of tomorrow to capture all published slots (Octopus publishes until 23:00 next day)
   const periodTo = useMemo(() => {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -162,14 +178,15 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     return tomorrow.toISOString();
   }, [now]);
 
+  const [region, setRegion] = useState("F");
   const [saveNotes, setSaveNotes] = useState("");
   const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
 
   const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
 
   const { data: rates, isLoading, error } = useQuery({
-    queryKey: ["agile-rates", periodFrom],
-    queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo),
+    queryKey: ["agile-rates", periodFrom, region],
+    queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo, region),
     refetchInterval: 30 * 60 * 1000,
     retry: 2,
     staleTime: 5 * 60 * 1000,
@@ -404,10 +421,22 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
 
       <Card className="neon-border">
         <CardHeader>
-          <CardTitle className="text-sm sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-            Agile Rates (p/kWh)
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2">
+              Agile Rates (p/kWh)
+              <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
+            </CardTitle>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UK_REGIONS.map(r => (
+                  <SelectItem key={r.code} value={r.code} className="text-xs">{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

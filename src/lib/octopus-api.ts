@@ -7,11 +7,12 @@ export interface AgileRate {
   valid_to: string;
 }
 
-export async function fetchAgileRates(tariffCode?: string, periodFrom?: string, periodTo?: string): Promise<AgileRate[]> {
+export async function fetchAgileRates(tariffCode?: string, periodFrom?: string, periodTo?: string, region?: string): Promise<AgileRate[]> {
   const params: Record<string, string> = { action: "rates" };
   if (tariffCode) params.tariff_code = tariffCode;
   if (periodFrom) params.period_from = periodFrom;
   if (periodTo) params.period_to = periodTo;
+  if (region) params.region = region;
 
   const queryString = new URLSearchParams(params).toString();
 

@@ -421,10 +421,22 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
 
       <Card className="neon-border">
         <CardHeader>
-          <CardTitle className="text-sm sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-            Agile Rates (p/kWh)
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2">
+              Agile Rates (p/kWh)
+              <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
+            </CardTitle>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UK_REGIONS.map(r => (
+                  <SelectItem key={r.code} value={r.code} className="text-xs">{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

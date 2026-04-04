@@ -165,11 +165,25 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     return null;
   }, [mode, futureRates, targetTime, slotsNeeded, threshold, now]);
 
+  // Filter out removed slots
+  const activeSlots = useMemo(() => {
+    if (!recommendation) return [];
+    return recommendation.slots.filter((s) => !removedSlots.has(s.valid_from));
+  }, [recommendation, removedSlots]);
+
+  // Reset removed slots when mode/settings change
+  const recKey = useMemo(() => `${mode}-${targetTime}-${slotsNeeded}-${threshold}`, [mode, targetTime, slotsNeeded, threshold]);
+  const [prevRecKey, setPrevRecKey] = useState(recKey);
+  if (recKey !== prevRecKey) {
+    setPrevRecKey(recKey);
+    setRemovedSlots(new Set());
+  }
+
   const estimates = useMemo(() => {
-    if (!recommendation || recommendation.slots.length === 0) return null;
-    const plannedKwh = KWH_PER_SLOT * recommendation.slots.length;
-    const totalCost = recommendation.slots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
-    const avgPrice = recommendation.avgPrice;
+    if (!recommendation || activeSlots.length === 0) return null;
+    const plannedKwh = KWH_PER_SLOT * activeSlots.length;
+    const totalCost = activeSlots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
+    const avgPrice = activeSlots.length > 0 ? activeSlots.reduce((s, r) => s + r.value_inc_vat, 0) / activeSlots.length : 0;
     const remainingKwh = Math.max(0, requestedEnergyKwh - plannedKwh);
     return {
       plannedKwh,
@@ -177,10 +191,10 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       remainingKwh,
       totalCost,
       avgPrice,
-      numSlots: recommendation.slots.length,
+      numSlots: activeSlots.length,
       isFullyCovered: remainingKwh <= 0.05,
     };
-  }, [recommendation, requestedEnergyKwh]);
+  }, [activeSlots, requestedEnergyKwh, recommendation]);
 
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;

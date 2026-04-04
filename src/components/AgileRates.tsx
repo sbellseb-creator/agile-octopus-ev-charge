@@ -444,11 +444,14 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     width={35}
                   />
                   <Tooltip
+                    position={{ x: 0, y: 0 }}
+                    wrapperStyle={{ top: 0, right: 0, left: 'auto', position: 'absolute', pointerEvents: 'none' }}
                     contentStyle={{
                       borderRadius: "var(--radius)",
                       border: "1px solid hsl(var(--border))",
                       background: "hsl(var(--popover))",
                       color: "hsl(var(--popover-foreground))",
+                      fontSize: "12px",
                     }}
                     labelStyle={{ color: "hsl(var(--muted-foreground))" }}
                     itemStyle={{ color: "hsl(var(--popover-foreground))" }}

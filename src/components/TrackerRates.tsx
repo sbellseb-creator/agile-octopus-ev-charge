@@ -131,7 +131,7 @@ export default function TrackerRates() {
             <CardTitle className="text-sm sm:text-lg">
               Tracker Price History
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal ml-2">
-                SILVER-25-04-01 · North East
+                SILVER-24-10-01 · North East
               </span>
             </CardTitle>
           </CardHeader>

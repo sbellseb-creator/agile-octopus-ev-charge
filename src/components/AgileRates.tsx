@@ -293,19 +293,31 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     <div className="space-y-4">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-good" />
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-good" />
             <div>
-              <p className="text-2xl font-bold">
+              <p className="text-lg font-bold leading-tight">
                 {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">Lowest</p>
+              <p className="text-[10px] text-muted-foreground">Lowest</p>
             </div>
           </CardContent>
         </Card>
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-2 p-4">
-            <div className="flex flex-col gap-3 shrink-0">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className={`text-lg font-bold leading-tight ${viewedRate && viewedRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
+                {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
+              </p>
+              {slotOffset !== 0 && (
+                <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 shrink-0">
               <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canPrev} onClick={() => setSlotOffset(o => o - 1)}>
                 <ChevronLeft className="h-5 w-5" />
               </Button>
@@ -313,37 +325,25 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
-            <Zap className="h-8 w-8 shrink-0 text-primary" />
-            <div className="min-w-0">
-              <p className={`text-2xl font-bold ${viewedRate && viewedRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
-                {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
-              </p>
-              {slotOffset !== 0 && (
-                <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
-              )}
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-warning" />
+            <div>
+              <p className="text-lg font-bold leading-tight">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
+              <p className="text-[10px] text-muted-foreground">Average</p>
             </div>
           </CardContent>
         </Card>
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-warning" />
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-danger" />
             <div>
-              <p className="text-2xl font-bold">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
-              <p className="text-xs text-muted-foreground">Average</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-danger" />
-            <div>
-              <p className="text-2xl font-bold">
+              <p className="text-lg font-bold leading-tight">
                 {chartData.length > 0 ? `${Math.max(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">Highest</p>
+              <p className="text-[10px] text-muted-foreground">Highest</p>
             </div>
           </CardContent>
         </Card>

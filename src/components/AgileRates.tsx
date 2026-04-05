@@ -328,22 +328,22 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
           </CardContent>
         </Card>
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-warning" />
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-warning" />
             <div>
-              <p className="text-2xl font-bold">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
-              <p className="text-xs text-muted-foreground">Average</p>
+              <p className="text-lg font-bold leading-tight">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
+              <p className="text-[10px] text-muted-foreground">Average</p>
             </div>
           </CardContent>
         </Card>
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-danger" />
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-danger" />
             <div>
-              <p className="text-2xl font-bold">
+              <p className="text-lg font-bold leading-tight">
                 {chartData.length > 0 ? `${Math.max(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">Highest</p>
+              <p className="text-[10px] text-muted-foreground">Highest</p>
             </div>
           </CardContent>
         </Card>

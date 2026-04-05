@@ -292,13 +292,24 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     <div className="space-y-4">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="neon-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Zap className="h-8 w-8 shrink-0 text-chart-good" />
+            <div>
+              <p className="text-2xl font-bold">
+                {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">Lowest</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
           <CardContent className="flex items-center gap-2 p-4">
-            <div className="flex flex-col gap-1 shrink-0">
-              <Button variant="ghost" size="icon" className="h-5 w-5" disabled={!canPrev} onClick={() => setSlotOffset(o => o - 1)}>
-                <ChevronLeft className="h-3.5 w-3.5" />
+            <div className="flex flex-col gap-3 shrink-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canPrev} onClick={() => setSlotOffset(o => o - 1)}>
+                <ChevronLeft className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-5 w-5" disabled={!canNext} onClick={() => setSlotOffset(o => o + 1)}>
-                <ChevronRight className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canNext} onClick={() => setSlotOffset(o => o + 1)}>
+                <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
             <Zap className="h-8 w-8 shrink-0 text-primary" />
@@ -312,17 +323,6 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
               {slotOffset !== 0 && (
                 <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
               )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-good" />
-            <div>
-              <p className="text-2xl font-bold">
-                {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground">Lowest</p>
             </div>
           </CardContent>
         </Card>

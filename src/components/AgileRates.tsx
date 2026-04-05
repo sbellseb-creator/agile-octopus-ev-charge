@@ -304,26 +304,26 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
           </CardContent>
         </Card>
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-2 p-4">
-            <div className="flex flex-col gap-3 shrink-0">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className={`text-lg font-bold leading-tight ${viewedRate && viewedRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
+                {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
+              </p>
+              {slotOffset !== 0 && (
+                <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 shrink-0">
               <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canPrev} onClick={() => setSlotOffset(o => o - 1)}>
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canNext} onClick={() => setSlotOffset(o => o + 1)}>
                 <ChevronRight className="h-5 w-5" />
               </Button>
-            </div>
-            <Zap className="h-8 w-8 shrink-0 text-primary" />
-            <div className="min-w-0">
-              <p className={`text-2xl font-bold ${viewedRate && viewedRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
-                {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
-              </p>
-              {slotOffset !== 0 && (
-                <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
-              )}
             </div>
           </CardContent>
         </Card>

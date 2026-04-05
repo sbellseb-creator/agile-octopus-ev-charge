@@ -13,6 +13,18 @@ function formatUkDate(dateStr: string): string {
   return `${parts[2]}-${parts[1]}-${parts[0].slice(2)}`;
 }
 
+const CHARGER_KW = 6.9;
+
+/** Calculate duration in hours between two HH:MM time strings */
+function getHoursBetween(start?: string, end?: string): number | null {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins <= 0) mins += 24 * 60; // overnight
+  return mins / 60;
+}
+
 interface Props {
   sessions: ChargeSession[];
   onDelete: (id: string) => void;

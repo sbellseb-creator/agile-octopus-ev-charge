@@ -293,13 +293,13 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     <div className="space-y-4">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="neon-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Zap className="h-8 w-8 shrink-0 text-chart-good" />
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-good" />
             <div>
-              <p className="text-2xl font-bold">
+              <p className="text-lg font-bold leading-tight">
                 {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">Lowest</p>
+              <p className="text-[10px] text-muted-foreground">Lowest</p>
             </div>
           </CardContent>
         </Card>

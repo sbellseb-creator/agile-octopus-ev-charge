@@ -534,6 +534,10 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                         opacity = 1;
                         stroke = "hsl(var(--accent))";
                         strokeW = 2;
+                      } else if (entry.isViewed && !entry.isCurrent) {
+                        stroke = "hsl(var(--primary))";
+                        strokeW = 2;
+                        opacity = 1;
                       } else if (entry.isCurrent) {
                         stroke = "hsl(var(--foreground))";
                         strokeW = 2;

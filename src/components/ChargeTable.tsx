@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,18 @@ function formatUkDate(dateStr: string): string {
   const parts = dateStr.split("-");
   if (parts.length !== 3) return dateStr;
   return `${parts[2]}-${parts[1]}-${parts[0].slice(2)}`;
+}
+
+const CHARGER_KW = 6.9;
+
+/** Calculate duration in hours between two HH:MM time strings */
+function getHoursBetween(start?: string, end?: string): number | null {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins <= 0) mins += 24 * 60; // overnight
+  return mins / 60;
 }
 
 interface Props {
@@ -174,7 +186,17 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
 
   const saveEdit = () => {
     if (!editingId) return;
-    onUpdate(editingId, editValues);
+    // Recalculate energy and cost based on actual time if times were edited
+    const finalUpdates = { ...editValues };
+    const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
+    if (hours !== null && hours > 0) {
+      const kwh = CHARGER_KW * hours;
+      const avgPrice = finalUpdates.avg_pence_per_kwh ?? 0;
+      finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
+      finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
+      finalUpdates.num_slots = Math.ceil(hours * 2);
+    }
+    onUpdate(editingId, finalUpdates);
     setEditingId(null);
     setEditValues({});
   };

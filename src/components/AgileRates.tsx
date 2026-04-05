@@ -234,6 +234,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     time: format(new Date(r.valid_from), "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
+    isViewed: viewedRate?.valid_from === r.valid_from,
     isSelected: selectedWindows.some(w => w.valid_from === r.valid_from),
     isCheap: r.value_inc_vat < 8 && r.value_inc_vat > 0,
     isNegative: r.value_inc_vat <= 0,

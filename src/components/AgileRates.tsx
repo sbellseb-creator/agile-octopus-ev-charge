@@ -193,11 +193,28 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     refetchOnWindowFocus: false,
   });
 
-  const currentRate = rates?.find((r) => {
-    const from = new Date(r.valid_from).getTime();
-    const to = new Date(r.valid_to).getTime();
-    return now.getTime() >= from && now.getTime() < to;
-  });
+  const [slotOffset, setSlotOffset] = useState(0);
+
+  const currentRateIdx = useMemo(() => {
+    if (!rates) return -1;
+    const sorted = [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    return sorted.findIndex((r) => {
+      const from = new Date(r.valid_from).getTime();
+      const to = new Date(r.valid_to).getTime();
+      return now.getTime() >= from && now.getTime() < to;
+    });
+  }, [rates, now]);
+
+  const sortedRates = useMemo(() => {
+    if (!rates) return [];
+    return [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  }, [rates]);
+
+  const viewedSlotIdx = currentRateIdx >= 0 ? currentRateIdx + slotOffset : -1;
+  const viewedRate = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length ? sortedRates[viewedSlotIdx] : undefined;
+  const currentRate = currentRateIdx >= 0 ? sortedRates[currentRateIdx] : undefined;
+  const canPrev = viewedSlotIdx > 0;
+  const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
   // Filter: only show previous slot + current + future
   const filteredRates = useMemo(() => {

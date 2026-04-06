@@ -12,6 +12,7 @@ import VehicleManager from "@/components/VehicleManager";
 import AgileRates from "@/components/AgileRates";
 import ChargePlanner from "@/components/ChargePlanner";
 import TrackerRates from "@/components/TrackerRates";
+import WeatherForecast from "@/components/WeatherForecast";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);

@@ -167,7 +167,7 @@ export default function TrackerRates() {
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">TODAY</Badge>
                     )}
                     {isTomorrow && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-accent/40 text-accent-foreground">TOMORROW</Badge>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 border-accent/40 text-accent-foreground">TMW</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3">

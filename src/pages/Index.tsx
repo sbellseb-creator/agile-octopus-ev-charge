@@ -78,6 +78,11 @@ export default function Index() {
             <TrackerRates />
           </TabsContent>
 
+          <TabsContent value="forecast" className="space-y-6">
+            <WeatherForecast />
+          </TabsContent>
+          </TabsContent>
+
           <TabsContent value="planner" className="space-y-6">
             <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
           </TabsContent>

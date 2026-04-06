@@ -170,7 +170,7 @@ export default function TrackerRates() {
                       <Badge variant="outline" className="text-[10px] px-1 py-0 border-accent/40 text-accent-foreground">TMW</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {dayChange !== null && (
                       <span className={`text-[10px] font-medium flex items-center gap-0.5 ${changeTextClass(dayChange)}`}>
                         {dayChange < 0 ? <TrendingDown className="h-2.5 w-2.5" /> : dayChange > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : null}

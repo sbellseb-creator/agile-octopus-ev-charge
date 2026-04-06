@@ -292,8 +292,8 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   return (
     <div className="space-y-4">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="neon-border">
-          <CardContent className="flex items-center gap-2 p-3">
+        <Card className="neon-border h-full">
+          <CardContent className="flex items-center gap-2 p-3 h-full">
             <Zap className="h-6 w-6 shrink-0 text-chart-good" />
             <div>
               <p className="text-lg font-bold leading-tight">

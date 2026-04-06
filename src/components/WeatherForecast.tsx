@@ -286,5 +286,3 @@ export default function WeatherForecast() {
   );
 }
 
-// Need Zap icon in this file
-import { Zap } from "lucide-react";

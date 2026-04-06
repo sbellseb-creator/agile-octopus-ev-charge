@@ -47,20 +47,25 @@ export default function Index() {
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full h-auto p-1">
-            <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+          <TabsList className="grid grid-cols-3 w-full h-auto p-1 gap-1">
+            <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <TrendingDown className="h-4 w-4 shrink-0" /> Agile
             </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+            <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <Gauge className="h-4 w-4 shrink-0" /> Tracker
             </TabsTrigger>
-            <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+            <TabsTrigger value="forecast" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <CloudSun className="h-4 w-4 shrink-0" /> Forecast
+            </TabsTrigger>
+          </TabsList>
+          <TabsList className="grid grid-cols-3 w-full h-auto p-1 gap-1">
+            <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <CalendarClock className="h-4 w-4 shrink-0" /> Planner
             </TabsTrigger>
-            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <Zap className="h-4 w-4 shrink-0" /> Sessions
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+            <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <Car className="h-4 w-4 shrink-0" /> Vehicles
             </TabsTrigger>
           </TabsList>

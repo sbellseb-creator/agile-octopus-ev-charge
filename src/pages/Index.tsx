@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
 import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";

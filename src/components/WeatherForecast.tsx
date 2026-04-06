@@ -8,7 +8,7 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel } from "@/lib/weather-api";
-import { CloudSun, Wind, Sun, Thermometer, TrendingDown, TrendingUp, Loader2 } from "lucide-react";
+import { CloudSun, Wind, Sun, Thermometer, TrendingDown, TrendingUp, Loader2, Zap } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const UK_REGIONS = [

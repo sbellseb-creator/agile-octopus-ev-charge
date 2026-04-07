@@ -70,7 +70,7 @@ export async function fetchWeatherForecast(region: string): Promise<{
 
   // Build daily summary with predicted agile prices based on weather
   const daily: WeatherDaily[] = data.daily.time.map((t: string, i: number) => {
-    const windMax = data.daily.windspeed_10m_max[i];
+    const windMax = (data.daily.wind_speed_10m_max || data.daily.windspeed_10m_max)[i];
     const sunshineHrs = (data.daily.sunshine_duration[i] || 0) / 3600; // seconds -> hours
     const tempMax = data.daily.temperature_2m_max[i];
 
@@ -89,7 +89,7 @@ export async function fetchWeatherForecast(region: string): Promise<{
       temp_min: data.daily.temperature_2m_min[i],
       windspeed_max: windMax,
       sunshine_hours: Math.round(sunshineHrs * 10) / 10,
-      weathercode: data.daily.weathercode[i],
+      weathercode: (data.daily.weather_code || data.daily.weathercode)[i],
       predicted_agile_avg: Math.round(avgPrice * 100) / 100,
       predicted_agile_low: Math.round(avgPrice * 0.35 * 100) / 100,
       predicted_agile_high: Math.round(avgPrice * 2.2 * 100) / 100,

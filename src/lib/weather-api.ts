@@ -47,9 +47,16 @@ export async function fetchWeatherForecast(region: string): Promise<{
 }> {
   const { lat, lng } = getCoords(region);
 
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,windspeed_10m,cloudcover,weathercode&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,sunshine_duration,weathercode&forecast_days=5&timezone=Europe%2FLondon`;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const url = `${supabaseUrl}/functions/v1/weather-forecast?lat=${lat}&lng=${lng}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+    },
+  });
   if (!res.ok) throw new Error(`Weather API error: ${res.status}`);
   const data = await res.json();
 

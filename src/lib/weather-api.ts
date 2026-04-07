@@ -63,9 +63,9 @@ export async function fetchWeatherForecast(region: string): Promise<{
   const hourly: WeatherHourly[] = data.hourly.time.map((t: string, i: number) => ({
     time: t,
     temperature_2m: data.hourly.temperature_2m[i],
-    windspeed_10m: data.hourly.windspeed_10m[i],
-    cloudcover: data.hourly.cloudcover[i],
-    weathercode: data.hourly.weathercode[i],
+    windspeed_10m: (data.hourly.wind_speed_10m || data.hourly.windspeed_10m)[i],
+    cloudcover: (data.hourly.cloud_cover || data.hourly.cloudcover)[i],
+    weathercode: (data.hourly.weather_code || data.hourly.weathercode)[i],
   }));
 
   // Build daily summary with predicted agile prices based on weather

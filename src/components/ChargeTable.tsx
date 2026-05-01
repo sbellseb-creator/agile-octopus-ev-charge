@@ -2,9 +2,11 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Zap, Pencil, Check, X } from "lucide-react";
+import { Trash2, Zap, Pencil, Check, X, Loader2 } from "lucide-react";
 import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
+import { recalcSessionCost } from "@/lib/session-cost";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 /** Format YYYY-MM-DD to DD-MM-YY */
 function formatUkDate(dateStr: string): string {

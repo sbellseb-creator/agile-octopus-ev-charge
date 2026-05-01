@@ -32,6 +32,10 @@ export interface ChargeSession {
   num_slots: number;
   tariff_code: string;
   notes: string;
+  /** Cached actual half-hour Octopus Agile prices for this session. Used for accurate edit recalculation. */
+  slot_prices?: CachedSlotPrice[];
+  /** Region the slot prices were fetched from (for re-fetching missing slots on edit). */
+  region?: string;
   // History of edits
   history?: Array<{
     timestamp: string;

@@ -435,6 +435,8 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                       num_slots: selectedCost.slots,
                       tariff_code: "AGILE-24-10-01",
                       notes: saveNotes,
+                      region,
+                      slot_prices: sorted.map(w => ({ valid_from: w.valid_from, valid_to: w.valid_to, value_inc_vat: w.price })),
                     });
                     toast.success("Charge session saved!");
                     setSelectedWindows([]);

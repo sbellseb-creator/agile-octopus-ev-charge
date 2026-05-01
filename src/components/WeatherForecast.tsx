@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend,
+  LineChart, Line,
 } from "recharts";
-import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel } from "@/lib/weather-api";
+import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel, type AgileBaseline } from "@/lib/weather-api";
+import { fetchAgileRates } from "@/lib/octopus-api";
 import { CloudSun, Wind, Sun, Thermometer, TrendingDown, TrendingUp, Loader2, Zap } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -28,14 +29,44 @@ const UK_REGIONS = [
   { code: "P", label: "Lincolnshire" },
 ];
 
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((p / 100) * sorted.length)));
+  return sorted[idx];
+}
+
 export default function WeatherForecast() {
   const [region, setRegion] = useState("F");
 
+  // Fetch the last 7 days of actual Agile prices to anchor the prediction baseline
+  const { data: baseline } = useQuery<AgileBaseline>({
+    queryKey: ["agile-baseline", region],
+    queryFn: async () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+      try {
+        const rates = await fetchAgileRates(undefined, from.toISOString(), to.toISOString(), region);
+        if (!rates || rates.length === 0) throw new Error("no rates");
+        const prices = rates.map(r => r.value_inc_vat).sort((a, b) => a - b);
+        return {
+          avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+          low: percentile(prices, 10),
+          high: percentile(prices, 90),
+          source: "live" as const,
+        };
+      } catch {
+        return { avg: 18, low: 6, high: 35, source: "default" as const };
+      }
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["weather-forecast", region],
-    queryFn: () => fetchWeatherForecast(region),
+    queryKey: ["weather-forecast", region, baseline?.source, baseline?.avg],
+    queryFn: () => fetchWeatherForecast(region, baseline),
     staleTime: 30 * 60 * 1000,
     refetchInterval: 30 * 60 * 1000,
+    enabled: !!baseline,
   });
 
   const priceChartData = useMemo(() => {

@@ -213,6 +213,13 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       num_slots: estimates.numSlots,
       tariff_code: "",
       notes,
+      slot_prices: activeSlots.map(s => ({
+        valid_from: s.valid_from,
+        valid_to: s.valid_to,
+        value_inc_vat: s.value_inc_vat,
+      })),
+      start_time: activeSlots.length > 0 ? new Date(activeSlots[0].valid_from).toTimeString().slice(0, 5) : undefined,
+      end_time: activeSlots.length > 0 ? new Date(activeSlots[activeSlots.length - 1].valid_to).toTimeString().slice(0, 5) : undefined,
     });
     toast.success("Charge session saved!");
     onSessionSaved?.();

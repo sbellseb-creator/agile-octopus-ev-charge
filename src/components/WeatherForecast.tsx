@@ -187,8 +187,15 @@ export default function WeatherForecast() {
               <CardTitle className="text-sm flex items-center gap-1.5">
                 <Zap className="h-4 w-4 text-primary" />
                 Predicted Agile Prices (p/kWh)
+                {baseline && (
+                  <Badge variant="outline" className={`ml-auto text-[9px] px-1.5 py-0 ${baseline.source === "live" ? "border-primary/50 text-primary" : "border-muted-foreground/40 text-muted-foreground"}`}>
+                    {baseline.source === "live"
+                      ? `Anchored to last 7d avg ${baseline.avg.toFixed(1)}p`
+                      : "Default baseline"}
+                  </Badge>
+                )}
               </CardTitle>
-              <p className="text-[10px] text-muted-foreground">Based on wind, solar & temperature forecasts</p>
+              <p className="text-[10px] text-muted-foreground">Weather adjusts your real recent baseline (±25%)</p>
             </CardHeader>
             <CardContent className="p-2">
               <div className="h-48">

@@ -186,17 +186,43 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
     });
   };
 
-  const saveEdit = () => {
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const saveEdit = async () => {
     if (!editingId) return;
-    // Recalculate energy and cost based on actual time if times were edited
-    const finalUpdates = { ...editValues };
-    const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
-    if (hours !== null && hours > 0) {
-      const kwh = CHARGER_KW * hours;
-      const avgPrice = finalUpdates.avg_pence_per_kwh ?? 0;
-      finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
-      finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
-      finalUpdates.num_slots = Math.ceil(hours * 2);
+    const session = sessions.find((s) => s.id === editingId);
+    if (!session) return;
+    const finalUpdates: Partial<ChargeSession> = { ...editValues };
+    const timesProvided = !!(finalUpdates.start_time && finalUpdates.end_time);
+
+    if (timesProvided) {
+      // Recalc cost using actual cached half-hour prices (and fetch any missing slots)
+      setSavingId(editingId);
+      try {
+        const recalc = await recalcSessionCost(session, finalUpdates);
+        if (recalc) {
+          finalUpdates.energy_added_kwh = recalc.energy_added_kwh;
+          finalUpdates.total_cost_gbp = recalc.total_cost_gbp;
+          finalUpdates.avg_pence_per_kwh = recalc.avg_pence_per_kwh;
+          finalUpdates.num_slots = recalc.num_slots;
+          finalUpdates.slot_prices = recalc.slot_prices;
+          toast.success("Recalculated using actual Agile prices");
+        } else {
+          // Fallback: simple time-based recalc with current avg price
+          const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
+          if (hours !== null && hours > 0) {
+            const kwh = CHARGER_KW * hours;
+            const avgPrice = finalUpdates.avg_pence_per_kwh ?? session.avg_pence_per_kwh ?? 0;
+            finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
+            finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
+            finalUpdates.num_slots = Math.ceil(hours * 2);
+          }
+        }
+      } catch (e) {
+        toast.error("Couldn't fetch historical prices, using estimate");
+      } finally {
+        setSavingId(null);
+      }
     }
     onUpdate(editingId, finalUpdates);
     setEditingId(null);

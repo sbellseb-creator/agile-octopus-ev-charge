@@ -36,6 +36,7 @@ interface Props {
 function SessionCard({
   s,
   isEditing,
+  isSaving,
   editValues,
   setEditValues,
   onStartEdit,
@@ -45,6 +46,7 @@ function SessionCard({
 }: {
   s: ChargeSession;
   isEditing: boolean;
+  isSaving: boolean;
   editValues: Partial<ChargeSession>;
   setEditValues: React.Dispatch<React.SetStateAction<Partial<ChargeSession>>>;
   onStartEdit: () => void;

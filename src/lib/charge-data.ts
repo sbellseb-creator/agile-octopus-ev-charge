@@ -7,6 +7,13 @@ export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {
   realtime: "Real-time",
 };
 
+/** A single half-hour agile price slot, cached on the session for accurate edits. */
+export interface CachedSlotPrice {
+  valid_from: string; // ISO
+  valid_to: string;   // ISO
+  value_inc_vat: number; // p/kWh
+}
+
 export interface ChargeSession {
   id: string;
   session_date: string;

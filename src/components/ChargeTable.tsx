@@ -254,6 +254,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
                 key={s.id}
                 s={s}
                 isEditing={editingId === s.id}
+                isSaving={savingId === s.id}
                 editValues={editValues}
                 setEditValues={setEditValues}
                 onStartEdit={() => startEdit(s)}

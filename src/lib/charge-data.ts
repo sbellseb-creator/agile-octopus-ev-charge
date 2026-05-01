@@ -7,6 +7,13 @@ export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {
   realtime: "Real-time",
 };
 
+/** A single half-hour agile price slot, cached on the session for accurate edits. */
+export interface CachedSlotPrice {
+  valid_from: string; // ISO
+  valid_to: string;   // ISO
+  value_inc_vat: number; // p/kWh
+}
+
 export interface ChargeSession {
   id: string;
   session_date: string;
@@ -25,6 +32,10 @@ export interface ChargeSession {
   num_slots: number;
   tariff_code: string;
   notes: string;
+  /** Cached actual half-hour Octopus Agile prices for this session. Used for accurate edit recalculation. */
+  slot_prices?: CachedSlotPrice[];
+  /** Region the slot prices were fetched from (for re-fetching missing slots on edit). */
+  region?: string;
   // History of edits
   history?: Array<{
     timestamp: string;

@@ -82,7 +82,19 @@ function generateFallbackData(): { hourly: any; daily: any } {
   };
 }
 
-export async function fetchWeatherForecast(region: string): Promise<{
+export interface AgileBaseline {
+  avg: number;       // p/kWh — recent rolling average
+  low: number;       // 10th percentile
+  high: number;      // 90th percentile
+  source: "live" | "default";
+}
+
+const DEFAULT_BASELINE: AgileBaseline = { avg: 18, low: 6, high: 35, source: "default" };
+
+export async function fetchWeatherForecast(
+  region: string,
+  baseline: AgileBaseline = DEFAULT_BASELINE,
+): Promise<{
   hourly: WeatherHourly[];
   daily: WeatherDaily[];
 }> {
@@ -116,31 +128,40 @@ export async function fetchWeatherForecast(region: string): Promise<{
     weathercode: (data.hourly.weather_code || data.hourly.weathercode)[i],
   }));
 
-  // Build daily summary with predicted agile prices based on weather
+  // Build daily summary with predicted agile prices anchored to the user's
+  // recent rolling baseline. Weather acts as a multiplier (±25%) rather than
+  // an absolute price source.
   const daily: WeatherDaily[] = data.daily.time.map((t: string, i: number) => {
     const windMax = (data.daily.wind_speed_10m_max || data.daily.windspeed_10m_max)[i];
-    const sunshineHrs = (data.daily.sunshine_duration[i] || 0) / 3600; // seconds -> hours
+    const sunshineHrs = (data.daily.sunshine_duration[i] || 0) / 3600;
     const tempMax = data.daily.temperature_2m_max[i];
+    const tempMin = data.daily.temperature_2m_min[i];
 
-    // Simple predictive model: high wind + sun = cheaper agile (more renewables)
-    // Low wind + cloudy + cold = expensive (more gas generation)
-    const windFactor = Math.max(0, 1 - windMax / 50); // 0-1, lower = more wind
-    const solarFactor = Math.max(0, 1 - sunshineHrs / 14); // 0-1, lower = more sun
-    const demandFactor = tempMax < 5 ? 1.3 : tempMax < 10 ? 1.1 : tempMax > 20 ? 0.85 : 1;
+    // Wind multiplier: more wind => cheaper. UK avg max wind ~25 km/h.
+    // Strong wind (40+ km/h) => ~-15%, calm (≤10 km/h) => ~+15%.
+    const windMult = 1 - Math.max(-0.15, Math.min(0.15, (windMax - 25) / 100));
+    // Sun multiplier: more sun => cheaper daytime supply (small effect, ~±5%).
+    const sunMult = 1 - Math.max(-0.05, Math.min(0.05, (sunshineHrs - 5) / 100));
+    // Demand multiplier: cold mornings + hot evenings push demand up.
+    const avgTemp = (tempMax + tempMin) / 2;
+    const demandMult = avgTemp < 3 ? 1.18 : avgTemp < 8 ? 1.08 : avgTemp > 22 ? 1.05 : 1.0;
 
-    const basePrice = 18; // avg baseline p/kWh
-    const avgPrice = basePrice * (0.5 + 0.3 * windFactor + 0.2 * solarFactor) * demandFactor;
+    const mult = windMult * sunMult * demandMult;
+    const avgPrice = baseline.avg * mult;
+    // Spread between low/high follows the baseline's observed spread, scaled by the multiplier.
+    const lowPrice = baseline.low * mult;
+    const highPrice = baseline.high * mult;
 
     return {
       date: t,
-      temp_max: data.daily.temperature_2m_max[i],
-      temp_min: data.daily.temperature_2m_min[i],
+      temp_max: tempMax,
+      temp_min: tempMin,
       windspeed_max: windMax,
       sunshine_hours: Math.round(sunshineHrs * 10) / 10,
       weathercode: (data.daily.weather_code || data.daily.weathercode)[i],
       predicted_agile_avg: Math.round(avgPrice * 100) / 100,
-      predicted_agile_low: Math.round(avgPrice * 0.35 * 100) / 100,
-      predicted_agile_high: Math.round(avgPrice * 2.2 * 100) / 100,
+      predicted_agile_low: Math.round(lowPrice * 100) / 100,
+      predicted_agile_high: Math.round(highPrice * 100) / 100,
     };
   });
 

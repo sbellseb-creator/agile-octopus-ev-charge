@@ -2,9 +2,11 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Zap, Pencil, Check, X } from "lucide-react";
+import { Trash2, Zap, Pencil, Check, X, Loader2 } from "lucide-react";
 import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
+import { recalcSessionCost } from "@/lib/session-cost";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 /** Format YYYY-MM-DD to DD-MM-YY */
 function formatUkDate(dateStr: string): string {
@@ -34,6 +36,7 @@ interface Props {
 function SessionCard({
   s,
   isEditing,
+  isSaving,
   editValues,
   setEditValues,
   onStartEdit,
@@ -43,6 +46,7 @@ function SessionCard({
 }: {
   s: ChargeSession;
   isEditing: boolean;
+  isSaving: boolean;
   editValues: Partial<ChargeSession>;
   setEditValues: React.Dispatch<React.SetStateAction<Partial<ChargeSession>>>;
   onStartEdit: () => void;
@@ -57,10 +61,10 @@ function SessionCard({
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">{formatUkDate(s.session_date)}</span>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" onClick={onSave} className="text-primary h-7 w-7">
-                <Check className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={onSave} disabled={isSaving} className="text-primary h-7 w-7">
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               </Button>
-              <Button variant="ghost" size="icon" onClick={onCancel} className="text-muted-foreground h-7 w-7">
+              <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving} className="text-muted-foreground h-7 w-7">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -184,17 +188,43 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
     });
   };
 
-  const saveEdit = () => {
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const saveEdit = async () => {
     if (!editingId) return;
-    // Recalculate energy and cost based on actual time if times were edited
-    const finalUpdates = { ...editValues };
-    const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
-    if (hours !== null && hours > 0) {
-      const kwh = CHARGER_KW * hours;
-      const avgPrice = finalUpdates.avg_pence_per_kwh ?? 0;
-      finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
-      finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
-      finalUpdates.num_slots = Math.ceil(hours * 2);
+    const session = sessions.find((s) => s.id === editingId);
+    if (!session) return;
+    const finalUpdates: Partial<ChargeSession> = { ...editValues };
+    const timesProvided = !!(finalUpdates.start_time && finalUpdates.end_time);
+
+    if (timesProvided) {
+      // Recalc cost using actual cached half-hour prices (and fetch any missing slots)
+      setSavingId(editingId);
+      try {
+        const recalc = await recalcSessionCost(session, finalUpdates);
+        if (recalc) {
+          finalUpdates.energy_added_kwh = recalc.energy_added_kwh;
+          finalUpdates.total_cost_gbp = recalc.total_cost_gbp;
+          finalUpdates.avg_pence_per_kwh = recalc.avg_pence_per_kwh;
+          finalUpdates.num_slots = recalc.num_slots;
+          finalUpdates.slot_prices = recalc.slot_prices;
+          toast.success("Recalculated using actual Agile prices");
+        } else {
+          // Fallback: simple time-based recalc with current avg price
+          const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
+          if (hours !== null && hours > 0) {
+            const kwh = CHARGER_KW * hours;
+            const avgPrice = finalUpdates.avg_pence_per_kwh ?? session.avg_pence_per_kwh ?? 0;
+            finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
+            finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
+            finalUpdates.num_slots = Math.ceil(hours * 2);
+          }
+        }
+      } catch (e) {
+        toast.error("Couldn't fetch historical prices, using estimate");
+      } finally {
+        setSavingId(null);
+      }
     }
     onUpdate(editingId, finalUpdates);
     setEditingId(null);
@@ -224,6 +254,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
                 key={s.id}
                 s={s}
                 isEditing={editingId === s.id}
+                isSaving={savingId === s.id}
                 editValues={editValues}
                 setEditValues={setEditValues}
                 onStartEdit={() => startEdit(s)}

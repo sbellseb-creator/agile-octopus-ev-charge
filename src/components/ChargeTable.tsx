@@ -260,18 +260,33 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Zap className="h-5 w-5 text-accent" />
-          Charge History ({sessions.length})
-        </CardTitle>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Zap className="h-5 w-5 text-accent" />
+            Charge History
+          </CardTitle>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {filtered.length} session{filtered.length === 1 ? "" : "s"} · £{periodTotals.cost.toFixed(2)} · {periodTotals.kwh.toFixed(1)} kWh
+          </div>
+        </div>
+        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)} className="mt-2">
+          <TabsList className="grid w-full grid-cols-4 h-8">
+            <TabsTrigger value="week" className="text-xs px-1">Week</TabsTrigger>
+            <TabsTrigger value="month" className="text-xs px-1">Month</TabsTrigger>
+            <TabsTrigger value="year" className="text-xs px-1">Year</TabsTrigger>
+            <TabsTrigger value="all" className="text-xs px-1">All</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </CardHeader>
       <CardContent>
-        {sessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-4 text-center">No sessions yet.</p>
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground text-sm py-4 text-center">
+            No sessions in this period.
+          </p>
         ) : (
           <div className="space-y-2">
-            {[...sessions].reverse().map((s) => (
+            {[...filtered].reverse().map((s) => (
               <SessionCard
                 key={s.id}
                 s={s}

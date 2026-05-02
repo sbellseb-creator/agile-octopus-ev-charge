@@ -187,6 +187,14 @@ function SessionCard({
 export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ChargeSession>>({});
+  const [period, setPeriod] = useState<Period>("month");
+
+  const filtered = useMemo(() => filterByPeriod(sessions, period), [sessions, period]);
+  const periodTotals = useMemo(() => {
+    const cost = filtered.reduce((s, r) => s + r.total_cost_gbp, 0);
+    const kwh = filtered.reduce((s, r) => s + r.energy_added_kwh, 0);
+    return { cost, kwh };
+  }, [filtered]);
 
   const startEdit = (s: ChargeSession) => {
     setEditingId(s.id);

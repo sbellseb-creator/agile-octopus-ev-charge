@@ -13,6 +13,7 @@ import AgileRates from "@/components/AgileRates";
 import ChargePlanner from "@/components/ChargePlanner";
 import TrackerRates from "@/components/TrackerRates";
 import WeatherForecast from "@/components/WeatherForecast";
+import FuelComparison from "@/components/FuelComparison";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -88,6 +89,7 @@ export default function Index() {
 
           <TabsContent value="charging" className="space-y-6">
             <ChargeStats sessions={sessions} />
+            <FuelComparison sessions={sessions} vehicles={vehicles} />
             <ChargeCharts sessions={sessions} />
             <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
             <ChargeTable sessions={sessions} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} />

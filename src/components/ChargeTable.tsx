@@ -2,11 +2,25 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trash2, Zap, Pencil, Check, X, Loader2 } from "lucide-react";
 import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
 import { recalcSessionCost } from "@/lib/session-cost";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+
+type Period = "week" | "month" | "year" | "all";
+
+function filterByPeriod(sessions: ChargeSession[], period: Period): ChargeSession[] {
+  if (period === "all") return sessions;
+  const now = new Date();
+  const cutoff = new Date(now);
+  if (period === "week") cutoff.setDate(now.getDate() - 7);
+  else if (period === "month") cutoff.setMonth(now.getMonth() - 1);
+  else if (period === "year") cutoff.setFullYear(now.getFullYear() - 1);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return sessions.filter((s) => s.session_date >= cutoffStr);
+}
 
 /** Format YYYY-MM-DD to DD-MM-YY */
 function formatUkDate(dateStr: string): string {
@@ -173,6 +187,14 @@ function SessionCard({
 export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ChargeSession>>({});
+  const [period, setPeriod] = useState<Period>("month");
+
+  const filtered = useMemo(() => filterByPeriod(sessions, period), [sessions, period]);
+  const periodTotals = useMemo(() => {
+    const cost = filtered.reduce((s, r) => s + r.total_cost_gbp, 0);
+    const kwh = filtered.reduce((s, r) => s + r.energy_added_kwh, 0);
+    return { cost, kwh };
+  }, [filtered]);
 
   const startEdit = (s: ChargeSession) => {
     setEditingId(s.id);
@@ -238,18 +260,33 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Zap className="h-5 w-5 text-accent" />
-          Charge History ({sessions.length})
-        </CardTitle>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Zap className="h-5 w-5 text-accent" />
+            Charge History
+          </CardTitle>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {filtered.length} session{filtered.length === 1 ? "" : "s"} · £{periodTotals.cost.toFixed(2)} · {periodTotals.kwh.toFixed(1)} kWh
+          </div>
+        </div>
+        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)} className="mt-2">
+          <TabsList className="grid w-full grid-cols-4 h-8">
+            <TabsTrigger value="week" className="text-xs px-1">Week</TabsTrigger>
+            <TabsTrigger value="month" className="text-xs px-1">Month</TabsTrigger>
+            <TabsTrigger value="year" className="text-xs px-1">Year</TabsTrigger>
+            <TabsTrigger value="all" className="text-xs px-1">All</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </CardHeader>
       <CardContent>
-        {sessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-4 text-center">No sessions yet.</p>
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground text-sm py-4 text-center">
+            No sessions in this period.
+          </p>
         ) : (
           <div className="space-y-2">
-            {[...sessions].reverse().map((s) => (
+            {[...filtered].reverse().map((s) => (
               <SessionCard
                 key={s.id}
                 s={s}

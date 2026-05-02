@@ -89,6 +89,7 @@ export default function Index() {
 
           <TabsContent value="charging" className="space-y-6">
             <ChargeStats sessions={sessions} />
+            <FuelComparison sessions={sessions} vehicles={vehicles} />
             <ChargeCharts sessions={sessions} />
             <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
             <ChargeTable sessions={sessions} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} />

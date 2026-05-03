@@ -4,34 +4,65 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { Scale } from "lucide-react";
+import { Scale, Home } from "lucide-react";
 
-// Typical Octopus Flexible (variable) tariff – Region F, late 2025. User can override.
-const DEFAULT_FLEX_UNIT_P = 24.5; // p/kWh
-const DEFAULT_FLEX_STANDING_P = 63.0; // p/day
-const DEFAULT_AGILE_STANDING_P = 47.0; // p/day (typical Agile)
+const DEFAULT_FLEX_UNIT_P = 24.5;
+const DEFAULT_FLEX_STANDING_P = 63.0;
+const DEFAULT_AGILE_STANDING_P = 47.0;
 
-interface Props {
-  /** Daily kWh consumption assumption */
-  defaultKwhPerDay?: number;
+const HOME_RATE_KEY = "home-charge-cost-p";
+function loadHomeRate(): number | null {
+  const v = localStorage.getItem(HOME_RATE_KEY);
+  const n = v ? parseFloat(v) : NaN;
+  return Number.isFinite(n) ? n : null;
 }
 
-export default function TariffComparison({ defaultKwhPerDay = 10 }: Props) {
+type RangeKey = "last7" | "last30" | string; // string = YYYY-MM
+
+function buildRangeOptions(): { key: RangeKey; label: string; from: Date; to: Date }[] {
+  const now = new Date();
+  const opts: { key: RangeKey; label: string; from: Date; to: Date }[] = [
+    { key: "last7", label: "Last 7 days", from: new Date(now.getTime() - 7 * 864e5), to: now },
+    { key: "last30", label: "Last 30 days", from: new Date(now.getTime() - 30 * 864e5), to: now },
+  ];
+  // Months from Jan of current year up to current month
+  const year = now.getFullYear();
+  for (let m = 0; m <= now.getMonth(); m++) {
+    const from = new Date(year, m, 1);
+    const to = new Date(year, m + 1, 1);
+    opts.push({
+      key: `${year}-${String(m + 1).padStart(2, "0")}`,
+      label: from.toLocaleString("en-GB", { month: "long", year: "numeric" }),
+      from,
+      to: to > now ? now : to,
+    });
+  }
+  return opts.reverse();
+}
+
+export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwhPerDay?: number }) {
   const [kwh, setKwh] = useState(defaultKwhPerDay);
   const [flexUnit, setFlexUnit] = useState(DEFAULT_FLEX_UNIT_P);
   const [flexStanding, setFlexStanding] = useState(DEFAULT_FLEX_STANDING_P);
   const [agileStanding, setAgileStanding] = useState(DEFAULT_AGILE_STANDING_P);
+  const [unit, setUnit] = useState<"week" | "month" | "year">("month");
+  const ranges = useMemo(buildRangeOptions, []);
+  const [rangeKey, setRangeKey] = useState<RangeKey>("last30");
+  const range = ranges.find((r) => r.key === rangeKey) ?? ranges[0];
 
-  // Pull last 7 days of Agile rates to compute avg unit price
+  const [homeRate, setHomeRate] = useState<string>(() => {
+    const v = loadHomeRate();
+    return v !== null ? String(v) : "";
+  });
+  const homeRateNum = parseFloat(homeRate);
+  const homeRateValid = Number.isFinite(homeRateNum) && homeRateNum >= 0;
+
   const { data: rates, isLoading } = useQuery({
-    queryKey: ["agile-7d-avg"],
-    queryFn: async () => {
-      const to = new Date();
-      const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return fetchAgileRates(undefined, from.toISOString(), to.toISOString());
-    },
+    queryKey: ["agile-range", rangeKey],
+    queryFn: () => fetchAgileRates(undefined, range.from.toISOString(), range.to.toISOString()),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -40,70 +71,114 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: Props) {
     return rates.reduce((s, r) => s + r.value_inc_vat, 0) / rates.length;
   }, [rates]);
 
+  const days = Math.max(1, Math.round((range.to.getTime() - range.from.getTime()) / 864e5));
+  const multiplier = unit === "week" ? 7 : unit === "month" ? 30 : 365;
+  const unitLabel = unit === "week" ? "/ week" : unit === "month" ? "/ month" : "/ year";
+
   const data = useMemo(() => {
     const agileDay = (agileAvgP * kwh + agileStanding) / 100;
     const flexDay = (flexUnit * kwh + flexStanding) / 100;
-    return [
-      { name: "Agile", day: agileDay, month: agileDay * 30, year: agileDay * 365, fill: "hsl(var(--neon-cyan))" },
-      { name: "Flexible", day: flexDay, month: flexDay * 30, year: flexDay * 365, fill: "hsl(var(--chart-warning))" },
+    const items = [
+      { name: "Agile", cost: agileDay * multiplier, fill: "hsl(var(--neon-cyan))" },
+      { name: "Flexible", cost: flexDay * multiplier, fill: "hsl(var(--chart-warning))" },
     ];
-  }, [agileAvgP, agileStanding, flexUnit, flexStanding, kwh]);
+    if (homeRateValid) {
+      const homeDay = (homeRateNum * kwh + agileStanding) / 100;
+      items.push({ name: "Home", cost: homeDay * multiplier, fill: "hsl(var(--primary))" });
+    }
+    return items;
+  }, [agileAvgP, agileStanding, flexUnit, flexStanding, kwh, multiplier, homeRateValid, homeRateNum]);
 
-  const saving = data[1].year - data[0].year;
+  const saving = data[1].cost - data[0].cost;
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle className="flex items-center gap-2 text-base">
             <Scale className="h-4 w-4 text-primary" /> Agile vs Flexible
           </CardTitle>
           <Badge variant="outline" className="text-[10px]">
-            Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`}
+            Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`} · {days}d
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Period & range */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px]">Show as</Label>
+            <Select value={unit} onValueChange={(v) => setUnit(v as "week" | "month" | "year")}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">Per Week</SelectItem>
+                <SelectItem value="month">Per Month</SelectItem>
+                <SelectItem value="year">Per Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Agile data range</Label>
+            <Select value={rangeKey} onValueChange={(v) => setRangeKey(v)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ranges.map((r) => (
+                  <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Home charge cost (highlighted) */}
+        <div className="rounded-md border border-primary/40 bg-primary/10 p-2 space-y-1">
+          <Label className="text-[10px] flex items-center gap-1 text-primary">
+            <Home className="h-3 w-3" /> Home charge cost (p/kWh) — your actual rate
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              value={homeRate}
+              onChange={(e) => {
+                setHomeRate(e.target.value);
+                if (e.target.value === "") localStorage.removeItem(HOME_RATE_KEY);
+                else localStorage.setItem(HOME_RATE_KEY, e.target.value);
+              }}
+              placeholder={`e.g. ${agileAvgP.toFixed(1)}`}
+              className="h-8 text-xs flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const v = agileAvgP.toFixed(2);
+                setHomeRate(v);
+                localStorage.setItem(HOME_RATE_KEY, v);
+              }}
+              className="text-[10px] px-2 rounded border border-primary/40 text-primary hover:bg-primary/20"
+            >
+              Use Agile avg
+            </button>
+          </div>
+        </div>
+
+        {/* Inputs */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label className="text-[10px]">kWh / day</Label>
-            <Input
-              type="number"
-              step="0.5"
-              value={kwh}
-              onChange={(e) => setKwh(parseFloat(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
+            <Input type="number" step="0.5" value={kwh} onChange={(e) => setKwh(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex unit (p/kWh)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={flexUnit}
-              onChange={(e) => setFlexUnit(parseFloat(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
+            <Input type="number" step="0.1" value={flexUnit} onChange={(e) => setFlexUnit(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex standing (p/day)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={flexStanding}
-              onChange={(e) => setFlexStanding(parseFloat(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
+            <Input type="number" step="0.1" value={flexStanding} onChange={(e) => setFlexStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Agile standing (p/day)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={agileStanding}
-              onChange={(e) => setAgileStanding(parseFloat(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
+            <Input type="number" step="0.1" value={agileStanding} onChange={(e) => setAgileStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
           </div>
         </div>
 
@@ -112,53 +187,37 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: Props) {
             <BarChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(v) => `£${v.toFixed(2)}`}
-              />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `£${v.toFixed(0)}`} />
               <Tooltip
-                contentStyle={{
-                  background: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
-                  fontSize: 11,
-                }}
-                formatter={(v: number, n) => [`£${v.toFixed(2)}`, n === "day" ? "Per day" : n]}
+                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", fontSize: 11 }}
+                formatter={(v: number) => [`£${v.toFixed(2)}`, unitLabel.trim()]}
               />
-              <Bar dataKey="day" radius={[4, 4, 0, 0]}>
-                {data.map((d) => (
-                  <Cell key={d.name} fill={d.fill} />
-                ))}
-                <LabelList
-                  dataKey="day"
-                  position="top"
-                  formatter={(v: number) => `£${v.toFixed(2)}`}
-                  style={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                />
+              <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
+                {data.map((d) => <Cell key={d.name} fill={d.fill} />)}
+                <LabelList dataKey="cost" position="top" formatter={(v: number) => `£${v.toFixed(2)}`} style={{ fontSize: 10, fill: "hsl(var(--foreground))" }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
-          {(["day", "month", "year"] as const).map((k) => {
-            const a = data[0][k];
-            const f = data[1][k];
-            const diff = f - a;
-            return (
-              <div key={k} className="rounded-md border border-border bg-muted/40 p-2">
-                <p className="text-[9px] uppercase text-muted-foreground">{k}</p>
-                <p className="text-[10px]">A £{a.toFixed(2)}</p>
-                <p className="text-[10px]">F £{f.toFixed(2)}</p>
-                <p className={`text-[11px] font-semibold tabular-nums ${diff >= 0 ? "text-accent" : "text-destructive"}`}>
-                  {diff >= 0 ? "−" : "+"}£{Math.abs(diff).toFixed(2)}
-                </p>
-              </div>
-            );
-          })}
+        <div className={`grid gap-2 text-center ${data.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+          {data.map((d) => (
+            <div
+              key={d.name}
+              className={`rounded-md border p-2 ${
+                d.name === "Home"
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-border bg-muted/40"
+              }`}
+            >
+              <p className="text-[9px] uppercase text-muted-foreground">{d.name} {unitLabel}</p>
+              <p className="text-sm font-bold tabular-nums">£{d.cost.toFixed(2)}</p>
+            </div>
+          ))}
         </div>
         {saving > 0 && (
           <p className="text-[11px] text-center text-muted-foreground">
-            Estimated annual saving on Agile: <span className="text-accent font-semibold">£{saving.toFixed(2)}</span>
+            Agile saves <span className="text-accent font-semibold">£{saving.toFixed(2)}</span> vs Flexible {unitLabel}
           </p>
         )}
       </CardContent>

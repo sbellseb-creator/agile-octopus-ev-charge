@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route } from "lucide-react";
+import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X } from "lucide-react";
 import {
   loadTrips,
   addTrip,
+  updateTrip,
   deleteTrip,
   getDefaultRate,
   setDefaultRate,
@@ -21,10 +22,10 @@ import { toast } from "sonner";
 
 type Period = "week" | "month" | "year" | "all";
 
-function filterByPeriod<T extends { trip_date?: string; session_date?: string }>(
+function filterByPeriod<T extends { trip_date?: string }>(
   rows: T[],
   period: Period,
-  key: "trip_date" | "session_date"
+  key: "trip_date"
 ): T[] {
   if (period === "all") return rows;
   const now = new Date();
@@ -46,6 +47,15 @@ interface Props {
   vehicles: Vehicle[];
 }
 
+interface EditDraft {
+  trip_date: string;
+  miles: string;
+  description: string;
+  rate_pence_per_mile: string;
+  extra_charges_gbp: string;
+  extra_charges_note: string;
+}
+
 export default function WorkCosts({ sessions, vehicles }: Props) {
   const [trips, setTrips] = useState<WorkTrip[]>(loadTrips);
   const [period, setPeriod] = useState<Period>("month");
@@ -53,6 +63,11 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [miles, setMiles] = useState("");
   const [desc, setDesc] = useState("");
+  const [extra, setExtra] = useState("");
+  const [extraNote, setExtraNote] = useState("");
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<EditDraft | null>(null);
 
   useEffect(() => setDefaultRate(rate), [rate]);
 
@@ -62,10 +77,60 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       toast.error("Enter valid miles");
       return;
     }
-    setTrips(addTrip({ trip_date: date, description: desc, miles: m, rate_pence_per_mile: rate }));
+    const ex = parseFloat(extra);
+    setTrips(
+      addTrip({
+        trip_date: date,
+        description: desc,
+        miles: m,
+        rate_pence_per_mile: rate,
+        extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
+        extra_charges_note: Number.isFinite(ex) && ex > 0 ? extraNote : undefined,
+      })
+    );
     setMiles("");
     setDesc("");
+    setExtra("");
+    setExtraNote("");
     toast.success("Work trip logged");
+  };
+
+  const startEdit = (t: WorkTrip) => {
+    setEditingId(t.id);
+    setDraft({
+      trip_date: t.trip_date,
+      miles: String(t.miles),
+      description: t.description ?? "",
+      rate_pence_per_mile: String(t.rate_pence_per_mile),
+      extra_charges_gbp: t.extra_charges_gbp ? String(t.extra_charges_gbp) : "",
+      extra_charges_note: t.extra_charges_note ?? "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft(null);
+  };
+
+  const saveEdit = (id: string) => {
+    if (!draft) return;
+    const m = parseFloat(draft.miles);
+    const r = parseFloat(draft.rate_pence_per_mile);
+    if (!Number.isFinite(m) || m <= 0) return toast.error("Invalid miles");
+    if (!Number.isFinite(r) || r < 0) return toast.error("Invalid rate");
+    const ex = parseFloat(draft.extra_charges_gbp);
+    setTrips(
+      updateTrip(id, {
+        trip_date: draft.trip_date,
+        miles: m,
+        description: draft.description,
+        rate_pence_per_mile: r,
+        extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
+        extra_charges_note: Number.isFinite(ex) && ex > 0 ? draft.extra_charges_note : undefined,
+      })
+    );
+    cancelEdit();
+    toast.success("Trip updated");
   };
 
   const handleDelete = (id: string) => setTrips(deleteTrip(id));
@@ -86,8 +151,9 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const totals = useMemo(() => {
     const totalMiles = filtered.reduce((a, t) => a + t.miles, 0);
     const claimed = filtered.reduce((a, t) => a + (t.miles * t.rate_pence_per_mile) / 100, 0);
-    const actualCost = totalMiles * evCostPerMile;
-    return { totalMiles, claimed, actualCost, profit: claimed - actualCost };
+    const extras = filtered.reduce((a, t) => a + (t.extra_charges_gbp ?? 0), 0);
+    const actualCost = totalMiles * evCostPerMile + extras;
+    return { totalMiles, claimed, actualCost, extras, profit: claimed - actualCost };
   }, [filtered, evCostPerMile]);
 
   return (
@@ -126,6 +192,30 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               placeholder="Client visit, site survey…"
               className="h-9"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Extra charge £</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={extra}
+                onChange={(e) => setExtra(e.target.value)}
+                placeholder="e.g. 22.40"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Extra note</Label>
+              <Input
+                value={extraNote}
+                onChange={(e) => setExtraNote(e.target.value)}
+                placeholder="Tesla supercharger…"
+                className="h-9"
+              />
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -191,9 +281,12 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             </div>
             <div className="rounded-md border border-border bg-muted/40 p-2">
               <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Coins className="h-3 w-3" /> EV cost
+                <Coins className="h-3 w-3" /> Cost (EV+extras)
               </p>
               <p className="text-base font-bold tabular-nums">£{totals.actualCost.toFixed(2)}</p>
+              {totals.extras > 0 && (
+                <p className="text-[9px] text-muted-foreground">incl £{totals.extras.toFixed(2)} extras</p>
+              )}
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-2">
               <p className="text-[10px] text-muted-foreground">Claim back</p>
@@ -227,35 +320,115 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             <p className="text-xs text-muted-foreground text-center py-4">No trips logged for this period.</p>
           ) : (
             filtered.map((t) => {
+              const isEditing = editingId === t.id;
               const claim = (t.miles * t.rate_pence_per_mile) / 100;
-              const evCost = t.miles * evCostPerMile;
+              const evCost = t.miles * evCostPerMile + (t.extra_charges_gbp ?? 0);
               const net = claim - evCost;
+
+              if (isEditing && draft) {
+                return (
+                  <div key={t.id} className="rounded-md border border-primary/40 bg-primary/5 p-2 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Date</Label>
+                        <Input
+                          type="date"
+                          value={draft.trip_date}
+                          onChange={(e) => setDraft({ ...draft, trip_date: e.target.value })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Miles</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={draft.miles}
+                          onChange={(e) => setDraft({ ...draft, miles: e.target.value })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Rate p/mi</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={draft.rate_pence_per_mile}
+                          onChange={(e) => setDraft({ ...draft, rate_pence_per_mile: e.target.value })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Extra £</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={draft.extra_charges_gbp}
+                          onChange={(e) => setDraft({ ...draft, extra_charges_gbp: e.target.value })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <Input
+                      placeholder="Description"
+                      value={draft.description}
+                      onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder="Extra charge note"
+                      value={draft.extra_charges_note}
+                      onChange={(e) => setDraft({ ...draft, extra_charges_note: e.target.value })}
+                      className="h-8 text-xs"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 h-7 text-xs" onClick={() => saveEdit(t.id)}>
+                        <Check className="h-3 w-3 mr-1" /> Save
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={cancelEdit}>
+                        <X className="h-3 w-3 mr-1" /> Cancel
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={t.id} className="rounded-md border border-border p-2 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
+                      <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-xs font-semibold">{formatUkDate(t.trip_date)}</span>
                         <span className="text-xs tabular-nums">{t.miles.toFixed(1)} mi</span>
                         <Badge variant="outline" className="text-[9px] h-4 px-1">
                           {t.rate_pence_per_mile}p/mi
                         </Badge>
+                        {t.extra_charges_gbp ? (
+                          <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                            +£{t.extra_charges_gbp.toFixed(2)}
+                          </Badge>
+                        ) : null}
                       </div>
                       {t.description && (
                         <p className="text-[11px] text-muted-foreground truncate">{t.description}</p>
                       )}
+                      {t.extra_charges_note && (
+                        <p className="text-[10px] text-muted-foreground truncate italic">
+                          Extra: {t.extra_charges_note}
+                        </p>
+                      )}
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() => handleDelete(t.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(t)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDelete(t.id)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Claim £{claim.toFixed(2)} · EV £{evCost.toFixed(2)}</span>
+                    <span>Claim £{claim.toFixed(2)} · Cost £{evCost.toFixed(2)}</span>
                     <span className={`font-semibold tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
                       {net >= 0 ? "+" : ""}£{net.toFixed(2)}
                     </span>

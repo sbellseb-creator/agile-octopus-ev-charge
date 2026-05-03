@@ -15,6 +15,7 @@ import TrackerRates from "@/components/TrackerRates";
 import WeatherForecast from "@/components/WeatherForecast";
 import FuelComparison from "@/components/FuelComparison";
 import WorkCosts from "@/components/WorkCosts";
+import TariffComparison from "@/components/TariffComparison";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -77,6 +78,7 @@ export default function Index() {
 
           <TabsContent value="agile" className="space-y-6">
             <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+            <TariffComparison />
           </TabsContent>
 
           <TabsContent value="tracker" className="space-y-6">

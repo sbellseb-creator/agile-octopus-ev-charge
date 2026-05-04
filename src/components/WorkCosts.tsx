@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X } from "lucide-react";
+import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X, Home } from "lucide-react";
 import {
   loadTrips,
   addTrip,
@@ -56,6 +56,11 @@ interface EditDraft {
   extra_charges_note: string;
 }
 
+const HOME_RATE_KEY = "home-charge-cost-p";
+function loadHomeRate(): string {
+  return localStorage.getItem(HOME_RATE_KEY) ?? "";
+}
+
 export default function WorkCosts({ sessions, vehicles }: Props) {
   const [trips, setTrips] = useState<WorkTrip[]>(loadTrips);
   const [period, setPeriod] = useState<Period>("month");
@@ -65,6 +70,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const [desc, setDesc] = useState("");
   const [extra, setExtra] = useState("");
   const [extraNote, setExtraNote] = useState("");
+  const [homeRate, setHomeRate] = useState<string>(loadHomeRate);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
@@ -144,7 +150,16 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       : 3.5;
   const totalKwh = sessions.reduce((s, r) => s + r.energy_added_kwh, 0);
   const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
-  const evCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * avgMpkwh) : 0; // £/mile
+  const sessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * avgMpkwh) : 0; // £/mile
+  const homeRateNum = parseFloat(homeRate);
+  const homeRateValid = Number.isFinite(homeRateNum) && homeRateNum >= 0;
+  // Manual home p/kWh overrides session-derived cost when set
+  const evCostPerMile = homeRateValid
+    ? (homeRateNum / 100) / avgMpkwh
+    : sessionCostPerMile;
+  const costSource: "home" | "sessions" | "none" = homeRateValid
+    ? "home"
+    : sessionCostPerMile > 0 ? "sessions" : "none";
 
   const filtered = useMemo(() => filterByPeriod(trips, period, "trip_date"), [trips, period]);
 
@@ -250,6 +265,52 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
         </CardContent>
       </Card>
 
+      {/* Home charge cost (shared with Tariff Comparison) */}
+      <Card className="border-primary/40 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Home className="h-4 w-4 text-primary" /> Home Charging Rate
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label className="text-xs">Your home electricity rate (p/kWh)</Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={homeRate}
+              onChange={(e) => {
+                setHomeRate(e.target.value);
+                if (e.target.value === "") localStorage.removeItem(HOME_RATE_KEY);
+                else localStorage.setItem(HOME_RATE_KEY, e.target.value);
+              }}
+              placeholder="e.g. 7.00 (Octopus Go) or 22.36"
+              className="h-9 flex-1"
+            />
+            {homeRate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setHomeRate(""); localStorage.removeItem(HOME_RATE_KEY); }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {homeRateValid
+              ? `Used as cost basis: ${homeRateNum.toFixed(2)}p/kWh ÷ ${avgMpkwh.toFixed(2)} mi/kWh = ${(evCostPerMile * 100).toFixed(2)}p/mile.`
+              : sessionCostPerMile > 0
+                ? `Currently using charge sessions average (${(sessionCostPerMile * 100).toFixed(2)}p/mile). Set a rate to override.`
+                : "No charge sessions yet — set your home rate to calculate trip costs."}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            Shared with the Agile vs Flexible chart on the Agile tab.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Summary */}
       <Card>
         <CardHeader className="pb-2">
@@ -258,7 +319,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               <TrendingUp className="h-4 w-4 text-accent" /> Summary
             </CardTitle>
             <Badge variant="outline" className="text-[10px]">
-              EV {(evCostPerMile * 100).toFixed(1)}p/mi
+              EV {(evCostPerMile * 100).toFixed(1)}p/mi · {costSource === "home" ? "home rate" : costSource === "sessions" ? "sessions" : "n/a"}
             </Badge>
           </div>
         </CardHeader>

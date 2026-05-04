@@ -9,11 +9,21 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { fetchAgileRates } from "@/lib/octopus-api";
 import { Scale, Home } from "lucide-react";
 
-const DEFAULT_FLEX_UNIT_P = 24.5;
-const DEFAULT_FLEX_STANDING_P = 63.0;
-const DEFAULT_AGILE_STANDING_P = 47.0;
+// Octopus Flexible — North East (region F) defaults, Q4 2025/Q1 2026
+const DEFAULT_FLEX_UNIT_P = 27.03;
+const DEFAULT_FLEX_STANDING_P = 70.0;
+const DEFAULT_AGILE_STANDING_P = 70.0;
 
 const HOME_RATE_KEY = "home-charge-cost-p";
+const FLEX_UNIT_KEY = "flex-unit-p";
+const FLEX_STANDING_KEY = "flex-standing-p";
+const AGILE_STANDING_KEY = "agile-standing-p";
+
+function loadNum(key: string, fallback: number): number {
+  const v = localStorage.getItem(key);
+  const n = v ? parseFloat(v) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
 function loadHomeRate(): number | null {
   const v = localStorage.getItem(HOME_RATE_KEY);
   const n = v ? parseFloat(v) : NaN;
@@ -45,9 +55,9 @@ function buildRangeOptions(): { key: RangeKey; label: string; from: Date; to: Da
 
 export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwhPerDay?: number }) {
   const [kwh, setKwh] = useState(defaultKwhPerDay);
-  const [flexUnit, setFlexUnit] = useState(DEFAULT_FLEX_UNIT_P);
-  const [flexStanding, setFlexStanding] = useState(DEFAULT_FLEX_STANDING_P);
-  const [agileStanding, setAgileStanding] = useState(DEFAULT_AGILE_STANDING_P);
+  const [flexUnit, setFlexUnit] = useState(() => loadNum(FLEX_UNIT_KEY, DEFAULT_FLEX_UNIT_P));
+  const [flexStanding, setFlexStanding] = useState(() => loadNum(FLEX_STANDING_KEY, DEFAULT_FLEX_STANDING_P));
+  const [agileStanding, setAgileStanding] = useState(() => loadNum(AGILE_STANDING_KEY, DEFAULT_AGILE_STANDING_P));
   const [unit, setUnit] = useState<"week" | "month" | "year">("month");
   const ranges = useMemo(buildRangeOptions, []);
   const [rangeKey, setRangeKey] = useState<RangeKey>("last30");
@@ -98,9 +108,12 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwh
           <CardTitle className="flex items-center gap-2 text-base">
             <Scale className="h-4 w-4 text-primary" /> Agile vs Flexible
           </CardTitle>
-          <Badge variant="outline" className="text-[10px]">
-            Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`} · {days}d
-          </Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">Region F · NE</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`} · {days}d
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -170,15 +183,15 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwh
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex unit (p/kWh)</Label>
-            <Input type="number" step="0.1" value={flexUnit} onChange={(e) => setFlexUnit(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={flexUnit} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setFlexUnit(v); localStorage.setItem(FLEX_UNIT_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex standing (p/day)</Label>
-            <Input type="number" step="0.1" value={flexStanding} onChange={(e) => setFlexStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={flexStanding} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setFlexStanding(v); localStorage.setItem(FLEX_STANDING_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Agile standing (p/day)</Label>
-            <Input type="number" step="0.1" value={agileStanding} onChange={(e) => setAgileStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={agileStanding} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setAgileStanding(v); localStorage.setItem(AGILE_STANDING_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
         </div>
 

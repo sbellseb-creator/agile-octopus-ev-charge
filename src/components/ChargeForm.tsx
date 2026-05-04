@@ -1,13 +1,14 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
-import { CHARGE_MODE_LABELS, type ChargeMode } from "@/lib/charge-data";
+import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
+import { recalcSessionCost } from "@/lib/session-cost";
 
 interface Props {
   onAdd: (data: {
@@ -27,13 +28,24 @@ interface Props {
     num_slots: number;
     tariff_code: string;
     notes: string;
+    slot_prices?: CachedSlotPrice[];
+    region?: string;
   }) => void;
   vehicles: Vehicle[];
 }
 
 const CHARGER_KW = 6.9;
 const KWH_PER_SLOT = CHARGER_KW * 0.5;
-const DEFAULT_AVG_PRICE = 12; // fallback p/kWh
+
+interface Estimates {
+  kwh: number;
+  slots: number;
+  totalCost: number;
+  avgPrice: number;
+  slotPrices?: CachedSlotPrice[];
+  region?: string;
+  pricedFromAgile: boolean;
+}
 
 export default function ChargeForm({ onAdd, vehicles }: Props) {
   const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
@@ -46,23 +58,95 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
   const [startSoc, setStartSoc] = useState("");
   const [endSoc, setEndSoc] = useState("");
   const [notes, setNotes] = useState("");
+  const [estimates, setEstimates] = useState<Estimates | null>(null);
+  const [loadingPrices, setLoadingPrices] = useState(false);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+  const debounceRef = useRef<number | null>(null);
 
-  const estimates = useMemo(() => {
-    if (!selectedVehicle || !startSoc || !endSoc) return null;
+  useEffect(() => {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+
+    if (!selectedVehicle || !startSoc || !endSoc) {
+      setEstimates(null);
+      return;
+    }
     const socDelta = (parseFloat(endSoc) || 0) - (parseFloat(startSoc) || 0);
-    if (socDelta <= 0) return null;
-    const kwhNeeded = (selectedVehicle.battery_kwh * socDelta) / 100;
-    const slots = Math.ceil(kwhNeeded / KWH_PER_SLOT);
-    const totalCost = (kwhNeeded * DEFAULT_AVG_PRICE) / 100;
-    return {
-      kwh: parseFloat(kwhNeeded.toFixed(1)),
-      slots,
-      totalCost: parseFloat(totalCost.toFixed(2)),
-      avgPrice: DEFAULT_AVG_PRICE,
+    if (socDelta <= 0) {
+      setEstimates(null);
+      return;
+    }
+    const kwhFromSoc = parseFloat(((selectedVehicle.battery_kwh * socDelta) / 100).toFixed(2));
+
+    // No times yet — show SoC-derived kWh/slots only, no pricing.
+    if (!startTime || !endTime) {
+      const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+      setEstimates({
+        kwh: kwhFromSoc,
+        slots,
+        totalCost: 0,
+        avgPrice: 0,
+        pricedFromAgile: false,
+      });
+      return;
+    }
+
+    // Debounce the network call so we don't spam while typing
+    debounceRef.current = window.setTimeout(async () => {
+      setLoadingPrices(true);
+      try {
+        const region = localStorage.getItem("agile-region") || "F";
+        const synthetic: ChargeSession = {
+          id: "draft",
+          session_date: date,
+          start_time: startTime,
+          end_time: endTime,
+          vehicle_id: selectedVehicle.id,
+          vehicle_name: selectedVehicle.name,
+          charge_mode: chargeMode,
+          start_soc: parseFloat(startSoc) || 0,
+          end_soc: parseFloat(endSoc) || 0,
+          energy_added_kwh: 0,
+          grid_kwh: 0,
+          total_cost_gbp: 0,
+          avg_pence_per_kwh: 0,
+          num_slots: 0,
+          tariff_code: "",
+          notes: "",
+          region,
+          slot_prices: [],
+        };
+        const recalc = await recalcSessionCost(synthetic, {});
+        if (!recalc) {
+          const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+          setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
+          return;
+        }
+        // Prefer SoC-based kWh (truer to actual battery energy added)
+        const kwh = kwhFromSoc;
+        const totalCost = parseFloat(((kwh * recalc.avg_pence_per_kwh) / 100).toFixed(2));
+        setEstimates({
+          kwh,
+          slots: recalc.num_slots,
+          totalCost,
+          avgPrice: recalc.avg_pence_per_kwh,
+          slotPrices: recalc.slot_prices,
+          region,
+          pricedFromAgile: true,
+        });
+      } catch (e) {
+        console.warn("Failed to fetch Agile prices for log estimate", e);
+        const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+        setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
+      } finally {
+        setLoadingPrices(false);
+      }
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [selectedVehicle, startSoc, endSoc]);
+  }, [date, startTime, endTime, selectedVehicle, startSoc, endSoc, chargeMode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,12 +169,15 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
       num_slots: estimates?.slots || 0,
       tariff_code: "",
       notes,
+      slot_prices: estimates?.slotPrices,
+      region: estimates?.region,
     });
     setStartSoc("");
     setEndSoc("");
     setStartTime("");
     setEndTime("");
     setNotes("");
+    setEstimates(null);
   };
 
   return (
@@ -159,7 +246,14 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           {/* Auto-calculated estimates */}
           {estimates && (
             <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground mb-2">Auto-calculated (6.9kW charger)</p>
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
+                {loadingPrices && <Loader2 className="h-3 w-3 animate-spin" />}
+                {loadingPrices
+                  ? "Fetching real Agile prices…"
+                  : estimates.pricedFromAgile
+                    ? `Auto-calculated · real Agile avg (Region ${estimates.region})`
+                    : "Auto-calculated · add Start & End time for real Agile pricing"}
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
                 <div>
                   <p className="font-bold text-foreground">{estimates.kwh} kWh</p>
@@ -170,11 +264,15 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
                   <p className="text-xs text-muted-foreground">Slots</p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">£{estimates.totalCost.toFixed(2)}</p>
+                  <p className="font-bold text-foreground">
+                    {estimates.pricedFromAgile ? `£${estimates.totalCost.toFixed(2)}` : "—"}
+                  </p>
                   <p className="text-xs text-muted-foreground">Est. Cost</p>
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">{estimates.avgPrice}p</p>
+                  <p className="font-bold text-foreground">
+                    {estimates.pricedFromAgile ? `${estimates.avgPrice.toFixed(2)}p` : "—"}
+                  </p>
                   <p className="text-xs text-muted-foreground">Avg p/kWh</p>
                 </div>
               </div>

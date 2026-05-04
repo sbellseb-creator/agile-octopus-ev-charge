@@ -150,7 +150,16 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       : 3.5;
   const totalKwh = sessions.reduce((s, r) => s + r.energy_added_kwh, 0);
   const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
-  const evCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * avgMpkwh) : 0; // £/mile
+  const sessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * avgMpkwh) : 0; // £/mile
+  const homeRateNum = parseFloat(homeRate);
+  const homeRateValid = Number.isFinite(homeRateNum) && homeRateNum >= 0;
+  // Manual home p/kWh overrides session-derived cost when set
+  const evCostPerMile = homeRateValid
+    ? (homeRateNum / 100) / avgMpkwh
+    : sessionCostPerMile;
+  const costSource: "home" | "sessions" | "none" = homeRateValid
+    ? "home"
+    : sessionCostPerMile > 0 ? "sessions" : "none";
 
   const filtered = useMemo(() => filterByPeriod(trips, period, "trip_date"), [trips, period]);
 

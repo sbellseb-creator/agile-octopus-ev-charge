@@ -108,9 +108,12 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwh
           <CardTitle className="flex items-center gap-2 text-base">
             <Scale className="h-4 w-4 text-primary" /> Agile vs Flexible
           </CardTitle>
-          <Badge variant="outline" className="text-[10px]">
-            Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`} · {days}d
-          </Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">Region F · NE</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              Agile avg {isLoading ? "…" : `${agileAvgP.toFixed(1)}p`} · {days}d
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X } from "lucide-react";
+import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X, Home } from "lucide-react";
 import {
   loadTrips,
   addTrip,

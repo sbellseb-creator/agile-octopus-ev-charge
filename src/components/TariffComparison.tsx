@@ -180,15 +180,15 @@ export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwh
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex unit (p/kWh)</Label>
-            <Input type="number" step="0.1" value={flexUnit} onChange={(e) => setFlexUnit(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={flexUnit} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setFlexUnit(v); localStorage.setItem(FLEX_UNIT_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Flex standing (p/day)</Label>
-            <Input type="number" step="0.1" value={flexStanding} onChange={(e) => setFlexStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={flexStanding} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setFlexStanding(v); localStorage.setItem(FLEX_STANDING_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px]">Agile standing (p/day)</Label>
-            <Input type="number" step="0.1" value={agileStanding} onChange={(e) => setAgileStanding(parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" step="0.1" value={agileStanding} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setAgileStanding(v); localStorage.setItem(AGILE_STANDING_KEY, String(v)); }} className="h-8 text-xs" />
           </div>
         </div>
 

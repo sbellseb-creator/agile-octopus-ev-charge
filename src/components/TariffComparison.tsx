@@ -55,9 +55,9 @@ function buildRangeOptions(): { key: RangeKey; label: string; from: Date; to: Da
 
 export default function TariffComparison({ defaultKwhPerDay = 10 }: { defaultKwhPerDay?: number }) {
   const [kwh, setKwh] = useState(defaultKwhPerDay);
-  const [flexUnit, setFlexUnit] = useState(DEFAULT_FLEX_UNIT_P);
-  const [flexStanding, setFlexStanding] = useState(DEFAULT_FLEX_STANDING_P);
-  const [agileStanding, setAgileStanding] = useState(DEFAULT_AGILE_STANDING_P);
+  const [flexUnit, setFlexUnit] = useState(() => loadNum(FLEX_UNIT_KEY, DEFAULT_FLEX_UNIT_P));
+  const [flexStanding, setFlexStanding] = useState(() => loadNum(FLEX_STANDING_KEY, DEFAULT_FLEX_STANDING_P));
+  const [agileStanding, setAgileStanding] = useState(() => loadNum(AGILE_STANDING_KEY, DEFAULT_AGILE_STANDING_P));
   const [unit, setUnit] = useState<"week" | "month" | "year">("month");
   const ranges = useMemo(buildRangeOptions, []);
   const [rangeKey, setRangeKey] = useState<RangeKey>("last30");

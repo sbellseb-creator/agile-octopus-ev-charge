@@ -56,6 +56,11 @@ interface EditDraft {
   extra_charges_note: string;
 }
 
+const HOME_RATE_KEY = "home-charge-cost-p";
+function loadHomeRate(): string {
+  return localStorage.getItem(HOME_RATE_KEY) ?? "";
+}
+
 export default function WorkCosts({ sessions, vehicles }: Props) {
   const [trips, setTrips] = useState<WorkTrip[]>(loadTrips);
   const [period, setPeriod] = useState<Period>("month");
@@ -65,6 +70,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const [desc, setDesc] = useState("");
   const [extra, setExtra] = useState("");
   const [extraNote, setExtraNote] = useState("");
+  const [homeRate, setHomeRate] = useState<string>(loadHomeRate);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);

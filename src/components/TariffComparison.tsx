@@ -9,11 +9,21 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { fetchAgileRates } from "@/lib/octopus-api";
 import { Scale, Home } from "lucide-react";
 
-const DEFAULT_FLEX_UNIT_P = 24.5;
-const DEFAULT_FLEX_STANDING_P = 63.0;
-const DEFAULT_AGILE_STANDING_P = 47.0;
+// Octopus Flexible — North East (region F) defaults, Q4 2025/Q1 2026
+const DEFAULT_FLEX_UNIT_P = 27.03;
+const DEFAULT_FLEX_STANDING_P = 70.0;
+const DEFAULT_AGILE_STANDING_P = 70.0;
 
 const HOME_RATE_KEY = "home-charge-cost-p";
+const FLEX_UNIT_KEY = "flex-unit-p";
+const FLEX_STANDING_KEY = "flex-standing-p";
+const AGILE_STANDING_KEY = "agile-standing-p";
+
+function loadNum(key: string, fallback: number): number {
+  const v = localStorage.getItem(key);
+  const n = v ? parseFloat(v) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
 function loadHomeRate(): number | null {
   const v = localStorage.getItem(HOME_RATE_KEY);
   const n = v ? parseFloat(v) : NaN;

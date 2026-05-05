@@ -6,6 +6,8 @@ export interface WorkTrip {
   rate_pence_per_mile: number; // claim rate
   extra_charges_gbp?: number; // ad-hoc costs incurred (e.g. Tesla Supercharger)
   extra_charges_note?: string;
+  /** Optional linked home charge session IDs that powered this trip. */
+  charge_session_ids?: string[];
 }
 
 const STORAGE_KEY = "work-trips";

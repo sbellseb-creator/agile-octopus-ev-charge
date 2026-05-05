@@ -59,6 +59,12 @@ export async function recalcSessionCost(
   const wantedSlots = enumerateHalfHourSlots(startDate, endDate);
   if (wantedSlots.length === 0) return null;
 
+  // Fractional overlap (in hours) of each half-hour slot with the actual session window
+  const slotHours: number[] = wantedSlots.map((s) => {
+    const overlapMs = Math.min(endDate.getTime(), s.to.getTime()) - Math.max(startDate.getTime(), s.from.getTime());
+    return Math.max(0, overlapMs) / (1000 * 60 * 60);
+  });
+
   // Index existing cache by ISO valid_from for fast lookup
   const cache = new Map<string, CachedSlotPrice>();
   for (const sp of session.slot_prices || []) {
@@ -101,15 +107,20 @@ export async function recalcSessionCost(
     };
   });
 
-  const energy = KWH_PER_SLOT * resolved.length;
-  const cost = resolved.reduce((acc, sp) => acc + (sp.value_inc_vat * KWH_PER_SLOT) / 100, 0);
-  const avg = resolved.reduce((acc, sp) => acc + sp.value_inc_vat, 0) / resolved.length;
+  const energy = resolved.reduce((acc, _sp, i) => acc + CHARGER_KW * slotHours[i], 0);
+  const cost = resolved.reduce((acc, sp, i) => acc + (sp.value_inc_vat * CHARGER_KW * slotHours[i]) / 100, 0);
+  const totalHours = slotHours.reduce((a, b) => a + b, 0);
+  const avg = totalHours > 0
+    ? resolved.reduce((acc, sp, i) => acc + sp.value_inc_vat * slotHours[i], 0) / totalHours
+    : 0;
+  // Effective slot count (fractional) for display
+  const effectiveSlots = parseFloat((totalHours / SLOT_HOURS).toFixed(2));
 
   return {
     energy_added_kwh: parseFloat(energy.toFixed(2)),
     total_cost_gbp: parseFloat(cost.toFixed(2)),
     avg_pence_per_kwh: parseFloat(avg.toFixed(2)),
-    num_slots: resolved.length,
+    num_slots: effectiveSlots,
     slot_prices: resolved,
   };
 }

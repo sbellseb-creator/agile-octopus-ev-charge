@@ -59,6 +59,12 @@ export async function recalcSessionCost(
   const wantedSlots = enumerateHalfHourSlots(startDate, endDate);
   if (wantedSlots.length === 0) return null;
 
+  // Fractional overlap (in hours) of each half-hour slot with the actual session window
+  const slotHours: number[] = wantedSlots.map((s) => {
+    const overlapMs = Math.min(endDate.getTime(), s.to.getTime()) - Math.max(startDate.getTime(), s.from.getTime());
+    return Math.max(0, overlapMs) / (1000 * 60 * 60);
+  });
+
   // Index existing cache by ISO valid_from for fast lookup
   const cache = new Map<string, CachedSlotPrice>();
   for (const sp of session.slot_prices || []) {

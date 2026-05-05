@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X, Home } from "lucide-react";
+import { Briefcase, Plus, Trash2, TrendingUp, Coins, Route, Pencil, Check, X, Zap } from "lucide-react";
 import {
   loadTrips,
   addTrip,
@@ -22,11 +22,7 @@ import { toast } from "sonner";
 
 type Period = "week" | "month" | "year" | "all";
 
-function filterByPeriod<T extends { trip_date?: string }>(
-  rows: T[],
-  period: Period,
-  key: "trip_date"
-): T[] {
+function filterByPeriod<T extends { trip_date?: string }>(rows: T[], period: Period): T[] {
   if (period === "all") return rows;
   const now = new Date();
   const cutoff = new Date(now);
@@ -34,7 +30,7 @@ function filterByPeriod<T extends { trip_date?: string }>(
   else if (period === "month") cutoff.setMonth(now.getMonth() - 1);
   else if (period === "year") cutoff.setFullYear(now.getFullYear() - 1);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return rows.filter((r) => (r[key] as string) >= cutoffStr);
+  return rows.filter((r) => (r.trip_date as string) >= cutoffStr);
 }
 
 function formatUkDate(d: string): string {
@@ -54,11 +50,7 @@ interface EditDraft {
   rate_pence_per_mile: string;
   extra_charges_gbp: string;
   extra_charges_note: string;
-}
-
-const HOME_RATE_KEY = "home-charge-cost-p";
-function loadHomeRate(): string {
-  return localStorage.getItem(HOME_RATE_KEY) ?? "";
+  charge_session_ids: string[];
 }
 
 export default function WorkCosts({ sessions, vehicles }: Props) {
@@ -70,12 +62,60 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const [desc, setDesc] = useState("");
   const [extra, setExtra] = useState("");
   const [extraNote, setExtraNote] = useState("");
-  const [homeRate, setHomeRate] = useState<string>(loadHomeRate);
+  const [linkedSessionIds, setLinkedSessionIds] = useState<string[]>([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
 
   useEffect(() => setDefaultRate(rate), [rate]);
+
+  // Number sessions chronologically (oldest = #1) so they have stable picker labels
+  const sessionsNumbered = useMemo(() => {
+    const sorted = [...sessions].sort((a, b) =>
+      `${a.session_date} ${a.start_time ?? ""}`.localeCompare(`${b.session_date} ${b.start_time ?? ""}`)
+    );
+    return sorted.map((s, i) => ({ ...s, number: i + 1 }));
+  }, [sessions]);
+
+  // Last 10 sessions (most recent first) for the picker
+  const pickerSessions = useMemo(
+    () => [...sessionsNumbered].reverse().slice(0, 10),
+    [sessionsNumbered]
+  );
+
+  const sessionById = useMemo(() => {
+    const m = new Map<string, (typeof sessionsNumbered)[number]>();
+    sessionsNumbered.forEach((s) => m.set(s.id, s));
+    return m;
+  }, [sessionsNumbered]);
+
+  /** Average p/kWh across linked sessions (kWh-weighted). */
+  const linkedAvgPPerKwh = (ids: string[]): number => {
+    const linked = ids.map((id) => sessionById.get(id)).filter(Boolean) as ChargeSession[];
+    const tk = linked.reduce((a, s) => a + s.energy_added_kwh, 0);
+    const tc = linked.reduce((a, s) => a + s.total_cost_gbp, 0);
+    return tk > 0 ? (tc / tk) * 100 : 0; // p/kWh
+  };
+
+  const usedIds = new Set(sessions.map((s) => s.vehicle_id));
+  const usedVehicles = vehicles.filter((v) => usedIds.has(v.id) && v.miles_per_kwh > 0);
+  const fleetAvgMpkwh =
+    usedVehicles.length > 0
+      ? usedVehicles.reduce((a, v) => a + v.miles_per_kwh, 0) / usedVehicles.length
+      : 3.5;
+
+  const totalKwh = sessions.reduce((s, r) => s + r.energy_added_kwh, 0);
+  const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
+  const fleetSessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * fleetAvgMpkwh) : 0;
+
+  /** Cost per mile for a trip — uses linked sessions if any, otherwise overall sessions average. */
+  const tripEvCostPerMile = (ids?: string[]): number => {
+    if (ids && ids.length > 0) {
+      const p = linkedAvgPPerKwh(ids);
+      if (p > 0) return (p / 100) / fleetAvgMpkwh;
+    }
+    return fleetSessionCostPerMile;
+  };
 
   const handleAdd = () => {
     const m = parseFloat(miles);
@@ -92,12 +132,14 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
         rate_pence_per_mile: rate,
         extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
         extra_charges_note: Number.isFinite(ex) && ex > 0 ? extraNote : undefined,
+        charge_session_ids: linkedSessionIds.length > 0 ? linkedSessionIds : undefined,
       })
     );
     setMiles("");
     setDesc("");
     setExtra("");
     setExtraNote("");
+    setLinkedSessionIds([]);
     toast.success("Work trip logged");
   };
 
@@ -110,6 +152,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       rate_pence_per_mile: String(t.rate_pence_per_mile),
       extra_charges_gbp: t.extra_charges_gbp ? String(t.extra_charges_gbp) : "",
       extra_charges_note: t.extra_charges_note ?? "",
+      charge_session_ids: t.charge_session_ids ?? [],
     });
   };
 
@@ -133,6 +176,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
         rate_pence_per_mile: r,
         extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
         extra_charges_note: Number.isFinite(ex) && ex > 0 ? draft.extra_charges_note : undefined,
+        charge_session_ids: draft.charge_session_ids.length > 0 ? draft.charge_session_ids : undefined,
       })
     );
     cancelEdit();
@@ -141,35 +185,56 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
 
   const handleDelete = (id: string) => setTrips(deleteTrip(id));
 
-  // Cost basis: weighted miles/kWh from used vehicles, fallback 3.5
-  const usedIds = new Set(sessions.map((s) => s.vehicle_id));
-  const usedVehicles = vehicles.filter((v) => usedIds.has(v.id) && v.miles_per_kwh > 0);
-  const avgMpkwh =
-    usedVehicles.length > 0
-      ? usedVehicles.reduce((a, v) => a + v.miles_per_kwh, 0) / usedVehicles.length
-      : 3.5;
-  const totalKwh = sessions.reduce((s, r) => s + r.energy_added_kwh, 0);
-  const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
-  const sessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * avgMpkwh) : 0; // £/mile
-  const homeRateNum = parseFloat(homeRate);
-  const homeRateValid = Number.isFinite(homeRateNum) && homeRateNum >= 0;
-  // Manual home p/kWh overrides session-derived cost when set
-  const evCostPerMile = homeRateValid
-    ? (homeRateNum / 100) / avgMpkwh
-    : sessionCostPerMile;
-  const costSource: "home" | "sessions" | "none" = homeRateValid
-    ? "home"
-    : sessionCostPerMile > 0 ? "sessions" : "none";
-
-  const filtered = useMemo(() => filterByPeriod(trips, period, "trip_date"), [trips, period]);
+  const filtered = useMemo(() => filterByPeriod(trips, period), [trips, period]);
 
   const totals = useMemo(() => {
     const totalMiles = filtered.reduce((a, t) => a + t.miles, 0);
     const claimed = filtered.reduce((a, t) => a + (t.miles * t.rate_pence_per_mile) / 100, 0);
     const extras = filtered.reduce((a, t) => a + (t.extra_charges_gbp ?? 0), 0);
-    const actualCost = totalMiles * evCostPerMile + extras;
+    const evMileCost = filtered.reduce((a, t) => a + t.miles * tripEvCostPerMile(t.charge_session_ids), 0);
+    const actualCost = evMileCost + extras;
     return { totalMiles, claimed, actualCost, extras, profit: claimed - actualCost };
-  }, [filtered, evCostPerMile]);
+  }, [filtered, fleetAvgMpkwh, fleetSessionCostPerMile, sessionById]);
+
+  const toggleLink = (ids: string[], setter: (ids: string[]) => void, sid: string) => {
+    setter(ids.includes(sid) ? ids.filter((x) => x !== sid) : [...ids, sid]);
+  };
+
+  const SessionPicker = ({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) => (
+    <div className="space-y-1">
+      <Label className="text-xs flex items-center gap-1">
+        <Zap className="h-3 w-3 text-primary" /> Link charge session(s) — optional
+      </Label>
+      {pickerSessions.length === 0 ? (
+        <p className="text-[10px] text-muted-foreground">No sessions logged yet.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+          {pickerSessions.map((s) => {
+            const isOn = selected.includes(s.id);
+            return (
+              <Button
+                key={s.id}
+                type="button"
+                size="sm"
+                variant={isOn ? "default" : "outline"}
+                className="h-7 text-[10px] px-2"
+                onClick={() => toggleLink(selected, onChange, s.id)}
+                title={`${s.energy_added_kwh.toFixed(1)} kWh @ ${s.avg_pence_per_kwh.toFixed(1)}p/kWh`}
+              >
+                #{s.number} · {formatUkDate(s.session_date)} · {s.energy_added_kwh.toFixed(1)}kWh
+              </Button>
+            );
+          })}
+        </div>
+      )}
+      {selected.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          Avg from linked: {linkedAvgPPerKwh(selected).toFixed(2)}p/kWh →
+          {" "}{(tripEvCostPerMile(selected) * 100).toFixed(2)}p/mi
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -189,46 +254,36 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             <div className="space-y-1">
               <Label className="text-xs">Miles</Label>
               <Input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                value={miles}
-                onChange={(e) => setMiles(e.target.value)}
-                placeholder="e.g. 42.5"
-                className="h-9"
+                type="number" inputMode="decimal" step="0.1"
+                value={miles} onChange={(e) => setMiles(e.target.value)}
+                placeholder="e.g. 42.5" className="h-9"
               />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Description (optional)</Label>
             <Input
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="Client visit, site survey…"
-              className="h-9"
+              value={desc} onChange={(e) => setDesc(e.target.value)}
+              placeholder="Client visit, site survey…" className="h-9"
             />
           </div>
+
+          <SessionPicker selected={linkedSessionIds} onChange={setLinkedSessionIds} />
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Extra charge £</Label>
               <Input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={extra}
-                onChange={(e) => setExtra(e.target.value)}
-                placeholder="e.g. 22.40"
-                className="h-9"
+                type="number" inputMode="decimal" step="0.01"
+                value={extra} onChange={(e) => setExtra(e.target.value)}
+                placeholder="e.g. 22.40" className="h-9"
               />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Extra note</Label>
               <Input
-                value={extraNote}
-                onChange={(e) => setExtraNote(e.target.value)}
-                placeholder="Tesla supercharger…"
-                className="h-9"
+                value={extraNote} onChange={(e) => setExtraNote(e.target.value)}
+                placeholder="Tesla supercharger…" className="h-9"
               />
             </div>
           </div>
@@ -238,9 +293,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             <div className="flex flex-wrap gap-1">
               {SUGGESTED_RATES.map((r) => (
                 <Button
-                  key={r.label}
-                  type="button"
-                  size="sm"
+                  key={r.label} type="button" size="sm"
                   variant={rate === r.value ? "default" : "outline"}
                   className="h-7 text-[10px] px-2"
                   onClick={() => setRate(r.value)}
@@ -251,9 +304,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               ))}
             </div>
             <Input
-              type="number"
-              step="0.01"
-              value={rate}
+              type="number" step="0.01" value={rate}
               onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
               className="h-9 mt-1"
             />
@@ -265,52 +316,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
         </CardContent>
       </Card>
 
-      {/* Home charge cost (shared with Tariff Comparison) */}
-      <Card className="border-primary/40 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Home className="h-4 w-4 text-primary" /> Home Charging Rate
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label className="text-xs">Your home electricity rate (p/kWh)</Label>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              value={homeRate}
-              onChange={(e) => {
-                setHomeRate(e.target.value);
-                if (e.target.value === "") localStorage.removeItem(HOME_RATE_KEY);
-                else localStorage.setItem(HOME_RATE_KEY, e.target.value);
-              }}
-              placeholder="e.g. 7.00 (Octopus Go) or 22.36"
-              className="h-9 flex-1"
-            />
-            {homeRate && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setHomeRate(""); localStorage.removeItem(HOME_RATE_KEY); }}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            {homeRateValid
-              ? `Used as cost basis: ${homeRateNum.toFixed(2)}p/kWh ÷ ${avgMpkwh.toFixed(2)} mi/kWh = ${(evCostPerMile * 100).toFixed(2)}p/mile.`
-              : sessionCostPerMile > 0
-                ? `Currently using charge sessions average (${(sessionCostPerMile * 100).toFixed(2)}p/mile). Set a rate to override.`
-                : "No charge sessions yet — set your home rate to calculate trip costs."}
-          </p>
-          <p className="text-[10px] text-muted-foreground">
-            Shared with the Agile vs Flexible chart on the Agile tab.
-          </p>
-        </CardContent>
-      </Card>
-
       {/* Summary */}
       <Card>
         <CardHeader className="pb-2">
@@ -319,7 +324,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               <TrendingUp className="h-4 w-4 text-accent" /> Summary
             </CardTitle>
             <Badge variant="outline" className="text-[10px]">
-              EV {(evCostPerMile * 100).toFixed(1)}p/mi · {costSource === "home" ? "home rate" : costSource === "sessions" ? "sessions" : "n/a"}
+              avg {(fleetSessionCostPerMile * 100).toFixed(1)}p/mi
             </Badge>
           </div>
         </CardHeader>
@@ -353,17 +358,13 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               <p className="text-[10px] text-muted-foreground">Claim back</p>
               <p className="text-base font-bold text-primary tabular-nums">£{totals.claimed.toFixed(2)}</p>
             </div>
-            <div
-              className={`rounded-md border p-2 ${
-                totals.profit >= 0 ? "border-accent/40 bg-accent/10" : "border-destructive/40 bg-destructive/10"
-              }`}
-            >
+            <div className={`rounded-md border p-2 ${
+              totals.profit >= 0 ? "border-accent/40 bg-accent/10" : "border-destructive/40 bg-destructive/10"
+            }`}>
               <p className="text-[10px] text-muted-foreground">Net {totals.profit >= 0 ? "profit" : "loss"}</p>
-              <p
-                className={`text-base font-bold tabular-nums ${
-                  totals.profit >= 0 ? "text-accent" : "text-destructive"
-                }`}
-              >
+              <p className={`text-base font-bold tabular-nums ${
+                totals.profit >= 0 ? "text-accent" : "text-destructive"
+              }`}>
                 £{totals.profit.toFixed(2)}
               </p>
             </div>
@@ -383,8 +384,12 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             filtered.map((t) => {
               const isEditing = editingId === t.id;
               const claim = (t.miles * t.rate_pence_per_mile) / 100;
-              const evCost = t.miles * evCostPerMile + (t.extra_charges_gbp ?? 0);
+              const cpm = tripEvCostPerMile(t.charge_session_ids);
+              const evCost = t.miles * cpm + (t.extra_charges_gbp ?? 0);
               const net = claim - evCost;
+              const linkedNumbers = (t.charge_session_ids ?? [])
+                .map((id) => sessionById.get(id)?.number)
+                .filter(Boolean) as number[];
 
               if (isEditing && draft) {
                 return (
@@ -392,55 +397,38 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-[10px]">Date</Label>
-                        <Input
-                          type="date"
-                          value={draft.trip_date}
+                        <Input type="date" value={draft.trip_date}
                           onChange={(e) => setDraft({ ...draft, trip_date: e.target.value })}
-                          className="h-8 text-xs"
-                        />
+                          className="h-8 text-xs" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Miles</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={draft.miles}
+                        <Input type="number" step="0.1" value={draft.miles}
                           onChange={(e) => setDraft({ ...draft, miles: e.target.value })}
-                          className="h-8 text-xs"
-                        />
+                          className="h-8 text-xs" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Rate p/mi</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={draft.rate_pence_per_mile}
+                        <Input type="number" step="0.01" value={draft.rate_pence_per_mile}
                           onChange={(e) => setDraft({ ...draft, rate_pence_per_mile: e.target.value })}
-                          className="h-8 text-xs"
-                        />
+                          className="h-8 text-xs" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Extra £</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={draft.extra_charges_gbp}
+                        <Input type="number" step="0.01" value={draft.extra_charges_gbp}
                           onChange={(e) => setDraft({ ...draft, extra_charges_gbp: e.target.value })}
-                          className="h-8 text-xs"
-                        />
+                          className="h-8 text-xs" />
                       </div>
                     </div>
-                    <Input
-                      placeholder="Description"
-                      value={draft.description}
+                    <Input placeholder="Description" value={draft.description}
                       onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      placeholder="Extra charge note"
-                      value={draft.extra_charges_note}
+                      className="h-8 text-xs" />
+                    <Input placeholder="Extra charge note" value={draft.extra_charges_note}
                       onChange={(e) => setDraft({ ...draft, extra_charges_note: e.target.value })}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs" />
+                    <SessionPicker
+                      selected={draft.charge_session_ids}
+                      onChange={(ids) => setDraft({ ...draft, charge_session_ids: ids })}
                     />
                     <div className="flex gap-2">
                       <Button size="sm" className="flex-1 h-7 text-xs" onClick={() => saveEdit(t.id)}>
@@ -469,6 +457,11 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                             +£{t.extra_charges_gbp.toFixed(2)}
                           </Badge>
                         ) : null}
+                        {linkedNumbers.length > 0 && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/50 text-primary">
+                            ⚡{linkedNumbers.map((n) => `#${n}`).join(",")}
+                          </Badge>
+                        )}
                       </div>
                       {t.description && (
                         <p className="text-[11px] text-muted-foreground truncate">{t.description}</p>
@@ -489,7 +482,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Claim £{claim.toFixed(2)} · Cost £{evCost.toFixed(2)}</span>
+                    <span>Claim £{claim.toFixed(2)} · Cost £{evCost.toFixed(2)} ({(cpm * 100).toFixed(1)}p/mi)</span>
                     <span className={`font-semibold tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
                       {net >= 0 ? "+" : ""}£{net.toFixed(2)}
                     </span>

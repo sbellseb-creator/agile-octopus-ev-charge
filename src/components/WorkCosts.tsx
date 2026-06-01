@@ -109,14 +109,15 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
   const fleetSessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * fleetAvgMpkwh) : 0;
 
-  /** Cost per mile for a trip — uses linked sessions if any, otherwise overall sessions average. */
+  /** Cost per mile for a trip — uses linked sessions if any, otherwise 0 (no estimation). */
   const tripEvCostPerMile = (ids?: string[]): number => {
     if (ids && ids.length > 0) {
       const p = linkedAvgPPerKwh(ids);
       if (p > 0) return (p / 100) / fleetAvgMpkwh;
     }
-    return fleetSessionCostPerMile;
+    return 0;
   };
+
 
   const handleAdd = () => {
     const m = parseFloat(miles);

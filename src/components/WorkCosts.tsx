@@ -77,11 +77,12 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     return sorted.map((s, i) => ({ ...s, number: i + 1 }));
   }, [sessions]);
 
-  // Last 10 sessions (most recent first) for the picker
+  // All sessions for the picker (most recent first), scrollable
   const pickerSessions = useMemo(
-    () => [...sessionsNumbered].reverse().slice(0, 10),
+    () => [...sessionsNumbered].reverse(),
     [sessionsNumbered]
   );
+
 
   const sessionById = useMemo(() => {
     const m = new Map<string, (typeof sessionsNumbered)[number]>();
@@ -193,7 +194,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     const extras = filtered.reduce((a, t) => a + (t.extra_charges_gbp ?? 0), 0);
     const evMileCost = filtered.reduce((a, t) => a + t.miles * tripEvCostPerMile(t.charge_session_ids), 0);
     const actualCost = evMileCost + extras;
-    return { totalMiles, claimed, actualCost, extras, profit: claimed - actualCost };
+    return { totalMiles, claimed, actualCost, extras, evMileCost, profit: claimed - actualCost };
   }, [filtered, fleetAvgMpkwh, fleetSessionCostPerMile, sessionById]);
 
   const toggleLink = (ids: string[], setter: (ids: string[]) => void, sid: string) => {
@@ -350,9 +351,9 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                 <Coins className="h-3 w-3" /> Cost (EV+extras)
               </p>
               <p className="text-base font-bold tabular-nums">£{totals.actualCost.toFixed(2)}</p>
-              {totals.extras > 0 && (
-                <p className="text-[9px] text-muted-foreground">incl £{totals.extras.toFixed(2)} extras</p>
-              )}
+              <p className="text-[9px] text-muted-foreground">
+                energy £{totals.evMileCost.toFixed(2)} + extras £{totals.extras.toFixed(2)}
+              </p>
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-2">
               <p className="text-[10px] text-muted-foreground">Claim back</p>
@@ -369,6 +370,21 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               </p>
             </div>
           </div>
+
+          {/* Itemised totals breakdown */}
+          <div className="rounded-md border border-border bg-muted/20 p-2 text-[10px] space-y-0.5">
+            <p className="font-semibold text-muted-foreground mb-1">Breakdown</p>
+            <div className="flex justify-between"><span>Total miles</span><span className="tabular-nums">{totals.totalMiles.toFixed(1)} mi</span></div>
+            <div className="flex justify-between"><span>Fleet efficiency</span><span className="tabular-nums">{fleetAvgMpkwh.toFixed(2)} mi/kWh</span></div>
+            <div className="flex justify-between"><span>Energy used (est)</span><span className="tabular-nums">{(totals.totalMiles / fleetAvgMpkwh).toFixed(2)} kWh</span></div>
+            <div className="flex justify-between"><span>Fleet avg price</span><span className="tabular-nums">{(fleetSessionCostPerMile * fleetAvgMpkwh * 100).toFixed(2)}p/kWh</span></div>
+            <div className="flex justify-between"><span>Energy cost (Σ trips)</span><span className="tabular-nums">£{totals.evMileCost.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Extra charges (Σ)</span><span className="tabular-nums">£{totals.extras.toFixed(2)}</span></div>
+            <div className="flex justify-between border-t border-border pt-0.5 mt-0.5 font-semibold"><span>Total cost</span><span className="tabular-nums">£{totals.actualCost.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Claim back (miles × rate)</span><span className="tabular-nums text-primary">£{totals.claimed.toFixed(2)}</span></div>
+            <div className="flex justify-between font-semibold"><span>Net</span><span className={`tabular-nums ${totals.profit >= 0 ? "text-accent" : "text-destructive"}`}>£{totals.profit.toFixed(2)}</span></div>
+          </div>
+
         </CardContent>
       </Card>
 
@@ -481,12 +497,33 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Claim £{claim.toFixed(2)} · Cost £{evCost.toFixed(2)} ({(cpm * 100).toFixed(1)}p/mi)</span>
-                    <span className={`font-semibold tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
-                      {net >= 0 ? "+" : ""}£{net.toFixed(2)}
-                    </span>
+                  <div className="rounded-sm bg-muted/30 p-1.5 text-[10px] space-y-0.5 mt-1">
+                    <div className="flex justify-between">
+                      <span>Energy ({(t.miles / fleetAvgMpkwh).toFixed(2)} kWh × {(cpm * fleetAvgMpkwh * 100).toFixed(1)}p/kWh)</span>
+                      <span className="tabular-nums">£{(t.miles * cpm).toFixed(2)}</span>
+                    </div>
+                    {t.extra_charges_gbp ? (
+                      <div className="flex justify-between">
+                        <span>Extra ({t.extra_charges_note || "ad-hoc"})</span>
+                        <span className="tabular-nums">£{t.extra_charges_gbp.toFixed(2)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between border-t border-border pt-0.5">
+                      <span>Total cost</span>
+                      <span className="tabular-nums">£{evCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Claim ({t.miles.toFixed(1)} mi × {t.rate_pence_per_mile}p)</span>
+                      <span className="tabular-nums text-primary">£{claim.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Net {linkedNumbers.length > 0 ? "(linked)" : "(fleet avg)"}</span>
+                      <span className={`tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
+                        {net >= 0 ? "+" : ""}£{net.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
+
                 </div>
               );
             })

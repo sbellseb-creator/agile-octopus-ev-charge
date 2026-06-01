@@ -497,12 +497,33 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Claim £{claim.toFixed(2)} · Cost £{evCost.toFixed(2)} ({(cpm * 100).toFixed(1)}p/mi)</span>
-                    <span className={`font-semibold tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
-                      {net >= 0 ? "+" : ""}£{net.toFixed(2)}
-                    </span>
+                  <div className="rounded-sm bg-muted/30 p-1.5 text-[10px] space-y-0.5 mt-1">
+                    <div className="flex justify-between">
+                      <span>Energy ({(t.miles / fleetAvgMpkwh).toFixed(2)} kWh × {(cpm * fleetAvgMpkwh * 100).toFixed(1)}p/kWh)</span>
+                      <span className="tabular-nums">£{(t.miles * cpm).toFixed(2)}</span>
+                    </div>
+                    {t.extra_charges_gbp ? (
+                      <div className="flex justify-between">
+                        <span>Extra ({t.extra_charges_note || "ad-hoc"})</span>
+                        <span className="tabular-nums">£{t.extra_charges_gbp.toFixed(2)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between border-t border-border pt-0.5">
+                      <span>Total cost</span>
+                      <span className="tabular-nums">£{evCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Claim ({t.miles.toFixed(1)} mi × {t.rate_pence_per_mile}p)</span>
+                      <span className="tabular-nums text-primary">£{claim.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Net {linkedNumbers.length > 0 ? "(linked)" : "(fleet avg)"}</span>
+                      <span className={`tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
+                        {net >= 0 ? "+" : ""}£{net.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
+
                 </div>
               );
             })

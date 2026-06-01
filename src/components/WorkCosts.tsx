@@ -351,9 +351,9 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                 <Coins className="h-3 w-3" /> Cost (EV+extras)
               </p>
               <p className="text-base font-bold tabular-nums">£{totals.actualCost.toFixed(2)}</p>
-              {totals.extras > 0 && (
-                <p className="text-[9px] text-muted-foreground">incl £{totals.extras.toFixed(2)} extras</p>
-              )}
+              <p className="text-[9px] text-muted-foreground">
+                energy £{totals.evMileCost.toFixed(2)} + extras £{totals.extras.toFixed(2)}
+              </p>
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-2">
               <p className="text-[10px] text-muted-foreground">Claim back</p>
@@ -370,6 +370,21 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               </p>
             </div>
           </div>
+
+          {/* Itemised totals breakdown */}
+          <div className="rounded-md border border-border bg-muted/20 p-2 text-[10px] space-y-0.5">
+            <p className="font-semibold text-muted-foreground mb-1">Breakdown</p>
+            <div className="flex justify-between"><span>Total miles</span><span className="tabular-nums">{totals.totalMiles.toFixed(1)} mi</span></div>
+            <div className="flex justify-between"><span>Fleet efficiency</span><span className="tabular-nums">{fleetAvgMpkwh.toFixed(2)} mi/kWh</span></div>
+            <div className="flex justify-between"><span>Energy used (est)</span><span className="tabular-nums">{(totals.totalMiles / fleetAvgMpkwh).toFixed(2)} kWh</span></div>
+            <div className="flex justify-between"><span>Fleet avg price</span><span className="tabular-nums">{(fleetSessionCostPerMile * fleetAvgMpkwh * 100).toFixed(2)}p/kWh</span></div>
+            <div className="flex justify-between"><span>Energy cost (Σ trips)</span><span className="tabular-nums">£{totals.evMileCost.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Extra charges (Σ)</span><span className="tabular-nums">£{totals.extras.toFixed(2)}</span></div>
+            <div className="flex justify-between border-t border-border pt-0.5 mt-0.5 font-semibold"><span>Total cost</span><span className="tabular-nums">£{totals.actualCost.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Claim back (miles × rate)</span><span className="tabular-nums text-primary">£{totals.claimed.toFixed(2)}</span></div>
+            <div className="flex justify-between font-semibold"><span>Net</span><span className={`tabular-nums ${totals.profit >= 0 ? "text-accent" : "text-destructive"}`}>£{totals.profit.toFixed(2)}</span></div>
+          </div>
+
         </CardContent>
       </Card>
 

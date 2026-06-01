@@ -499,10 +499,20 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                     </div>
                   </div>
                   <div className="rounded-sm bg-muted/30 p-1.5 text-[10px] space-y-0.5 mt-1">
-                    <div className="flex justify-between">
-                      <span>Energy ({(t.miles / fleetAvgMpkwh).toFixed(2)} kWh × {(cpm * fleetAvgMpkwh * 100).toFixed(1)}p/kWh)</span>
-                      <span className="tabular-nums">£{(t.miles * cpm).toFixed(2)}</span>
-                    </div>
+                    {linkedNumbers.length > 0 ? (
+                      <div className="flex justify-between">
+                        <span>
+                          Energy ({(t.miles / fleetAvgMpkwh).toFixed(2)} kWh × {(cpm * fleetAvgMpkwh * 100).toFixed(1)}p/kWh)
+                          {" "}<span className="text-primary">from ⚡{linkedNumbers.map((n) => `#${n}`).join(",")}</span>
+                        </span>
+                        <span className="tabular-nums">£{(t.miles * cpm).toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between text-muted-foreground italic">
+                        <span>Energy — no charge sessions linked</span>
+                        <span className="tabular-nums">£0.00</span>
+                      </div>
+                    )}
                     {t.extra_charges_gbp ? (
                       <div className="flex justify-between">
                         <span>Extra ({t.extra_charges_note || "ad-hoc"})</span>
@@ -518,11 +528,26 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       <span className="tabular-nums text-primary">£{claim.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-semibold">
-                      <span>Net {linkedNumbers.length > 0 ? "(linked)" : "(fleet avg)"}</span>
+                      <span>Net {linkedNumbers.length > 0 ? "(claim − energy − extras)" : "(claim − extras)"}</span>
                       <span className={`tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
                         {net >= 0 ? "+" : ""}£{net.toFixed(2)}
                       </span>
                     </div>
+                    {linkedNumbers.length > 0 && (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 w-full"
+                          onClick={() => {
+                            setTrips(updateTrip(t.id, { charge_session_ids: undefined }));
+                            toast.success("Unlinked all charge sessions from trip");
+                          }}
+                        >
+                          Unlink all charge sessions
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                 </div>

@@ -194,7 +194,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     const extras = filtered.reduce((a, t) => a + (t.extra_charges_gbp ?? 0), 0);
     const evMileCost = filtered.reduce((a, t) => a + t.miles * tripEvCostPerMile(t.charge_session_ids), 0);
     const actualCost = evMileCost + extras;
-    return { totalMiles, claimed, actualCost, extras, profit: claimed - actualCost };
+    return { totalMiles, claimed, actualCost, extras, evMileCost, profit: claimed - actualCost };
   }, [filtered, fleetAvgMpkwh, fleetSessionCostPerMile, sessionById]);
 
   const toggleLink = (ids: string[], setter: (ids: string[]) => void, sid: string) => {

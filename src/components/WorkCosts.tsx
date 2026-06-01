@@ -77,11 +77,12 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     return sorted.map((s, i) => ({ ...s, number: i + 1 }));
   }, [sessions]);
 
-  // Last 10 sessions (most recent first) for the picker
+  // All sessions for the picker (most recent first), scrollable
   const pickerSessions = useMemo(
-    () => [...sessionsNumbered].reverse().slice(0, 10),
+    () => [...sessionsNumbered].reverse(),
     [sessionsNumbered]
   );
+
 
   const sessionById = useMemo(() => {
     const m = new Map<string, (typeof sessionsNumbered)[number]>();

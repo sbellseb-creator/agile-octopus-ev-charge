@@ -49,6 +49,7 @@ interface Props {
 
 function SessionCard({
   s,
+  sessionNumber,
   isEditing,
   isSaving,
   editValues,
@@ -59,6 +60,7 @@ function SessionCard({
   onDelete,
 }: {
   s: ChargeSession;
+  sessionNumber: number;
   isEditing: boolean;
   isSaving: boolean;
   editValues: Partial<ChargeSession>;
@@ -73,7 +75,7 @@ function SessionCard({
       <Card className="border-primary/40">
         <CardContent className="p-3 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">{formatUkDate(s.session_date)}</span>
+            <span className="text-sm font-medium">#{sessionNumber} · {formatUkDate(s.session_date)}</span>
             <div className="flex gap-1">
               <Button variant="ghost" size="icon" onClick={onSave} disabled={isSaving} className="text-primary h-7 w-7">
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -129,6 +131,9 @@ function SessionCard({
           <div className="flex-1 min-w-0">
             {/* Top row: date, time, mode */}
             <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                #{sessionNumber}
+              </Badge>
               <span className="text-sm font-semibold">{formatUkDate(s.session_date)}</span>
               {(s.start_time || s.end_time) && (
                 <span className="text-xs text-muted-foreground">

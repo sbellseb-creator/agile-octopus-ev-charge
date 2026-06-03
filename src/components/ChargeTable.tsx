@@ -194,6 +194,13 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
   const [editValues, setEditValues] = useState<Partial<ChargeSession>>({});
   const [period, setPeriod] = useState<Period>("month");
 
+  const sessionNumberById = useMemo(() => {
+    const sorted = [...sessions].sort((a, b) =>
+      `${a.session_date} ${a.start_time ?? ""}`.localeCompare(`${b.session_date} ${b.start_time ?? ""}`)
+    );
+    return new Map(sorted.map((session, index) => [session.id, index + 1]));
+  }, [sessions]);
+
   const filtered = useMemo(() => filterByPeriod(sessions, period), [sessions, period]);
   const periodTotals = useMemo(() => {
     const cost = filtered.reduce((s, r) => s + r.total_cost_gbp, 0);
@@ -295,6 +302,7 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
               <SessionCard
                 key={s.id}
                 s={s}
+                sessionNumber={sessionNumberById.get(s.id) ?? 0}
                 isEditing={editingId === s.id}
                 isSaving={savingId === s.id}
                 editValues={editValues}

@@ -15,12 +15,23 @@ import {
   setDefaultRate,
   SUGGESTED_RATES,
   type WorkTrip,
+  type WorkExtraCharge,
 } from "@/lib/work-data";
 import type { ChargeSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { toast } from "sonner";
 
 type Period = "week" | "month" | "year" | "all";
+
+type ExtraChargeDraft = {
+  id: string;
+  amount: string;
+  note: string;
+};
+
+interface NumberedSession extends ChargeSession {
+  number: number;
+}
 
 function filterByPeriod<T extends { trip_date?: string }>(rows: T[], period: Period): T[] {
   if (period === "all") return rows;
@@ -38,6 +49,51 @@ function formatUkDate(d: string): string {
   return p.length === 3 ? `${p[2]}-${p[1]}-${p[0].slice(2)}` : d;
 }
 
+function newExtraChargeDraft(): ExtraChargeDraft {
+  return { id: crypto.randomUUID(), amount: "", note: "" };
+}
+
+function parseExtraChargeDrafts(rows: ExtraChargeDraft[]): WorkExtraCharge[] {
+  return rows
+    .map((row) => ({
+      id: row.id || crypto.randomUUID(),
+      amount_gbp: parseFloat(row.amount),
+      note: row.note.trim() || undefined,
+    }))
+    .filter((row) => Number.isFinite(row.amount_gbp) && row.amount_gbp > 0);
+}
+
+function tripExtraCharges(trip: WorkTrip): WorkExtraCharge[] {
+  if (trip.extra_charges?.length) return trip.extra_charges;
+  if (trip.extra_charges_gbp && trip.extra_charges_gbp > 0) {
+    return [{
+      id: "legacy-extra",
+      amount_gbp: trip.extra_charges_gbp,
+      note: trip.extra_charges_note,
+    }];
+  }
+  return [];
+}
+
+function extraDraftsFromTrip(trip: WorkTrip): ExtraChargeDraft[] {
+  const extras = tripExtraCharges(trip);
+  if (extras.length === 0) return [newExtraChargeDraft()];
+  return extras.map((extra) => ({
+    id: extra.id || crypto.randomUUID(),
+    amount: String(extra.amount_gbp),
+    note: extra.note ?? "",
+  }));
+}
+
+function sumExtraCharges(extras: WorkExtraCharge[]): number {
+  return extras.reduce((total, extra) => total + extra.amount_gbp, 0);
+}
+
+function legacyExtraNote(extras: WorkExtraCharge[]): string | undefined {
+  const notes = extras.map((extra) => extra.note).filter(Boolean) as string[];
+  return notes.length > 0 ? notes.join("; ") : undefined;
+}
+
 interface Props {
   sessions: ChargeSession[];
   vehicles: Vehicle[];
@@ -48,20 +104,91 @@ interface EditDraft {
   miles: string;
   description: string;
   rate_pence_per_mile: string;
-  extra_charges_gbp: string;
-  extra_charges_note: string;
+  extra_charges: ExtraChargeDraft[];
   charge_session_ids: string[];
 }
 
-export default function WorkCosts({ sessions, vehicles }: Props) {
+function ExtraChargesEditor({
+  items,
+  onChange,
+  labelClassName = "text-xs",
+}: {
+  items: ExtraChargeDraft[];
+  onChange: (items: ExtraChargeDraft[]) => void;
+  labelClassName?: string;
+}) {
+  const updateItem = (id: string, updates: Partial<ExtraChargeDraft>) => {
+    onChange(items.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+  };
+
+  const removeItem = (id: string) => {
+    const remaining = items.filter((item) => item.id !== id);
+    onChange(remaining.length > 0 ? remaining : [newExtraChargeDraft()]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className={labelClassName}>Extra charging costs</Label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-[10px] px-2"
+          onClick={() => onChange([...items, newExtraChargeDraft()])}
+        >
+          <Plus className="h-3 w-3 mr-1" /> Add extra
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div key={item.id} className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">£ {index + 1}</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={item.amount}
+                onChange={(e) => updateItem(item.id, { amount: e.target.value })}
+                placeholder="7.52"
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1 min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Note</Label>
+              <Input
+                value={item.note}
+                onChange={(e) => updateItem(item.id, { note: e.target.value })}
+                placeholder="Tesla, public charger…"
+                className="h-9 text-xs"
+              />
+            </div>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-destructive"
+              onClick={() => removeItem(item.id)}
+              aria-label="Remove extra charge"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function WorkCosts({ sessions }: Props) {
   const [trips, setTrips] = useState<WorkTrip[]>(loadTrips);
   const [period, setPeriod] = useState<Period>("month");
   const [rate, setRate] = useState<number>(getDefaultRate());
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [miles, setMiles] = useState("");
   const [desc, setDesc] = useState("");
-  const [extra, setExtra] = useState("");
-  const [extraNote, setExtraNote] = useState("");
+  const [extraCharges, setExtraCharges] = useState<ExtraChargeDraft[]>(() => [newExtraChargeDraft()]);
   const [linkedSessionIds, setLinkedSessionIds] = useState<string[]>([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +196,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
 
   useEffect(() => setDefaultRate(rate), [rate]);
 
-  // Number sessions chronologically (oldest = #1) so they have stable picker labels
   const sessionsNumbered = useMemo(() => {
     const sorted = [...sessions].sort((a, b) =>
       `${a.session_date} ${a.start_time ?? ""}`.localeCompare(`${b.session_date} ${b.start_time ?? ""}`)
@@ -77,47 +203,22 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     return sorted.map((s, i) => ({ ...s, number: i + 1 }));
   }, [sessions]);
 
-  // All sessions for the picker (most recent first), scrollable
   const pickerSessions = useMemo(
     () => [...sessionsNumbered].reverse(),
     [sessionsNumbered]
   );
 
-
   const sessionById = useMemo(() => {
-    const m = new Map<string, (typeof sessionsNumbered)[number]>();
+    const m = new Map<string, NumberedSession>();
     sessionsNumbered.forEach((s) => m.set(s.id, s));
     return m;
   }, [sessionsNumbered]);
 
-  /** Average p/kWh across linked sessions (kWh-weighted). */
-  const linkedAvgPPerKwh = (ids: string[]): number => {
-    const linked = ids.map((id) => sessionById.get(id)).filter(Boolean) as ChargeSession[];
-    const tk = linked.reduce((a, s) => a + s.energy_added_kwh, 0);
-    const tc = linked.reduce((a, s) => a + s.total_cost_gbp, 0);
-    return tk > 0 ? (tc / tk) * 100 : 0; // p/kWh
-  };
+  const linkedSessions = (ids?: string[]): NumberedSession[] =>
+    (ids ?? []).map((id) => sessionById.get(id)).filter(Boolean) as NumberedSession[];
 
-  const usedIds = new Set(sessions.map((s) => s.vehicle_id));
-  const usedVehicles = vehicles.filter((v) => usedIds.has(v.id) && v.miles_per_kwh > 0);
-  const fleetAvgMpkwh =
-    usedVehicles.length > 0
-      ? usedVehicles.reduce((a, v) => a + v.miles_per_kwh, 0) / usedVehicles.length
-      : 3.5;
-
-  const totalKwh = sessions.reduce((s, r) => s + r.energy_added_kwh, 0);
-  const totalEvCost = sessions.reduce((s, r) => s + r.total_cost_gbp, 0);
-  const fleetSessionCostPerMile = totalKwh > 0 ? totalEvCost / (totalKwh * fleetAvgMpkwh) : 0;
-
-  /** Cost per mile for a trip — uses linked sessions if any, otherwise 0 (no estimation). */
-  const tripEvCostPerMile = (ids?: string[]): number => {
-    if (ids && ids.length > 0) {
-      const p = linkedAvgPPerKwh(ids);
-      if (p > 0) return (p / 100) / fleetAvgMpkwh;
-    }
-    return 0;
-  };
-
+  const linkedSessionCost = (ids?: string[]): number =>
+    linkedSessions(ids).reduce((total, session) => total + session.total_cost_gbp, 0);
 
   const handleAdd = () => {
     const m = parseFloat(miles);
@@ -125,22 +226,23 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       toast.error("Enter valid miles");
       return;
     }
-    const ex = parseFloat(extra);
+    const extras = parseExtraChargeDrafts(extraCharges);
+    const extrasTotal = sumExtraCharges(extras);
     setTrips(
       addTrip({
         trip_date: date,
         description: desc,
         miles: m,
         rate_pence_per_mile: rate,
-        extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
-        extra_charges_note: Number.isFinite(ex) && ex > 0 ? extraNote : undefined,
+        extra_charges: extras.length > 0 ? extras : undefined,
+        extra_charges_gbp: extrasTotal > 0 ? extrasTotal : undefined,
+        extra_charges_note: extrasTotal > 0 ? legacyExtraNote(extras) : undefined,
         charge_session_ids: linkedSessionIds.length > 0 ? linkedSessionIds : undefined,
       })
     );
     setMiles("");
     setDesc("");
-    setExtra("");
-    setExtraNote("");
+    setExtraCharges([newExtraChargeDraft()]);
     setLinkedSessionIds([]);
     toast.success("Work trip logged");
   };
@@ -152,8 +254,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       miles: String(t.miles),
       description: t.description ?? "",
       rate_pence_per_mile: String(t.rate_pence_per_mile),
-      extra_charges_gbp: t.extra_charges_gbp ? String(t.extra_charges_gbp) : "",
-      extra_charges_note: t.extra_charges_note ?? "",
+      extra_charges: extraDraftsFromTrip(t),
       charge_session_ids: t.charge_session_ids ?? [],
     });
   };
@@ -169,15 +270,17 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
     const r = parseFloat(draft.rate_pence_per_mile);
     if (!Number.isFinite(m) || m <= 0) return toast.error("Invalid miles");
     if (!Number.isFinite(r) || r < 0) return toast.error("Invalid rate");
-    const ex = parseFloat(draft.extra_charges_gbp);
+    const extras = parseExtraChargeDrafts(draft.extra_charges);
+    const extrasTotal = sumExtraCharges(extras);
     setTrips(
       updateTrip(id, {
         trip_date: draft.trip_date,
         miles: m,
         description: draft.description,
         rate_pence_per_mile: r,
-        extra_charges_gbp: Number.isFinite(ex) && ex > 0 ? ex : undefined,
-        extra_charges_note: Number.isFinite(ex) && ex > 0 ? draft.extra_charges_note : undefined,
+        extra_charges: extras.length > 0 ? extras : undefined,
+        extra_charges_gbp: extrasTotal > 0 ? extrasTotal : undefined,
+        extra_charges_note: extrasTotal > 0 ? legacyExtraNote(extras) : undefined,
         charge_session_ids: draft.charge_session_ids.length > 0 ? draft.charge_session_ids : undefined,
       })
     );
@@ -192,11 +295,11 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const totals = useMemo(() => {
     const totalMiles = filtered.reduce((a, t) => a + t.miles, 0);
     const claimed = filtered.reduce((a, t) => a + (t.miles * t.rate_pence_per_mile) / 100, 0);
-    const extras = filtered.reduce((a, t) => a + (t.extra_charges_gbp ?? 0), 0);
-    const evMileCost = filtered.reduce((a, t) => a + t.miles * tripEvCostPerMile(t.charge_session_ids), 0);
-    const actualCost = evMileCost + extras;
-    return { totalMiles, claimed, actualCost, extras, evMileCost, profit: claimed - actualCost };
-  }, [filtered, fleetAvgMpkwh, fleetSessionCostPerMile, sessionById]);
+    const extras = filtered.reduce((a, t) => a + sumExtraCharges(tripExtraCharges(t)), 0);
+    const sessionCost = filtered.reduce((a, t) => a + linkedSessionCost(t.charge_session_ids), 0);
+    const actualCost = sessionCost + extras;
+    return { totalMiles, claimed, actualCost, extras, sessionCost, profit: claimed - actualCost };
+  }, [filtered, sessionById]);
 
   const toggleLink = (ids: string[], setter: (ids: string[]) => void, sid: string) => {
     setter(ids.includes(sid) ? ids.filter((x) => x !== sid) : [...ids, sid]);
@@ -205,7 +308,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
   const SessionPicker = ({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) => (
     <div className="space-y-1">
       <Label className="text-xs flex items-center gap-1">
-        <Zap className="h-3 w-3 text-primary" /> Link charge session(s) — optional
+        <Zap className="h-3 w-3 text-primary" /> Link charge session cost(s) — optional
       </Label>
       {pickerSessions.length === 0 ? (
         <p className="text-[10px] text-muted-foreground">No sessions logged yet.</p>
@@ -221,9 +324,9 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                 variant={isOn ? "default" : "outline"}
                 className="h-7 text-[10px] px-2"
                 onClick={() => toggleLink(selected, onChange, s.id)}
-                title={`${s.energy_added_kwh.toFixed(1)} kWh @ ${s.avg_pence_per_kwh.toFixed(1)}p/kWh`}
+                title={`Session #${s.number}: £${s.total_cost_gbp.toFixed(2)} · ${s.energy_added_kwh.toFixed(1)} kWh @ ${s.avg_pence_per_kwh.toFixed(1)}p/kWh`}
               >
-                #{s.number} · {formatUkDate(s.session_date)} · {s.energy_added_kwh.toFixed(1)}kWh
+                #{s.number} · {formatUkDate(s.session_date)} · £{s.total_cost_gbp.toFixed(2)}
               </Button>
             );
           })}
@@ -231,8 +334,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
       )}
       {selected.length > 0 && (
         <p className="text-[10px] text-muted-foreground">
-          Avg from linked: {linkedAvgPPerKwh(selected).toFixed(2)}p/kWh →
-          {" "}{(tripEvCostPerMile(selected) * 100).toFixed(2)}p/mi
+          Selected session cost: £{linkedSessionCost(selected).toFixed(2)}
         </p>
       )}
     </div>
@@ -240,7 +342,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Add trip */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -271,24 +372,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
           </div>
 
           <SessionPicker selected={linkedSessionIds} onChange={setLinkedSessionIds} />
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Extra charge £</Label>
-              <Input
-                type="number" inputMode="decimal" step="0.01"
-                value={extra} onChange={(e) => setExtra(e.target.value)}
-                placeholder="e.g. 22.40" className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Extra note</Label>
-              <Input
-                value={extraNote} onChange={(e) => setExtraNote(e.target.value)}
-                placeholder="Tesla supercharger…" className="h-9"
-              />
-            </div>
-          </div>
+          <ExtraChargesEditor items={extraCharges} onChange={setExtraCharges} />
 
           <div className="space-y-1">
             <Label className="text-xs">Claim rate (p/mile)</Label>
@@ -318,7 +402,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
         </CardContent>
       </Card>
 
-      {/* Summary */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
@@ -326,7 +409,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
               <TrendingUp className="h-4 w-4 text-accent" /> Summary
             </CardTitle>
             <Badge variant="outline" className="text-[10px]">
-              avg {(fleetSessionCostPerMile * 100).toFixed(1)}p/mi
+              session costs only
             </Badge>
           </div>
         </CardHeader>
@@ -349,11 +432,11 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             </div>
             <div className="rounded-md border border-border bg-muted/40 p-2">
               <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Coins className="h-3 w-3" /> Cost (EV+extras)
+                <Coins className="h-3 w-3" /> Cost (sessions+extras)
               </p>
               <p className="text-base font-bold tabular-nums">£{totals.actualCost.toFixed(2)}</p>
               <p className="text-[9px] text-muted-foreground">
-                energy £{totals.evMileCost.toFixed(2)} + extras £{totals.extras.toFixed(2)}
+                sessions £{totals.sessionCost.toFixed(2)} + extras £{totals.extras.toFixed(2)}
               </p>
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-2">
@@ -372,24 +455,18 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             </div>
           </div>
 
-          {/* Itemised totals breakdown */}
           <div className="rounded-md border border-border bg-muted/20 p-2 text-[10px] space-y-0.5">
             <p className="font-semibold text-muted-foreground mb-1">Breakdown</p>
             <div className="flex justify-between"><span>Total miles</span><span className="tabular-nums">{totals.totalMiles.toFixed(1)} mi</span></div>
-            <div className="flex justify-between"><span>Fleet efficiency</span><span className="tabular-nums">{fleetAvgMpkwh.toFixed(2)} mi/kWh</span></div>
-            <div className="flex justify-between"><span>Energy used (est)</span><span className="tabular-nums">{(totals.totalMiles / fleetAvgMpkwh).toFixed(2)} kWh</span></div>
-            <div className="flex justify-between"><span>Fleet avg price</span><span className="tabular-nums">{(fleetSessionCostPerMile * fleetAvgMpkwh * 100).toFixed(2)}p/kWh</span></div>
-            <div className="flex justify-between"><span>Energy cost (Σ trips)</span><span className="tabular-nums">£{totals.evMileCost.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Selected charge sessions (Σ)</span><span className="tabular-nums">£{totals.sessionCost.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>Extra charges (Σ)</span><span className="tabular-nums">£{totals.extras.toFixed(2)}</span></div>
             <div className="flex justify-between border-t border-border pt-0.5 mt-0.5 font-semibold"><span>Total cost</span><span className="tabular-nums">£{totals.actualCost.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>Claim back (miles × rate)</span><span className="tabular-nums text-primary">£{totals.claimed.toFixed(2)}</span></div>
             <div className="flex justify-between font-semibold"><span>Net</span><span className={`tabular-nums ${totals.profit >= 0 ? "text-accent" : "text-destructive"}`}>£{totals.profit.toFixed(2)}</span></div>
           </div>
-
         </CardContent>
       </Card>
 
-      {/* Trip list */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Trips ({filtered.length})</CardTitle>
@@ -401,12 +478,13 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
             filtered.map((t) => {
               const isEditing = editingId === t.id;
               const claim = (t.miles * t.rate_pence_per_mile) / 100;
-              const cpm = tripEvCostPerMile(t.charge_session_ids);
-              const evCost = t.miles * cpm + (t.extra_charges_gbp ?? 0);
+              const linked = linkedSessions(t.charge_session_ids);
+              const linkedNumbers = linked.map((session) => session.number);
+              const selectedSessionCost = linked.reduce((total, session) => total + session.total_cost_gbp, 0);
+              const extras = tripExtraCharges(t);
+              const extrasCost = sumExtraCharges(extras);
+              const evCost = selectedSessionCost + extrasCost;
               const net = claim - evCost;
-              const linkedNumbers = (t.charge_session_ids ?? [])
-                .map((id) => sessionById.get(id)?.number)
-                .filter(Boolean) as number[];
 
               if (isEditing && draft) {
                 return (
@@ -424,28 +502,24 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                           onChange={(e) => setDraft({ ...draft, miles: e.target.value })}
                           className="h-8 text-xs" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 col-span-2">
                         <Label className="text-[10px]">Rate p/mi</Label>
                         <Input type="number" step="0.01" value={draft.rate_pence_per_mile}
                           onChange={(e) => setDraft({ ...draft, rate_pence_per_mile: e.target.value })}
-                          className="h-8 text-xs" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px]">Extra £</Label>
-                        <Input type="number" step="0.01" value={draft.extra_charges_gbp}
-                          onChange={(e) => setDraft({ ...draft, extra_charges_gbp: e.target.value })}
                           className="h-8 text-xs" />
                       </div>
                     </div>
                     <Input placeholder="Description" value={draft.description}
                       onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                       className="h-8 text-xs" />
-                    <Input placeholder="Extra charge note" value={draft.extra_charges_note}
-                      onChange={(e) => setDraft({ ...draft, extra_charges_note: e.target.value })}
-                      className="h-8 text-xs" />
                     <SessionPicker
                       selected={draft.charge_session_ids}
                       onChange={(ids) => setDraft({ ...draft, charge_session_ids: ids })}
+                    />
+                    <ExtraChargesEditor
+                      items={draft.extra_charges}
+                      onChange={(items) => setDraft({ ...draft, extra_charges: items })}
+                      labelClassName="text-[10px]"
                     />
                     <div className="flex gap-2">
                       <Button size="sm" className="flex-1 h-7 text-xs" onClick={() => saveEdit(t.id)}>
@@ -469,9 +543,9 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                         <Badge variant="outline" className="text-[9px] h-4 px-1">
                           {t.rate_pence_per_mile}p/mi
                         </Badge>
-                        {t.extra_charges_gbp ? (
+                        {extrasCost > 0 ? (
                           <Badge variant="secondary" className="text-[9px] h-4 px-1">
-                            +£{t.extra_charges_gbp.toFixed(2)}
+                            extras £{extrasCost.toFixed(2)}
                           </Badge>
                         ) : null}
                         {linkedNumbers.length > 0 && (
@@ -482,11 +556,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       </div>
                       {t.description && (
                         <p className="text-[11px] text-muted-foreground truncate">{t.description}</p>
-                      )}
-                      {t.extra_charges_note && (
-                        <p className="text-[10px] text-muted-foreground truncate italic">
-                          Extra: {t.extra_charges_note}
-                        </p>
                       )}
                     </div>
                     <div className="flex flex-col gap-1 shrink-0">
@@ -499,26 +568,27 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                     </div>
                   </div>
                   <div className="rounded-sm bg-muted/30 p-1.5 text-[10px] space-y-0.5 mt-1">
-                    {linkedNumbers.length > 0 ? (
-                      <div className="flex justify-between">
-                        <span>
-                          Energy ({(t.miles / fleetAvgMpkwh).toFixed(2)} kWh × {(cpm * fleetAvgMpkwh * 100).toFixed(1)}p/kWh)
-                          {" "}<span className="text-primary">from ⚡{linkedNumbers.map((n) => `#${n}`).join(",")}</span>
-                        </span>
-                        <span className="tabular-nums">£{(t.miles * cpm).toFixed(2)}</span>
-                      </div>
+                    {linked.length > 0 ? (
+                      linked.map((session) => (
+                        <div key={session.id} className="flex justify-between gap-2">
+                          <span>
+                            Session #{session.number} ({formatUkDate(session.session_date)} · {session.energy_added_kwh.toFixed(2)} kWh × {session.avg_pence_per_kwh.toFixed(2)}p/kWh)
+                          </span>
+                          <span className="tabular-nums">£{session.total_cost_gbp.toFixed(2)}</span>
+                        </div>
+                      ))
                     ) : (
                       <div className="flex justify-between text-muted-foreground italic">
-                        <span>Energy — no charge sessions linked</span>
+                        <span>No charge sessions linked</span>
                         <span className="tabular-nums">£0.00</span>
                       </div>
                     )}
-                    {t.extra_charges_gbp ? (
-                      <div className="flex justify-between">
-                        <span>Extra ({t.extra_charges_note || "ad-hoc"})</span>
-                        <span className="tabular-nums">£{t.extra_charges_gbp.toFixed(2)}</span>
+                    {extras.map((extra, index) => (
+                      <div key={extra.id || index} className="flex justify-between gap-2">
+                        <span>Extra {index + 1} ({extra.note || "ad-hoc"})</span>
+                        <span className="tabular-nums">£{extra.amount_gbp.toFixed(2)}</span>
                       </div>
-                    ) : null}
+                    ))}
                     <div className="flex justify-between border-t border-border pt-0.5">
                       <span>Total cost</span>
                       <span className="tabular-nums">£{evCost.toFixed(2)}</span>
@@ -528,7 +598,7 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       <span className="tabular-nums text-primary">£{claim.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-semibold">
-                      <span>Net {linkedNumbers.length > 0 ? "(claim − energy − extras)" : "(claim − extras)"}</span>
+                      <span>Net (claim − sessions − extras)</span>
                       <span className={`tabular-nums ${net >= 0 ? "text-accent" : "text-destructive"}`}>
                         {net >= 0 ? "+" : ""}£{net.toFixed(2)}
                       </span>
@@ -549,7 +619,6 @@ export default function WorkCosts({ sessions, vehicles }: Props) {
                       </div>
                     )}
                   </div>
-
                 </div>
               );
             })

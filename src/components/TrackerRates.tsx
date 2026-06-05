@@ -47,7 +47,7 @@ export default function TrackerRates() {
   }, [now]);
 
   const { data: rates, isLoading, error } = useQuery({
-    queryKey: ["tracker-rates", periodFrom],
+    queryKey: ["tracker-rates", periodFrom, periodTo],
     queryFn: () => fetchTrackerRates("SILVER-24-10-01", "F", periodFrom, periodTo),
     refetchInterval: 60 * 60 * 1000,
     retry: 2,

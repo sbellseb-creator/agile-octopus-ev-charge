@@ -129,16 +129,23 @@ export default function TrackerRates() {
         </p>
       )}
 
-      {/* 7-day history */}
+      {/* History */}
       {!isLoading && !error && dailyRates.length > 0 && (
         <Card className="neon-border">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 space-y-2">
             <CardTitle className="text-sm sm:text-lg">
               Tracker Price History
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal ml-2">
                 SILVER-24-10-01 · North East
               </span>
             </CardTitle>
+            <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+              <TabsList className="grid grid-cols-3 w-full h-8">
+                <TabsTrigger value="week" className="text-[11px]">Week</TabsTrigger>
+                <TabsTrigger value="month" className="text-[11px]">Month</TabsTrigger>
+                <TabsTrigger value="year" className="text-[11px]">Year</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
             {dailyRates.map((entry, i) => {

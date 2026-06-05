@@ -1,10 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchTrackerRates } from "@/lib/octopus-api";
 import { Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { format, subDays, addDays, startOfDay } from "date-fns";
+
+type Period = "week" | "month" | "year";
+const PERIOD_DAYS: Record<Period, number> = { week: 7, month: 30, year: 365 };
 
 function priceColorClass(p: number): string {
   if (p < 10) return "text-[hsl(var(--neon-green))]";
@@ -30,11 +34,12 @@ function changeTextClass(pct: number): string {
 
 export default function TrackerRates() {
   const now = useMemo(() => new Date(), []);
+  const [period, setPeriod] = useState<Period>("week");
 
   const periodFrom = useMemo(() => {
-    const d = subDays(startOfDay(now), 7);
+    const d = subDays(startOfDay(now), PERIOD_DAYS[period]);
     return d.toISOString();
-  }, [now]);
+  }, [now, period]);
 
   const periodTo = useMemo(() => {
     const d = addDays(startOfDay(now), 2);
@@ -42,7 +47,7 @@ export default function TrackerRates() {
   }, [now]);
 
   const { data: rates, isLoading, error } = useQuery({
-    queryKey: ["tracker-rates", periodFrom],
+    queryKey: ["tracker-rates", periodFrom, periodTo],
     queryFn: () => fetchTrackerRates("SILVER-24-10-01", "F", periodFrom, periodTo),
     refetchInterval: 60 * 60 * 1000,
     retry: 2,
@@ -124,16 +129,23 @@ export default function TrackerRates() {
         </p>
       )}
 
-      {/* 7-day history */}
+      {/* History */}
       {!isLoading && !error && dailyRates.length > 0 && (
         <Card className="neon-border">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 space-y-2">
             <CardTitle className="text-sm sm:text-lg">
               Tracker Price History
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal ml-2">
                 SILVER-24-10-01 · North East
               </span>
             </CardTitle>
+            <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+              <TabsList className="grid grid-cols-3 w-full h-8">
+                <TabsTrigger value="week" className="text-[11px]">Week</TabsTrigger>
+                <TabsTrigger value="month" className="text-[11px]">Month</TabsTrigger>
+                <TabsTrigger value="year" className="text-[11px]">Year</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
             {dailyRates.map((entry, i) => {

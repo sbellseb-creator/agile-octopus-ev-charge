@@ -1,10 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchTrackerRates } from "@/lib/octopus-api";
 import { Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { format, subDays, addDays, startOfDay } from "date-fns";
+
+type Period = "week" | "month" | "year";
+const PERIOD_DAYS: Record<Period, number> = { week: 7, month: 30, year: 365 };
 
 function priceColorClass(p: number): string {
   if (p < 10) return "text-[hsl(var(--neon-green))]";

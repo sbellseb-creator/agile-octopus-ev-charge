@@ -34,11 +34,12 @@ function changeTextClass(pct: number): string {
 
 export default function TrackerRates() {
   const now = useMemo(() => new Date(), []);
+  const [period, setPeriod] = useState<Period>("week");
 
   const periodFrom = useMemo(() => {
-    const d = subDays(startOfDay(now), 7);
+    const d = subDays(startOfDay(now), PERIOD_DAYS[period]);
     return d.toISOString();
-  }, [now]);
+  }, [now, period]);
 
   const periodTo = useMemo(() => {
     const d = addDays(startOfDay(now), 2);

@@ -155,9 +155,10 @@ export default function TrackerRates() {
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
             {dailyRates.map((entry, i) => {
-              const prevEntry = i > 0 ? dailyRates[i - 1] : null;
-              const dayChange = prevEntry
-                ? ((entry.price - prevEntry.price) / prevEntry.price) * 100
+              const prevDateStr = format(subDays(new Date(entry.date + "T00:00:00"), 1), "yyyy-MM-dd");
+              const prevPrice = priceByDate.get(prevDateStr);
+              const dayChange = prevPrice !== undefined
+                ? ((entry.price - prevPrice) / prevPrice) * 100
                 : null;
 
               const isToday = entry.date === todayStr;

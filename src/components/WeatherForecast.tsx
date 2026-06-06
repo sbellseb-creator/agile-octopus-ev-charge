@@ -3,13 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line,
-} from "recharts";
 import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel, type AgileBaseline } from "@/lib/weather-api";
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { CloudSun, Wind, Sun, Thermometer, TrendingDown, TrendingUp, Loader2, Zap } from "lucide-react";
+import { CloudSun, Wind, Sun, TrendingDown, TrendingUp, Minus, Loader2, Sparkles } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const UK_REGIONS = [
@@ -38,7 +34,6 @@ function percentile(sorted: number[], p: number): number {
 export default function WeatherForecast() {
   const [region, setRegion] = useState("F");
 
-  // Fetch the last 7 days of actual Agile prices to anchor the prediction baseline
   const { data: baseline } = useQuery<AgileBaseline>({
     queryKey: ["agile-baseline", region],
     queryFn: async () => {
@@ -69,43 +64,36 @@ export default function WeatherForecast() {
     enabled: !!baseline,
   });
 
-  const priceChartData = useMemo(() => {
-    if (!data?.daily) return [];
-    return data.daily.map((d) => ({
-      day: format(parseISO(d.date), "EEE"),
-      date: format(parseISO(d.date), "dd/MM"),
-      avg: d.predicted_agile_avg,
-      low: d.predicted_agile_low,
-      high: d.predicted_agile_high,
-    }));
+  const summary = useMemo(() => {
+    if (!data?.daily || data.daily.length === 0) return null;
+    const prices = data.daily.map(d => d.predicted_agile_avg);
+    const cheapestIdx = prices.indexOf(Math.min(...prices));
+    const priciestIdx = prices.indexOf(Math.max(...prices));
+    const first = prices[0];
+    const last = prices[prices.length - 1];
+    const pctChange = first > 0 ? ((last - first) / first) * 100 : 0;
+    const direction = pctChange > 2 ? "up" : pctChange < -2 ? "down" : "stable";
+    return {
+      cheapest: data.daily[cheapestIdx],
+      priciest: data.daily[priciestIdx],
+      direction,
+      pct: Math.abs(pctChange),
+      avgPrice: prices.reduce((s, p) => s + p, 0) / prices.length,
+    };
   }, [data]);
 
-  const weatherChartData = useMemo(() => {
-    if (!data?.daily) return [];
-    return data.daily.map((d) => ({
-      day: format(parseISO(d.date), "EEE"),
-      wind: d.windspeed_max,
-      sun: d.sunshine_hours,
-      tempMax: d.temp_max,
-      tempMin: d.temp_min,
-    }));
+  const maxPrice = useMemo(() => {
+    if (!data?.daily) return 0;
+    return Math.max(...data.daily.map(d => d.predicted_agile_high));
   }, [data]);
-
-  const trend = useMemo(() => {
-    if (!priceChartData.length || priceChartData.length < 2) return null;
-    const first = priceChartData[0].avg;
-    const last = priceChartData[priceChartData.length - 1].avg;
-    const pctChange = ((last - first) / first) * 100;
-    return { direction: pctChange > 2 ? "up" : pctChange < -2 ? "down" : "stable", pct: Math.abs(pctChange) };
-  }, [priceChartData]);
 
   return (
-    <div className="space-y-4">
-      {/* Region selector */}
+    <div className="space-y-3">
+      {/* Header */}
       <div className="flex items-center gap-2">
-        <CloudSun className="h-5 w-5 text-primary" />
+        <CloudSun className="h-5 w-5 text-primary shrink-0" />
         <Select value={region} onValueChange={setRegion}>
-          <SelectTrigger className="w-48 h-8 text-xs">
+          <SelectTrigger className="flex-1 h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -125,197 +113,115 @@ export default function WeatherForecast() {
       )}
       {error && <p className="text-destructive text-sm">Failed to load weather data</p>}
 
-      {data && (
+      {data && summary && (
         <>
-          {/* 5-day weather cards */}
-          <div className="grid grid-cols-5 gap-1.5">
-            {data.daily.map((d) => (
-              <Card key={d.date} className="neon-border">
-                <CardContent className="p-2 text-center space-y-0.5">
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    {format(parseISO(d.date), "EEE")}
-                  </p>
-                  <p className="text-lg leading-none">{weatherCodeToEmoji(d.weathercode)}</p>
-                  <p className="text-[9px] text-muted-foreground">{weatherCodeToLabel(d.weathercode)}</p>
-                  <div className="flex items-center justify-center gap-1 text-[10px]">
-                    <span className="text-foreground font-medium">{Math.round(d.temp_max)}°</span>
-                    <span className="text-muted-foreground">{Math.round(d.temp_min)}°</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-0.5 text-[9px] text-muted-foreground">
-                    <Wind className="h-2.5 w-2.5" />
-                    {Math.round(d.windspeed_max)}
-                  </div>
-                  <div className="flex items-center justify-center gap-0.5 text-[9px] text-muted-foreground">
-                    <Sun className="h-2.5 w-2.5" />
-                    {d.sunshine_hours}h
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Trend indicator */}
-          {trend && (
-            <Card className="neon-border">
-              <CardContent className="flex items-center gap-2 p-3">
-                {trend.direction === "down" ? (
-                  <TrendingDown className="h-5 w-5 text-chart-good" />
-                ) : trend.direction === "up" ? (
-                  <TrendingUp className="h-5 w-5 text-destructive" />
-                ) : (
-                  <Thermometer className="h-5 w-5 text-muted-foreground" />
-                )}
-                <div>
-                  <p className="text-sm font-medium">
-                    {trend.direction === "down"
-                      ? "Prices predicted to drop"
-                      : trend.direction === "up"
-                      ? "Prices predicted to rise"
-                      : "Prices predicted to stay stable"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    ~{trend.pct.toFixed(1)}% {trend.direction === "stable" ? "change" : trend.direction} over 5 days based on weather
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Predicted Agile Price Chart */}
+          {/* Headline summary */}
           <Card className="neon-border">
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-sm flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-primary" />
-                Predicted Agile Prices (p/kWh)
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {summary.direction === "down" ? (
+                    <TrendingDown className="h-4 w-4 text-chart-good shrink-0" />
+                  ) : summary.direction === "up" ? (
+                    <TrendingUp className="h-4 w-4 text-destructive shrink-0" />
+                  ) : (
+                    <Minus className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="text-xs font-medium truncate">
+                    {summary.direction === "down" ? "Trending cheaper" : summary.direction === "up" ? "Trending pricier" : "Holding steady"}
+                    {summary.direction !== "stable" && ` (${summary.pct.toFixed(0)}%)`}
+                  </span>
+                </div>
                 {baseline && (
-                  <Badge variant="outline" className={`ml-auto text-[9px] px-1.5 py-0 ${baseline.source === "live" ? "border-primary/50 text-primary" : "border-muted-foreground/40 text-muted-foreground"}`}>
-                    {baseline.source === "live"
-                      ? `Anchored to last 7d avg ${baseline.avg.toFixed(1)}p`
-                      : "Default baseline"}
+                  <Badge variant="outline" className={`text-[9px] px-1.5 py-0 shrink-0 ${baseline.source === "live" ? "border-primary/50 text-primary" : "border-muted-foreground/40 text-muted-foreground"}`}>
+                    {baseline.source === "live" ? `7d avg ${baseline.avg.toFixed(1)}p` : "Estimated"}
                   </Badge>
                 )}
-              </CardTitle>
-              <p className="text-[10px] text-muted-foreground">Weather adjusts your real recent baseline (±25%)</p>
-            </CardHeader>
-            <CardContent className="p-2">
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={priceChartData} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={30} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 8,
-                        fontSize: 11,
-                      }}
-                      formatter={(value: number, name: string) => [
-                        `${value.toFixed(1)}p`,
-                        name === "avg" ? "Average" : name === "low" ? "Low" : "High",
-                      ]}
-                      labelFormatter={(label, payload) => {
-                        const item = payload?.[0]?.payload;
-                        return item ? `${label} ${item.date}` : label;
-                      }}
-                    />
-                    <Bar dataKey="low" fill="hsl(var(--chart-good))" radius={[2, 2, 0, 0]} name="low" />
-                    <Bar dataKey="avg" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} name="avg" />
-                    <Bar dataKey="high" fill="hsl(var(--chart-danger))" radius={[2, 2, 0, 0]} name="high" />
-                  </BarChart>
-                </ResponsiveContainer>
               </div>
-              <div className="flex justify-center gap-3 mt-1 text-[10px]">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-sm" style={{ background: "hsl(var(--chart-good))" }} />
-                  Low
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-sm" style={{ background: "hsl(var(--primary))" }} />
-                  Avg
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-sm" style={{ background: "hsl(var(--chart-danger))" }} />
-                  High
-                </span>
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles className="h-3.5 w-3.5 text-chart-good shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Best day</p>
+                    <p className="text-xs font-medium truncate">
+                      {format(parseISO(summary.cheapest.date), "EEE")} · {summary.cheapest.predicted_agile_avg.toFixed(1)}p
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TrendingUp className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Avoid</p>
+                    <p className="text-xs font-medium truncate">
+                      {format(parseISO(summary.priciest.date), "EEE")} · {summary.priciest.predicted_agile_avg.toFixed(1)}p
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Weather factors chart */}
+          {/* Unified 5-day forecast */}
           <Card className="neon-border">
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-sm flex items-center gap-1.5">
-                <CloudSun className="h-4 w-4 text-neon-cyan" />
-                Weather Factors
-              </CardTitle>
-              <p className="text-[10px] text-muted-foreground">Wind speed (km/h) • Sunshine (hrs) • Temperature (°C)</p>
+              <CardTitle className="text-sm">5-Day Forecast</CardTitle>
+              <p className="text-[10px] text-muted-foreground">Weather + predicted Agile price (p/kWh)</p>
             </CardHeader>
-            <CardContent className="p-2">
-              <div className="h-44">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weatherChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={30} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 8,
-                        fontSize: 11,
-                      }}
-                    />
-                    <Line type="monotone" dataKey="wind" stroke="hsl(var(--neon-cyan))" strokeWidth={2} dot={{ r: 3 }} name="Wind (km/h)" />
-                    <Line type="monotone" dataKey="sun" stroke="hsl(var(--neon-yellow))" strokeWidth={2} dot={{ r: 3 }} name="Sun (hrs)" />
-                    <Line type="monotone" dataKey="tempMax" stroke="hsl(var(--chart-danger))" strokeWidth={2} dot={{ r: 3 }} name="Max Temp °C" />
-                    <Line type="monotone" dataKey="tempMin" stroke="hsl(var(--neon-blue))" strokeWidth={2} dot={{ r: 3 }} name="Min Temp °C" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2 mt-1 text-[10px]">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--neon-cyan))" }} /> Wind
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--neon-yellow))" }} /> Sun
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--chart-danger))" }} /> Max°C
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--neon-blue))" }} /> Min°C
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Daily breakdown table */}
-          <Card className="neon-border">
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-sm">5-Day Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <div className="space-y-1.5">
-                {data.daily.map((d) => (
-                  <div key={d.date} className="flex items-center gap-2 p-2 rounded-md bg-secondary/50 text-xs">
-                    <span className="text-base">{weatherCodeToEmoji(d.weathercode)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium">{format(parseISO(d.date), "EEE dd MMM")}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {Math.round(d.temp_min)}–{Math.round(d.temp_max)}°C • Wind {Math.round(d.windspeed_max)}km/h • Sun {d.sunshine_hours}h
-                      </p>
+            <CardContent className="p-2 space-y-1.5">
+              {data.daily.map((d) => {
+                const isCheapest = d.date === summary.cheapest.date;
+                const isPriciest = d.date === summary.priciest.date;
+                const pricePct = maxPrice > 0 ? (d.predicted_agile_avg / maxPrice) * 100 : 0;
+                return (
+                  <div
+                    key={d.date}
+                    className={`rounded-md p-2 text-xs transition-colors ${
+                      isCheapest
+                        ? "bg-chart-good/10 border border-chart-good/40"
+                        : isPriciest
+                        ? "bg-destructive/10 border border-destructive/30"
+                        : "bg-secondary/50 border border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl leading-none shrink-0" title={weatherCodeToLabel(d.weathercode)}>
+                        {weatherCodeToEmoji(d.weathercode)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <p className="font-semibold">{format(parseISO(d.date), "EEE")}</p>
+                          <p className="text-[10px] text-muted-foreground">{format(parseISO(d.date), "dd MMM")}</p>
+                          {isCheapest && <Badge className="ml-auto text-[8px] px-1 py-0 bg-chart-good/20 text-chart-good border-chart-good/40">Cheapest</Badge>}
+                          {isPriciest && <Badge className="ml-auto text-[8px] px-1 py-0 bg-destructive/20 text-destructive border-destructive/40">Pricey</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                          <span>{Math.round(d.temp_min)}–{Math.round(d.temp_max)}°</span>
+                          <span className="flex items-center gap-0.5"><Wind className="h-2.5 w-2.5" />{Math.round(d.windspeed_max)}</span>
+                          <span className="flex items-center gap-0.5"><Sun className="h-2.5 w-2.5" />{d.sunshine_hours}h</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`font-mono font-bold text-sm ${isCheapest ? "text-chart-good" : isPriciest ? "text-destructive" : "text-primary"}`}>
+                          {d.predicted_agile_avg.toFixed(1)}p
+                        </p>
+                        <p className="text-[9px] text-muted-foreground font-mono">
+                          {d.predicted_agile_low.toFixed(0)}–{d.predicted_agile_high.toFixed(0)}p
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-mono font-medium text-primary">{d.predicted_agile_avg.toFixed(1)}p</p>
-                      <p className="text-[9px] text-muted-foreground">
-                        {d.predicted_agile_low.toFixed(1)}–{d.predicted_agile_high.toFixed(1)}p
-                      </p>
+                    {/* Price bar */}
+                    <div className="mt-1.5 h-1 rounded-full bg-background/60 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${isCheapest ? "bg-chart-good" : isPriciest ? "bg-destructive" : "bg-primary/60"}`}
+                        style={{ width: `${pricePct}%` }}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
+              <p className="text-[9px] text-muted-foreground text-center pt-1">
+                Predictions blend your recent Agile baseline with wind, sun &amp; temperature.
+              </p>
             </CardContent>
           </Card>
         </>
@@ -323,4 +229,3 @@ export default function WeatherForecast() {
     </div>
   );
 }
-

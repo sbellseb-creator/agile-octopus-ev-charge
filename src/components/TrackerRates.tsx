@@ -71,10 +71,16 @@ export default function TrackerRates() {
         date,
         price: prices.reduce((a, b) => a + b, 0) / prices.length,
       }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a, b) => b.date.localeCompare(a.date));
 
     return entries;
   }, [rates]);
+
+  const priceByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of dailyRates) map.set(e.date, e.price);
+    return map;
+  }, [dailyRates]);
 
   const todayStr = format(now, "yyyy-MM-dd");
   const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
@@ -149,9 +155,10 @@ export default function TrackerRates() {
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
             {dailyRates.map((entry, i) => {
-              const prevEntry = i > 0 ? dailyRates[i - 1] : null;
-              const dayChange = prevEntry
-                ? ((entry.price - prevEntry.price) / prevEntry.price) * 100
+              const prevDateStr = format(subDays(new Date(entry.date + "T00:00:00"), 1), "yyyy-MM-dd");
+              const prevPrice = priceByDate.get(prevDateStr);
+              const dayChange = prevPrice !== undefined
+                ? ((entry.price - prevPrice) / prevPrice) * 100
                 : null;
 
               const isToday = entry.date === todayStr;

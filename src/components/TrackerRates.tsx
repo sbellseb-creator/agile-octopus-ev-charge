@@ -76,6 +76,12 @@ export default function TrackerRates() {
     return entries;
   }, [rates]);
 
+  const priceByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of dailyRates) map.set(e.date, e.price);
+    return map;
+  }, [dailyRates]);
+
   const todayStr = format(now, "yyyy-MM-dd");
   const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
 

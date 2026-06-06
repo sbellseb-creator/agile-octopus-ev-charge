@@ -71,7 +71,7 @@ export default function TrackerRates() {
         date,
         price: prices.reduce((a, b) => a + b, 0) / prices.length,
       }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a, b) => b.date.localeCompare(a.date));
 
     return entries;
   }, [rates]);

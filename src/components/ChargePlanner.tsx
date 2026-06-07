@@ -364,6 +364,12 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               </div>
             )}
 
+            {estimates.hasTail && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">
+                <span className="font-semibold text-primary">+30 min taper</span> added — the last 1% trickle-charges slowly past full power slots.
+              </div>
+            )}
+
             {/* Slot list — tap X to remove */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">

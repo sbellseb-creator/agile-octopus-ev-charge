@@ -621,7 +621,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </PinchZoomChart>
+            </div>
           )}
         </CardContent>
       </Card>

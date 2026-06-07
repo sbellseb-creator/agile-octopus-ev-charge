@@ -216,21 +216,40 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const canPrev = viewedSlotIdx > 0;
   const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
-  // Filter: only show previous slot + current + future
-  const filteredRates = useMemo(() => {
-    if (!rates) return [];
-    const sorted = [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
-    const currentIdx = sorted.findIndex((r) => {
-      const from = new Date(r.valid_from).getTime();
-      const to = new Date(r.valid_to).getTime();
-      return now.getTime() >= from && now.getTime() < to;
-    });
-    if (currentIdx < 0) return sorted.filter(r => new Date(r.valid_to).getTime() > now.getTime());
-    const startIdx = Math.max(0, currentIdx - 1);
-    return sorted.slice(startIdx);
-  }, [rates, now]);
+  // Build 6-hour pages (12 half-hour slots) aligned to 00 / 06 / 12 / 18
+  const pages = useMemo(() => {
+    if (sortedRates.length === 0) return [] as { label: string; slots: typeof sortedRates }[];
+    const buckets = new Map<string, typeof sortedRates>();
+    for (const r of sortedRates) {
+      const d = new Date(r.valid_from);
+      const block = Math.floor(d.getHours() / 6) * 6;
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${block}`;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(r);
+    }
+    const labelFor = (h: number) =>
+      h === 0 ? "Night 00–06" : h === 6 ? "Morning 06–12" : h === 12 ? "Afternoon 12–18" : "Evening 18–24";
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, slots]) => {
+        const first = new Date(slots[0].valid_from);
+        return {
+          label: `${format(first, "EEE dd MMM")} · ${labelFor(Math.floor(first.getHours() / 6) * 6)}`,
+          slots,
+        };
+      });
+  }, [sortedRates]);
 
-  const chartData = filteredRates.map((r) => ({
+  const currentPageIdx = useMemo(() => {
+    if (pages.length === 0 || !currentRate) return 0;
+    return Math.max(0, pages.findIndex((p) => p.slots.some((s) => s.valid_from === currentRate.valid_from)));
+  }, [pages, currentRate]);
+
+  const [pageIdx, setPageIdx] = useState<number | null>(null);
+  const activePageIdx = pageIdx ?? currentPageIdx;
+  const activePage = pages[activePageIdx];
+
+  const chartData = (activePage?.slots || []).map((r) => ({
     time: format(new Date(r.valid_from), "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
@@ -242,12 +261,33 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     valid_to: r.valid_to,
   }));
 
+  const filteredRates = activePage?.slots || [];
+
   const avg = chartData.length > 0
     ? chartData.reduce((s, d) => s + d.price, 0) / chartData.length
     : 0;
 
   const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) : 0;
   const yMin = Math.min(0, Math.floor(minPrice / 5) * 5 - 5);
+
+  // Swipe handling for paging
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const onPageTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) { swipeRef.current = null; return; }
+    swipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onPageTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0 && activePageIdx < pages.length - 1) setPageIdx(activePageIdx + 1);
+      else if (dx > 0 && activePageIdx > 0) setPageIdx(activePageIdx - 1);
+    }
+  };
 
   const handleBarClick = useCallback((data: any) => {
     if (!data?.activePayload?.[0]?.payload) return;
@@ -472,6 +512,29 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
           </div>
         </CardHeader>
         <CardContent>
+          {pages.length > 0 && (
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx === 0} onClick={() => setPageIdx(activePageIdx - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 text-center">
+                <p className="text-xs font-semibold leading-tight">{activePage?.label}</p>
+                <div className="flex justify-center gap-1 mt-1">
+                  {pages.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === activePageIdx ? 'w-4 bg-primary' : 'w-1.5 bg-muted'}`} />
+                  ))}
+                </div>
+              </div>
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx >= pages.length - 1} onClick={() => setPageIdx(activePageIdx + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {pageIdx !== null && pageIdx !== currentPageIdx && (
+            <div className="text-center mb-2">
+              <button className="text-[10px] text-primary underline" onClick={() => setPageIdx(null)}>Back to now</button>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -485,29 +548,27 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
               No rates available.
             </p>
           ) : (
-            <PinchZoomChart>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
+            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 4, bottom: 5, left: -10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis
                     dataKey="time"
-                    tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
+                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
-                    interval={5}
-                    angle={0}
-                    textAnchor="middle"
-                    height={30}
+                    interval={1}
+                    angle={-45}
+                    textAnchor="end"
+                    height={42}
                   />
                   <YAxis
                     unit="p"
-                    tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
                     domain={[yMin, 'auto']}
                     width={35}
                   />
                   <Tooltip
-                    position={{ x: 0, y: 0 }}
-                    wrapperStyle={{ top: 0, right: 0, left: 'auto', position: 'absolute', pointerEvents: 'none' }}
                     contentStyle={{
                       borderRadius: "var(--radius)",
                       border: "1px solid hsl(var(--border))",
@@ -525,6 +586,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     <LabelList
                       content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
                     />
+
                     {chartData.map((entry, i) => {
                       let fill = rateColor(entry.price);
                       let opacity = 0.85;
@@ -559,7 +621,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </PinchZoomChart>
+            </div>
           )}
         </CardContent>
       </Card>

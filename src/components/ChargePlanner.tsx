@@ -185,16 +185,27 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     const totalCost = activeSlots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
     const avgPrice = activeSlots.length > 0 ? activeSlots.reduce((s, r) => s + r.value_inc_vat, 0) / activeSlots.length : 0;
     const remainingKwh = Math.max(0, requestedEnergyKwh - plannedKwh);
+
+    // Real-world taper: the last 1% can take ~30 min. Append a 30-min tail when ending at 100%.
+    const endVal = parseFloat(endSoc);
+    const hasTail = !isNaN(endVal) && endVal >= 100;
+    const TAIL_KWH = 0.1; // trickle energy during taper
+    const lastRate = activeSlots[activeSlots.length - 1]?.value_inc_vat ?? avgPrice;
+    const tailCost = hasTail ? (lastRate * TAIL_KWH) / 100 : 0;
+
     return {
-      plannedKwh,
+      plannedKwh: plannedKwh + (hasTail ? TAIL_KWH : 0),
       requestedKwh: requestedEnergyKwh,
       remainingKwh,
-      totalCost,
+      totalCost: totalCost + tailCost,
       avgPrice,
       numSlots: activeSlots.length,
       isFullyCovered: remainingKwh <= 0.05,
+      hasTail,
+      tailMinutes: hasTail ? 30 : 0,
     };
-  }, [activeSlots, requestedEnergyKwh, recommendation]);
+  }, [activeSlots, requestedEnergyKwh, recommendation, endSoc]);
+
 
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;
@@ -219,7 +230,9 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
         value_inc_vat: s.value_inc_vat,
       })),
       start_time: activeSlots.length > 0 ? new Date(activeSlots[0].valid_from).toTimeString().slice(0, 5) : undefined,
-      end_time: activeSlots.length > 0 ? new Date(activeSlots[activeSlots.length - 1].valid_to).toTimeString().slice(0, 5) : undefined,
+      end_time: activeSlots.length > 0
+        ? new Date(new Date(activeSlots[activeSlots.length - 1].valid_to).getTime() + (estimates.hasTail ? 30 * 60 * 1000 : 0)).toTimeString().slice(0, 5)
+        : undefined,
     });
     toast.success("Charge session saved!");
     onSessionSaved?.();
@@ -348,6 +361,12 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
                 Current published slots only cover <span className="font-semibold text-foreground">{estimates.plannedKwh.toFixed(1)} kWh</span> of the
                 <span className="font-semibold text-foreground"> {estimates.requestedKwh.toFixed(1)} kWh</span> needed, so this is not a full 0–100% plan yet.
+              </div>
+            )}
+
+            {estimates.hasTail && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">
+                <span className="font-semibold text-primary">+30 min taper</span> added — the last 1% trickle-charges slowly past full power slots.
               </div>
             )}
 

@@ -512,6 +512,29 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
           </div>
         </CardHeader>
         <CardContent>
+          {pages.length > 0 && (
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx === 0} onClick={() => setPageIdx(activePageIdx - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 text-center">
+                <p className="text-xs font-semibold leading-tight">{activePage?.label}</p>
+                <div className="flex justify-center gap-1 mt-1">
+                  {pages.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === activePageIdx ? 'w-4 bg-primary' : 'w-1.5 bg-muted'}`} />
+                  ))}
+                </div>
+              </div>
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx >= pages.length - 1} onClick={() => setPageIdx(activePageIdx + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {pageIdx !== null && pageIdx !== currentPageIdx && (
+            <div className="text-center mb-2">
+              <button className="text-[10px] text-primary underline" onClick={() => setPageIdx(null)}>Back to now</button>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -525,29 +548,27 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
               No rates available.
             </p>
           ) : (
-            <PinchZoomChart>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 2, bottom: 5, left: -10 }}>
+            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 4, bottom: 5, left: -10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis
                     dataKey="time"
-                    tick={{ fontSize: 8, fill: "hsl(var(--foreground))" }}
+                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
-                    interval={5}
-                    angle={0}
-                    textAnchor="middle"
-                    height={30}
+                    interval={1}
+                    angle={-45}
+                    textAnchor="end"
+                    height={42}
                   />
                   <YAxis
                     unit="p"
-                    tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
                     domain={[yMin, 'auto']}
                     width={35}
                   />
                   <Tooltip
-                    position={{ x: 0, y: 0 }}
-                    wrapperStyle={{ top: 0, right: 0, left: 'auto', position: 'absolute', pointerEvents: 'none' }}
                     contentStyle={{
                       borderRadius: "var(--radius)",
                       border: "1px solid hsl(var(--border))",
@@ -565,6 +586,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     <LabelList
                       content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
                     />
+
                     {chartData.map((entry, i) => {
                       let fill = rateColor(entry.price);
                       let opacity = 0.85;

@@ -185,16 +185,27 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     const totalCost = activeSlots.reduce((s, r) => s + (r.value_inc_vat * KWH_PER_SLOT) / 100, 0);
     const avgPrice = activeSlots.length > 0 ? activeSlots.reduce((s, r) => s + r.value_inc_vat, 0) / activeSlots.length : 0;
     const remainingKwh = Math.max(0, requestedEnergyKwh - plannedKwh);
+
+    // Real-world taper: the last 1% can take ~30 min. Append a 30-min tail when ending at 100%.
+    const endVal = parseFloat(endSoc);
+    const hasTail = !isNaN(endVal) && endVal >= 100;
+    const TAIL_KWH = 0.1; // trickle energy during taper
+    const lastRate = activeSlots[activeSlots.length - 1]?.value_inc_vat ?? avgPrice;
+    const tailCost = hasTail ? (lastRate * TAIL_KWH) / 100 : 0;
+
     return {
-      plannedKwh,
+      plannedKwh: plannedKwh + (hasTail ? TAIL_KWH : 0),
       requestedKwh: requestedEnergyKwh,
       remainingKwh,
-      totalCost,
+      totalCost: totalCost + tailCost,
       avgPrice,
       numSlots: activeSlots.length,
       isFullyCovered: remainingKwh <= 0.05,
+      hasTail,
+      tailMinutes: hasTail ? 30 : 0,
     };
-  }, [activeSlots, requestedEnergyKwh, recommendation]);
+  }, [activeSlots, requestedEnergyKwh, recommendation, endSoc]);
+
 
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;

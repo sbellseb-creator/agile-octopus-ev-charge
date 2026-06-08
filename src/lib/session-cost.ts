@@ -107,14 +107,24 @@ export async function recalcSessionCost(
     };
   });
 
-  const energy = resolved.reduce((acc, _sp, i) => acc + CHARGER_KW * slotHours[i], 0);
-  const cost = resolved.reduce((acc, sp, i) => acc + (sp.value_inc_vat * CHARGER_KW * slotHours[i]) / 100, 0);
+  let energy = resolved.reduce((acc, _sp, i) => acc + CHARGER_KW * slotHours[i], 0);
+  let cost = resolved.reduce((acc, sp, i) => acc + (sp.value_inc_vat * CHARGER_KW * slotHours[i]) / 100, 0);
   const totalHours = slotHours.reduce((a, b) => a + b, 0);
   const avg = totalHours > 0
     ? resolved.reduce((acc, sp, i) => acc + sp.value_inc_vat * slotHours[i], 0) / totalHours
     : 0;
   // Effective slot count (fractional) for display
   const effectiveSlots = parseFloat((totalHours / SLOT_HOURS).toFixed(2));
+
+  // Real-world taper: last 1% trickle-charges ~30 min. Append small tail energy + cost
+  // when the session ends at 100% SoC.
+  const endSoc = merged.end_soc;
+  if (typeof endSoc === "number" && endSoc >= 100) {
+    const TAIL_KWH = 0.1;
+    const lastRate = resolved[resolved.length - 1]?.value_inc_vat ?? avg;
+    energy += TAIL_KWH;
+    cost += (lastRate * TAIL_KWH) / 100;
+  }
 
   return {
     energy_added_kwh: parseFloat(energy.toFixed(2)),

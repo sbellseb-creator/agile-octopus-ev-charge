@@ -216,40 +216,45 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const canPrev = viewedSlotIdx > 0;
   const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
-  // Build 6-hour pages (12 half-hour slots) aligned to 00 / 06 / 12 / 18
+  // Build one page per day, each with AM (00–12) and PM (12–24) halves
   const pages = useMemo(() => {
-    if (sortedRates.length === 0) return [] as { label: string; slots: typeof sortedRates }[];
-    const buckets = new Map<string, typeof sortedRates>();
+    if (sortedRates.length === 0) return [] as { label: string; dateKey: string; am: typeof sortedRates; pm: typeof sortedRates }[];
+    const byDay = new Map<string, typeof sortedRates>();
     for (const r of sortedRates) {
       const d = new Date(r.valid_from);
-      const block = Math.floor(d.getHours() / 6) * 6;
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${block}`;
-      if (!buckets.has(key)) buckets.set(key, []);
-      buckets.get(key)!.push(r);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(r);
     }
-    const labelFor = (h: number) =>
-      h === 0 ? "Night 00–06" : h === 6 ? "Morning 06–12" : h === 12 ? "Afternoon 12–18" : "Evening 18–24";
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, slots]) => {
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => {
+        const [ay, am, ad] = a.split("-").map(Number);
+        const [by, bm, bd] = b.split("-").map(Number);
+        return new Date(ay, am, ad).getTime() - new Date(by, bm, bd).getTime();
+      })
+      .map(([key, slots]) => {
         const first = new Date(slots[0].valid_from);
         return {
-          label: `${format(first, "EEE dd MMM")} · ${labelFor(Math.floor(first.getHours() / 6) * 6)}`,
-          slots,
+          dateKey: key,
+          label: format(first, "EEEE dd MMM"),
+          am: slots.filter((s) => new Date(s.valid_from).getHours() < 12),
+          pm: slots.filter((s) => new Date(s.valid_from).getHours() >= 12),
         };
       });
   }, [sortedRates]);
 
   const currentPageIdx = useMemo(() => {
     if (pages.length === 0 || !currentRate) return 0;
-    return Math.max(0, pages.findIndex((p) => p.slots.some((s) => s.valid_from === currentRate.valid_from)));
+    const d = new Date(currentRate.valid_from);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    return Math.max(0, pages.findIndex((p) => p.dateKey === key));
   }, [pages, currentRate]);
 
   const [pageIdx, setPageIdx] = useState<number | null>(null);
   const activePageIdx = pageIdx ?? currentPageIdx;
   const activePage = pages[activePageIdx];
 
-  const chartData = (activePage?.slots || []).map((r) => ({
+  const buildChartData = (slots: typeof sortedRates) => slots.map((r) => ({
     time: format(new Date(r.valid_from), "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
@@ -261,16 +266,21 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     valid_to: r.valid_to,
   }));
 
-  const filteredRates = activePage?.slots || [];
+  const amData = activePage ? buildChartData(activePage.am) : [];
+  const pmData = activePage ? buildChartData(activePage.pm) : [];
+  const allDayData = [...amData, ...pmData];
+  const filteredRates = [...(activePage?.am || []), ...(activePage?.pm || [])];
 
-  const avg = chartData.length > 0
-    ? chartData.reduce((s, d) => s + d.price, 0) / chartData.length
+  const avg = allDayData.length > 0
+    ? allDayData.reduce((s, d) => s + d.price, 0) / allDayData.length
     : 0;
 
-  const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) : 0;
+  const minPrice = allDayData.length > 0 ? Math.min(...allDayData.map(d => d.price)) : 0;
+  const maxPrice = allDayData.length > 0 ? Math.max(...allDayData.map(d => d.price)) : 0;
   const yMin = Math.min(0, Math.floor(minPrice / 5) * 5 - 5);
+  const yMax = Math.ceil(maxPrice / 5) * 5 + 2;
 
-  // Swipe handling for paging
+  // Swipe handling (day-to-day)
   const swipeRef = useRef<{ x: number; y: number } | null>(null);
   const onPageTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) { swipeRef.current = null; return; }

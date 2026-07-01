@@ -558,79 +558,97 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
               No rates available.
             </p>
           ) : (
-            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }}>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 4, bottom: 5, left: -10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                    stroke="hsl(var(--muted-foreground))"
-                    interval={1}
-                    angle={-45}
-                    textAnchor="end"
-                    height={42}
-                  />
-                  <YAxis
-                    unit="p"
-                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                    stroke="hsl(var(--muted-foreground))"
-                    domain={[yMin, 'auto']}
-                    width={35}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "var(--radius)",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--popover))",
-                      color: "hsl(var(--popover-foreground))",
-                      fontSize: "12px",
-                    }}
-                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                    formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
-                  />
-                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                  <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
-                  <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                    <LabelList
-                      content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
-                    />
-
-                    {chartData.map((entry, i) => {
-                      let fill = rateColor(entry.price);
-                      let opacity = 0.85;
-                      let strokeW = 0;
-                      let stroke = "none";
-
-                      if (entry.isSelected) {
-                        fill = "hsl(var(--accent))";
-                        opacity = 1;
-                        stroke = "hsl(var(--accent))";
-                        strokeW = 2;
-                      } else if (entry.isViewed && !entry.isCurrent) {
-                        stroke = "hsl(var(--primary))";
-                        strokeW = 2;
-                        opacity = 1;
-                      } else if (entry.isCurrent) {
-                        stroke = "hsl(var(--foreground))";
-                        strokeW = 2;
-                      }
-
-                      return (
-                        <Cell
-                          key={i}
-                          fill={fill}
-                          opacity={opacity}
-                          stroke={stroke}
-                          strokeWidth={strokeW}
-                          className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }} className="space-y-3">
+              {([
+                { label: "AM · 00:00 – 12:00", data: amData },
+                { label: "PM · 12:00 – 24:00", data: pmData },
+              ]).map(({ label, data }) => (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-1 px-1">
+                    <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+                    {data.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        avg {(data.reduce((s, d) => s + d.price, 0) / data.length).toFixed(1)}p
+                      </p>
+                    )}
+                  </div>
+                  {data.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-6">No rates</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={data} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 24, right: 4, bottom: 5, left: -10 }} barCategoryGap={1}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          interval={1}
+                          angle={-45}
+                          textAnchor="end"
+                          height={36}
                         />
-                      );
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                        <YAxis
+                          unit="p"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          domain={[yMin, yMax]}
+                          width={32}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: "var(--radius)",
+                            border: "1px solid hsl(var(--border))",
+                            background: "hsl(var(--popover))",
+                            color: "hsl(var(--popover-foreground))",
+                            fontSize: "12px",
+                          }}
+                          labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                          formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
+                        />
+                        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                        <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
+                        <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                          <LabelList
+                            content={(props: any) => <CurrentSlotArrow {...props} chartData={data} />}
+                          />
+                          {data.map((entry, i) => {
+                            let fill = rateColor(entry.price);
+                            let opacity = 0.85;
+                            let strokeW = 0;
+                            let stroke = "none";
+
+                            if (entry.isSelected) {
+                              fill = "hsl(var(--accent))";
+                              opacity = 1;
+                              stroke = "hsl(var(--accent))";
+                              strokeW = 2;
+                            } else if (entry.isViewed && !entry.isCurrent) {
+                              stroke = "hsl(var(--primary))";
+                              strokeW = 2;
+                              opacity = 1;
+                            } else if (entry.isCurrent) {
+                              stroke = "hsl(var(--foreground))";
+                              strokeW = 2;
+                            }
+
+                            return (
+                              <Cell
+                                key={i}
+                                fill={fill}
+                                opacity={opacity}
+                                stroke={stroke}
+                                strokeWidth={strokeW}
+                                className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                              />
+                            );
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

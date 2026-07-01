@@ -391,7 +391,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
             <Zap className="h-6 w-6 shrink-0 text-chart-danger" />
             <div>
               <p className="text-lg font-bold leading-tight">
-                {chartData.length > 0 ? `${Math.max(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
+                {allDayData.length > 0 ? `${Math.max(...allDayData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">Highest</p>
             </div>

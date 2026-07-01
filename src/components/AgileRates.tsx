@@ -216,40 +216,45 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const canPrev = viewedSlotIdx > 0;
   const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
-  // Build 6-hour pages (12 half-hour slots) aligned to 00 / 06 / 12 / 18
+  // Build one page per day, each with AM (00–12) and PM (12–24) halves
   const pages = useMemo(() => {
-    if (sortedRates.length === 0) return [] as { label: string; slots: typeof sortedRates }[];
-    const buckets = new Map<string, typeof sortedRates>();
+    if (sortedRates.length === 0) return [] as { label: string; dateKey: string; am: typeof sortedRates; pm: typeof sortedRates }[];
+    const byDay = new Map<string, typeof sortedRates>();
     for (const r of sortedRates) {
       const d = new Date(r.valid_from);
-      const block = Math.floor(d.getHours() / 6) * 6;
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${block}`;
-      if (!buckets.has(key)) buckets.set(key, []);
-      buckets.get(key)!.push(r);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(r);
     }
-    const labelFor = (h: number) =>
-      h === 0 ? "Night 00–06" : h === 6 ? "Morning 06–12" : h === 12 ? "Afternoon 12–18" : "Evening 18–24";
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, slots]) => {
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => {
+        const [ay, am, ad] = a.split("-").map(Number);
+        const [by, bm, bd] = b.split("-").map(Number);
+        return new Date(ay, am, ad).getTime() - new Date(by, bm, bd).getTime();
+      })
+      .map(([key, slots]) => {
         const first = new Date(slots[0].valid_from);
         return {
-          label: `${format(first, "EEE dd MMM")} · ${labelFor(Math.floor(first.getHours() / 6) * 6)}`,
-          slots,
+          dateKey: key,
+          label: format(first, "EEEE dd MMM"),
+          am: slots.filter((s) => new Date(s.valid_from).getHours() < 12),
+          pm: slots.filter((s) => new Date(s.valid_from).getHours() >= 12),
         };
       });
   }, [sortedRates]);
 
   const currentPageIdx = useMemo(() => {
     if (pages.length === 0 || !currentRate) return 0;
-    return Math.max(0, pages.findIndex((p) => p.slots.some((s) => s.valid_from === currentRate.valid_from)));
+    const d = new Date(currentRate.valid_from);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    return Math.max(0, pages.findIndex((p) => p.dateKey === key));
   }, [pages, currentRate]);
 
   const [pageIdx, setPageIdx] = useState<number | null>(null);
   const activePageIdx = pageIdx ?? currentPageIdx;
   const activePage = pages[activePageIdx];
 
-  const chartData = (activePage?.slots || []).map((r) => ({
+  const buildChartData = (slots: typeof sortedRates) => slots.map((r) => ({
     time: format(new Date(r.valid_from), "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
@@ -261,16 +266,21 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     valid_to: r.valid_to,
   }));
 
-  const filteredRates = activePage?.slots || [];
+  const amData = activePage ? buildChartData(activePage.am) : [];
+  const pmData = activePage ? buildChartData(activePage.pm) : [];
+  const allDayData = [...amData, ...pmData];
+  const filteredRates = [...(activePage?.am || []), ...(activePage?.pm || [])];
 
-  const avg = chartData.length > 0
-    ? chartData.reduce((s, d) => s + d.price, 0) / chartData.length
+  const avg = allDayData.length > 0
+    ? allDayData.reduce((s, d) => s + d.price, 0) / allDayData.length
     : 0;
 
-  const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) : 0;
+  const minPrice = allDayData.length > 0 ? Math.min(...allDayData.map(d => d.price)) : 0;
+  const maxPrice = allDayData.length > 0 ? Math.max(...allDayData.map(d => d.price)) : 0;
   const yMin = Math.min(0, Math.floor(minPrice / 5) * 5 - 5);
+  const yMax = Math.ceil(maxPrice / 5) * 5 + 2;
 
-  // Swipe handling for paging
+  // Swipe handling (day-to-day)
   const swipeRef = useRef<{ x: number; y: number } | null>(null);
   const onPageTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) { swipeRef.current = null; return; }
@@ -337,7 +347,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
             <Zap className="h-6 w-6 shrink-0 text-chart-good" />
             <div>
               <p className="text-lg font-bold leading-tight">
-                {chartData.length > 0 ? `${Math.min(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
+                {allDayData.length > 0 ? `${Math.min(...allDayData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">Lowest</p>
             </div>
@@ -381,7 +391,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
             <Zap className="h-6 w-6 shrink-0 text-chart-danger" />
             <div>
               <p className="text-lg font-bold leading-tight">
-                {chartData.length > 0 ? `${Math.max(...chartData.map((d) => d.price)).toFixed(2)}p` : "—"}
+                {allDayData.length > 0 ? `${Math.max(...allDayData.map((d) => d.price)).toFixed(2)}p` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">Highest</p>
             </div>
@@ -548,79 +558,97 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
               No rates available.
             </p>
           ) : (
-            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }}>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={chartData} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 30, right: 4, bottom: 5, left: -10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                    stroke="hsl(var(--muted-foreground))"
-                    interval={1}
-                    angle={-45}
-                    textAnchor="end"
-                    height={42}
-                  />
-                  <YAxis
-                    unit="p"
-                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                    stroke="hsl(var(--muted-foreground))"
-                    domain={[yMin, 'auto']}
-                    width={35}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "var(--radius)",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--popover))",
-                      color: "hsl(var(--popover-foreground))",
-                      fontSize: "12px",
-                    }}
-                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                    formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
-                  />
-                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                  <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
-                  <Bar dataKey="price" radius={[2, 2, 0, 0]}>
-                    <LabelList
-                      content={(props: any) => <CurrentSlotArrow {...props} chartData={chartData} />}
-                    />
-
-                    {chartData.map((entry, i) => {
-                      let fill = rateColor(entry.price);
-                      let opacity = 0.85;
-                      let strokeW = 0;
-                      let stroke = "none";
-
-                      if (entry.isSelected) {
-                        fill = "hsl(var(--accent))";
-                        opacity = 1;
-                        stroke = "hsl(var(--accent))";
-                        strokeW = 2;
-                      } else if (entry.isViewed && !entry.isCurrent) {
-                        stroke = "hsl(var(--primary))";
-                        strokeW = 2;
-                        opacity = 1;
-                      } else if (entry.isCurrent) {
-                        stroke = "hsl(var(--foreground))";
-                        strokeW = 2;
-                      }
-
-                      return (
-                        <Cell
-                          key={i}
-                          fill={fill}
-                          opacity={opacity}
-                          stroke={stroke}
-                          strokeWidth={strokeW}
-                          className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }} className="space-y-3">
+              {([
+                { label: "AM · 00:00 – 12:00", data: amData },
+                { label: "PM · 12:00 – 24:00", data: pmData },
+              ]).map(({ label, data }) => (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-1 px-1">
+                    <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+                    {data.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        avg {(data.reduce((s, d) => s + d.price, 0) / data.length).toFixed(1)}p
+                      </p>
+                    )}
+                  </div>
+                  {data.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-6">No rates</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={data} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 24, right: 4, bottom: 5, left: -10 }} barCategoryGap={1}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          interval={1}
+                          angle={-45}
+                          textAnchor="end"
+                          height={36}
                         />
-                      );
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                        <YAxis
+                          unit="p"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          domain={[yMin, yMax]}
+                          width={32}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: "var(--radius)",
+                            border: "1px solid hsl(var(--border))",
+                            background: "hsl(var(--popover))",
+                            color: "hsl(var(--popover-foreground))",
+                            fontSize: "12px",
+                          }}
+                          labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                          formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
+                        />
+                        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                        <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
+                        <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                          <LabelList
+                            content={(props: any) => <CurrentSlotArrow {...props} chartData={data} />}
+                          />
+                          {data.map((entry, i) => {
+                            let fill = rateColor(entry.price);
+                            let opacity = 0.85;
+                            let strokeW = 0;
+                            let stroke = "none";
+
+                            if (entry.isSelected) {
+                              fill = "hsl(var(--accent))";
+                              opacity = 1;
+                              stroke = "hsl(var(--accent))";
+                              strokeW = 2;
+                            } else if (entry.isViewed && !entry.isCurrent) {
+                              stroke = "hsl(var(--primary))";
+                              strokeW = 2;
+                              opacity = 1;
+                            } else if (entry.isCurrent) {
+                              stroke = "hsl(var(--foreground))";
+                              strokeW = 2;
+                            }
+
+                            return (
+                              <Cell
+                                key={i}
+                                fill={fill}
+                                opacity={opacity}
+                                stroke={stroke}
+                                strokeWidth={strokeW}
+                                className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                              />
+                            );
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

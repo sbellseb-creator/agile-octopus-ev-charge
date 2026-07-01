@@ -349,7 +349,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">£{estimates.totalCost.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">Est. Cost</p>
+                <p className="text-xs text-muted-foreground">Est. Cost <span className="opacity-70">({(estimates.totalCost * 100).toFixed(1)}p)</span></p>
               </div>
               <div>
                 <p className="text-2xl font-bold">{estimates.avgPrice.toFixed(2)}p</p>

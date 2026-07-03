@@ -299,6 +299,15 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     }
   };
 
+  // Auto-dismissing tooltip: show on hover/tap, hide after 2s
+  const [tipActive, setTipActive] = useState<boolean | undefined>(undefined);
+  const tipTimer = useRef<number | null>(null);
+  const showTipBriefly = useCallback(() => {
+    setTipActive(true);
+    if (tipTimer.current) window.clearTimeout(tipTimer.current);
+    tipTimer.current = window.setTimeout(() => setTipActive(false), 2000);
+  }, []);
+
   const handleBarClick = useCallback((data: any) => {
     if (!data?.activePayload?.[0]?.payload) return;
     const p = data.activePayload[0].payload;
@@ -576,7 +585,14 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     <p className="text-[11px] text-muted-foreground text-center py-6">No rates</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={data} onClick={handleBarClick} style={{ cursor: 'pointer' }} margin={{ top: 24, right: 4, bottom: 5, left: -10 }} barCategoryGap={1}>
+                      <BarChart
+                        data={data}
+                        onClick={handleBarClick}
+                        onMouseMove={(state: any) => { if (state?.isTooltipActive) showTipBriefly(); }}
+                        style={{ cursor: 'pointer' }}
+                        margin={{ top: 24, right: 4, bottom: 5, left: -10 }}
+                        barCategoryGap={1}
+                      >
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                         <XAxis
                           dataKey="time"
@@ -595,6 +611,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                           width={32}
                         />
                         <Tooltip
+                          active={tipActive}
                           contentStyle={{
                             borderRadius: "var(--radius)",
                             border: "1px solid hsl(var(--border))",

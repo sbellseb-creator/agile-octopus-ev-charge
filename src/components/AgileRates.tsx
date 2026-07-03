@@ -299,6 +299,15 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     }
   };
 
+  // Auto-dismissing tooltip: show on hover/tap, hide after 2s
+  const [tipActive, setTipActive] = useState<boolean | undefined>(undefined);
+  const tipTimer = useRef<number | null>(null);
+  const showTipBriefly = useCallback(() => {
+    setTipActive(true);
+    if (tipTimer.current) window.clearTimeout(tipTimer.current);
+    tipTimer.current = window.setTimeout(() => setTipActive(false), 2000);
+  }, []);
+
   const handleBarClick = useCallback((data: any) => {
     if (!data?.activePayload?.[0]?.payload) return;
     const p = data.activePayload[0].payload;

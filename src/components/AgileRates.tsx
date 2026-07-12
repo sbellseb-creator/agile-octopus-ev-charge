@@ -244,8 +244,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
 
   const currentPageIdx = useMemo(() => {
     if (pages.length === 0 || !currentRate) return 0;
-    const d = new Date(currentRate.valid_from);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const key = getUKDayKey(currentRate.valid_from);
     return Math.max(0, pages.findIndex((p) => p.dateKey === key));
   }, [pages, currentRate]);
 
@@ -254,7 +253,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const activePage = pages[activePageIdx];
 
   const buildChartData = (slots: typeof sortedRates) => slots.map((r) => ({
-    time: format(new Date(r.valid_from), "HH:mm"),
+    time: formatUK(r.valid_from, "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
     isViewed: viewedRate?.valid_from === r.valid_from,
@@ -369,7 +368,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                 {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
+                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${formatUK(viewedRate.valid_from, "HH:mm")}–${formatUK(viewedRate.valid_to, "HH:mm")}` : "—"}
               </p>
               {slotOffset !== 0 && (
                 <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
@@ -443,7 +442,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
                     onClick={() => removeGroup(g)}
                   >
-                    {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
+                    {formatUK(g.from, "HH:mm")}–{formatUK(g.to, "HH:mm")}
                     {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
                     <X className="h-3 w-3" />
                   </Badge>
@@ -479,8 +478,8 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
                     addSession({
                       session_date: new Date().toISOString().slice(0, 10),
-                      start_time: sorted.length > 0 ? format(new Date(sorted[0].valid_from), "HH:mm") : undefined,
-                      end_time: sorted.length > 0 ? format(new Date(sorted[sorted.length - 1].valid_to), "HH:mm") : undefined,
+                      start_time: sorted.length > 0 ? formatUK(sorted[0].valid_from, "HH:mm") : undefined,
+                      end_time: sorted.length > 0 ? formatUK(sorted[sorted.length - 1].valid_to, "HH:mm") : undefined,
                       vehicle_id: vehicle.id,
                       vehicle_name: vehicle.name,
                       charge_mode: "agile_cheapest",

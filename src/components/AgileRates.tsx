@@ -12,7 +12,7 @@ import { addSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } from "lucide-react";
 import PriceList from "@/components/PriceList";
-import { format } from "date-fns";
+import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
 import { toast } from "sonner";
 
 function rateColor(p: number): string {
@@ -216,13 +216,12 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const canPrev = viewedSlotIdx > 0;
   const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
-  // Build one page per day, each with AM (00–12) and PM (12–24) halves
+  // Build one page per UK day, each with AM (00–12) and PM (12–24) halves
   const pages = useMemo(() => {
     if (sortedRates.length === 0) return [] as { label: string; dateKey: string; am: typeof sortedRates; pm: typeof sortedRates }[];
     const byDay = new Map<string, typeof sortedRates>();
     for (const r of sortedRates) {
-      const d = new Date(r.valid_from);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = getUKDayKey(r.valid_from);
       if (!byDay.has(key)) byDay.set(key, []);
       byDay.get(key)!.push(r);
     }
@@ -230,23 +229,22 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
       .sort(([a], [b]) => {
         const [ay, am, ad] = a.split("-").map(Number);
         const [by, bm, bd] = b.split("-").map(Number);
-        return new Date(ay, am, ad).getTime() - new Date(by, bm, bd).getTime();
+        return new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime();
       })
       .map(([key, slots]) => {
         const first = new Date(slots[0].valid_from);
         return {
           dateKey: key,
-          label: format(first, "EEEE dd MMM"),
-          am: slots.filter((s) => new Date(s.valid_from).getHours() < 12),
-          pm: slots.filter((s) => new Date(s.valid_from).getHours() >= 12),
+          label: formatUK(first, "EEEE dd MMM"),
+          am: slots.filter((s) => getUKHour(s.valid_from) < 12),
+          pm: slots.filter((s) => getUKHour(s.valid_from) >= 12),
         };
       });
   }, [sortedRates]);
 
   const currentPageIdx = useMemo(() => {
     if (pages.length === 0 || !currentRate) return 0;
-    const d = new Date(currentRate.valid_from);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const key = getUKDayKey(currentRate.valid_from);
     return Math.max(0, pages.findIndex((p) => p.dateKey === key));
   }, [pages, currentRate]);
 
@@ -255,7 +253,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const activePage = pages[activePageIdx];
 
   const buildChartData = (slots: typeof sortedRates) => slots.map((r) => ({
-    time: format(new Date(r.valid_from), "HH:mm"),
+    time: formatUK(r.valid_from, "HH:mm"),
     price: r.value_inc_vat,
     isCurrent: currentRate?.valid_from === r.valid_from,
     isViewed: viewedRate?.valid_from === r.valid_from,
@@ -370,7 +368,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                 {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${format(new Date(viewedRate.valid_from), "HH:mm")}–${format(new Date(viewedRate.valid_to), "HH:mm")}` : "—"}
+                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${formatUK(viewedRate.valid_from, "HH:mm")}–${formatUK(viewedRate.valid_to, "HH:mm")}` : "—"}
               </p>
               {slotOffset !== 0 && (
                 <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
@@ -444,7 +442,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
                     onClick={() => removeGroup(g)}
                   >
-                    {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
+                    {formatUK(g.from, "HH:mm")}–{formatUK(g.to, "HH:mm")}
                     {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
                     <X className="h-3 w-3" />
                   </Badge>
@@ -479,9 +477,9 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     if (!vehicle || !selectedCost) return;
                     const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
                     addSession({
-                      session_date: new Date().toISOString().slice(0, 10),
-                      start_time: sorted.length > 0 ? format(new Date(sorted[0].valid_from), "HH:mm") : undefined,
-                      end_time: sorted.length > 0 ? format(new Date(sorted[sorted.length - 1].valid_to), "HH:mm") : undefined,
+                      session_date: formatUK(new Date(), "yyyy-MM-dd"),
+                      start_time: sorted.length > 0 ? formatUK(sorted[0].valid_from, "HH:mm") : undefined,
+                      end_time: sorted.length > 0 ? formatUK(sorted[sorted.length - 1].valid_to, "HH:mm") : undefined,
                       vehicle_id: vehicle.id,
                       vehicle_name: vehicle.name,
                       charge_mode: "agile_cheapest",
@@ -514,9 +512,10 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
       <Card className="neon-border">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2 flex-wrap">
               Agile Rates (p/kWh)
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary">UK time</Badge>
             </CardTitle>
             <Select value={region} onValueChange={setRegion}>
               <SelectTrigger className="w-[180px] h-8 text-xs">

@@ -8,6 +8,7 @@ import { CHARGE_MODE_LABELS, type ChargeSession } from "@/lib/charge-data";
 import { recalcSessionCost } from "@/lib/session-cost";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { formatUK } from "@/lib/timezone";
 
 type Period = "week" | "month" | "year" | "all";
 
@@ -18,7 +19,7 @@ function filterByPeriod(sessions: ChargeSession[], period: Period): ChargeSessio
   if (period === "week") cutoff.setDate(now.getDate() - 7);
   else if (period === "month") cutoff.setMonth(now.getMonth() - 1);
   else if (period === "year") cutoff.setFullYear(now.getFullYear() - 1);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = formatUK(cutoff, "yyyy-MM-dd");
   return sessions.filter((s) => s.session_date >= cutoffStr);
 }
 

@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchTrackerRates } from "@/lib/octopus-api";
 import { Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { format, subDays, addDays, startOfDay } from "date-fns";
+import { parseISO, subDays, addDays, startOfDay } from "date-fns";
+import { formatUK, getUKDayKey } from "@/lib/timezone";
 
 type Period = "week" | "month" | "year";
 const PERIOD_DAYS: Record<Period, number> = { week: 7, month: 30, year: 365 };
@@ -61,7 +62,7 @@ export default function TrackerRates() {
     // Group by date and average the rate (tracker is daily but API may return multiple slots)
     const byDate = new Map<string, number[]>();
     for (const r of rates) {
-      const dateKey = format(new Date(r.valid_from), "yyyy-MM-dd");
+      const dateKey = getUKDayKey(r.valid_from);
       if (!byDate.has(dateKey)) byDate.set(dateKey, []);
       byDate.get(dateKey)!.push(r.value_inc_vat);
     }
@@ -82,8 +83,8 @@ export default function TrackerRates() {
     return map;
   }, [dailyRates]);
 
-  const todayStr = format(now, "yyyy-MM-dd");
-  const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
+  const todayStr = getUKDayKey(now);
+  const tomorrowStr = getUKDayKey(addDays(now, 1));
 
   const todayRate = dailyRates.find(r => r.date === todayStr);
   const tomorrowRate = dailyRates.find(r => r.date === tomorrowStr);
@@ -155,7 +156,7 @@ export default function TrackerRates() {
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
             {dailyRates.map((entry, i) => {
-              const prevDateStr = format(subDays(new Date(entry.date + "T00:00:00"), 1), "yyyy-MM-dd");
+              const prevDateStr = getUKDayKey(subDays(parseISO(entry.date), 1));
               const prevPrice = priceByDate.get(prevDateStr);
               const dayChange = prevPrice !== undefined
                 ? ((entry.price - prevPrice) / prevPrice) * 100
@@ -163,7 +164,7 @@ export default function TrackerRates() {
 
               const isToday = entry.date === todayStr;
               const isTomorrow = entry.date === tomorrowStr;
-              const dateLabel = format(new Date(entry.date + "T00:00:00"), "EEE dd MMM");
+              const dateLabel = formatUK(parseISO(entry.date), "EEE dd MMM");
 
               return (
                 <div

@@ -1,4 +1,6 @@
+import { fromZonedTime } from "date-fns-tz";
 import { fetchAgileRates } from "@/lib/octopus-api";
+import { UK_TIMEZONE } from "@/lib/timezone";
 import type { CachedSlotPrice, ChargeSession } from "@/lib/charge-data";
 
 const CHARGER_KW = 6.9;
@@ -21,13 +23,14 @@ function enumerateHalfHourSlots(start: Date, end: Date): { from: Date; to: Date 
   return slots;
 }
 
-/** Combine a YYYY-MM-DD date string and HH:MM time string into a local Date. */
+/** Combine a YYYY-MM-DD date string and HH:MM time string into a UTC Date, interpreting them as UK local time. */
 function combineDateTime(dateStr: string, timeStr: string): Date | null {
   if (!dateStr || !timeStr) return null;
   const [y, mo, d] = dateStr.split("-").map(Number);
   const [h, mi] = timeStr.split(":").map(Number);
   if ([y, mo, d, h, mi].some((n) => Number.isNaN(n))) return null;
-  return new Date(y, mo - 1, d, h, mi, 0, 0);
+  const iso = `${y.toString().padStart(4, "0")}-${mo.toString().padStart(2, "0")}-${d.toString().padStart(2, "0")}T${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}:00`;
+  return fromZonedTime(iso, UK_TIMEZONE);
 }
 
 /**

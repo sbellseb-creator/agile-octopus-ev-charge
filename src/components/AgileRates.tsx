@@ -512,9 +512,10 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
       <Card className="neon-border">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2 flex-wrap">
               Agile Rates (p/kWh)
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary">UK time</Badge>
             </CardTitle>
             <Select value={region} onValueChange={setRegion}>
               <SelectTrigger className="w-[180px] h-8 text-xs">

@@ -373,7 +373,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
             {/* Slot list — tap X to remove */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Tap ✕ to remove a slot</p>
+                <p className="text-xs text-muted-foreground">Tap ✕ to remove a slot · UK times</p>
                 {removedSlots.size > 0 && (
                   <button
                     onClick={() => setRemovedSlots(new Set())}

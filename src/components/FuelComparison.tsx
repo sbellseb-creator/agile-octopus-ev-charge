@@ -7,6 +7,7 @@ import { Fuel, Droplet, Zap, TrendingDown, Settings2 } from "lucide-react";
 import type { ChargeSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { loadTrips } from "@/lib/work-data";
+import { formatUK } from "@/lib/timezone";
 
 interface Props {
   sessions: ChargeSession[];
@@ -50,7 +51,7 @@ function filterByPeriod<T extends { date: string }>(rows: T[], period: Period): 
   if (period === "week") cutoff.setDate(now.getDate() - 7);
   else if (period === "month") cutoff.setMonth(now.getMonth() - 1);
   else cutoff.setFullYear(now.getFullYear() - 1);
-  const c = cutoff.toISOString().slice(0, 10);
+  const c = formatUK(cutoff, "yyyy-MM-dd");
   return rows.filter((r) => r.date >= c);
 }
 

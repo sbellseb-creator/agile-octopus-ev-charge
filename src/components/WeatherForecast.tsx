@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel, type AgileBaseline } from "@/lib/weather-api";
 import { fetchAgileRates } from "@/lib/octopus-api";
 import { CloudSun, Wind, Sun, TrendingDown, TrendingUp, Minus, Loader2, Sparkles } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { formatUK } from "@/lib/timezone";
 
 const UK_REGIONS = [
   { code: "A", label: "East Scotland" },
@@ -144,7 +145,7 @@ export default function WeatherForecast() {
                   <div className="min-w-0">
                     <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Best day</p>
                     <p className="text-xs font-medium truncate">
-                      {format(parseISO(summary.cheapest.date), "EEE")} · {summary.cheapest.predicted_agile_avg.toFixed(1)}p
+                      {formatUK(parseISO(summary.cheapest.date), "EEE")} · {summary.cheapest.predicted_agile_avg.toFixed(1)}p
                     </p>
                   </div>
                 </div>
@@ -153,7 +154,7 @@ export default function WeatherForecast() {
                   <div className="min-w-0">
                     <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Avoid</p>
                     <p className="text-xs font-medium truncate">
-                      {format(parseISO(summary.priciest.date), "EEE")} · {summary.priciest.predicted_agile_avg.toFixed(1)}p
+                      {formatUK(parseISO(summary.priciest.date), "EEE")} · {summary.priciest.predicted_agile_avg.toFixed(1)}p
                     </p>
                   </div>
                 </div>
@@ -187,10 +188,10 @@ export default function WeatherForecast() {
                       <span className="text-xl leading-none shrink-0" title={weatherCodeToLabel(d.weathercode)}>
                         {weatherCodeToEmoji(d.weathercode)}
                       </span>
-                      <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-1.5">
-                          <p className="font-semibold">{format(parseISO(d.date), "EEE")}</p>
-                          <p className="text-[10px] text-muted-foreground">{format(parseISO(d.date), "dd MMM")}</p>
+                          <p className="font-semibold">{formatUK(parseISO(d.date), "EEE")}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatUK(parseISO(d.date), "dd MMM")}</p>
                           {isCheapest && <Badge className="ml-auto text-[8px] px-1 py-0 bg-chart-good/20 text-chart-good border-chart-good/40">Cheapest</Badge>}
                           {isPriciest && <Badge className="ml-auto text-[8px] px-1 py-0 bg-destructive/20 text-destructive border-destructive/40">Pricey</Badge>}
                         </div>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Clock, TrendingDown } from "lucide-react";
-import { format } from "date-fns";
+import { formatUK, getUKDayKey } from "@/lib/timezone";
 
 interface Rate {
   valid_from: string;
@@ -82,10 +82,10 @@ export default function PriceList({ rates, now }: Props) {
           <div className="max-h-[400px] overflow-y-auto space-y-1 pr-1">
             {displayRates.map((r, i) => {
               const isCurrent = r.valid_from === currentSlotFrom;
-              const fromTime = format(new Date(r.valid_from), "HH:mm");
-              const toTime = format(new Date(r.valid_to), "HH:mm");
-              const fromDate = format(new Date(r.valid_from), "EEE dd");
-              const isNextDay = new Date(r.valid_from).getDate() !== now.getDate();
+              const fromTime = formatUK(r.valid_from, "HH:mm");
+              const toTime = formatUK(r.valid_to, "HH:mm");
+              const fromDate = formatUK(r.valid_from, "EEE dd");
+              const isNextDay = getUKDayKey(r.valid_from) !== getUKDayKey(now);
 
               return (
                 <div

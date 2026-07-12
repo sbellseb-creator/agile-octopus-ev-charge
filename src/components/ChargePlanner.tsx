@@ -15,7 +15,7 @@ import {
   Zap, Clock, TrendingDown, Activity,
   CheckCircle2, Loader2, Save, X,
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatUK } from "@/lib/timezone";
 import { toast } from "sonner";
 
 interface SlotRate {
@@ -388,7 +388,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
                   .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
                   .map((slot) => (
                     <Badge key={slot.valid_from} variant="outline" className="border-primary/40 text-primary gap-1 pr-1">
-                      {format(new Date(slot.valid_from), "HH:mm")}–{format(new Date(slot.valid_to), "HH:mm")}
+                      {formatUK(slot.valid_from, "HH:mm")}–{formatUK(slot.valid_to, "HH:mm")}
                       {` (${slot.value_inc_vat.toFixed(2)}p)`}
                       <button
                         onClick={() => setRemovedSlots((prev) => new Set([...prev, slot.valid_from]))}

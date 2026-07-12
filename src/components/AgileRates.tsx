@@ -216,13 +216,12 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
   const canPrev = viewedSlotIdx > 0;
   const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
 
-  // Build one page per day, each with AM (00–12) and PM (12–24) halves
+  // Build one page per UK day, each with AM (00–12) and PM (12–24) halves
   const pages = useMemo(() => {
     if (sortedRates.length === 0) return [] as { label: string; dateKey: string; am: typeof sortedRates; pm: typeof sortedRates }[];
     const byDay = new Map<string, typeof sortedRates>();
     for (const r of sortedRates) {
-      const d = new Date(r.valid_from);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = getUKDayKey(r.valid_from);
       if (!byDay.has(key)) byDay.set(key, []);
       byDay.get(key)!.push(r);
     }
@@ -230,15 +229,15 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
       .sort(([a], [b]) => {
         const [ay, am, ad] = a.split("-").map(Number);
         const [by, bm, bd] = b.split("-").map(Number);
-        return new Date(ay, am, ad).getTime() - new Date(by, bm, bd).getTime();
+        return new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime();
       })
       .map(([key, slots]) => {
         const first = new Date(slots[0].valid_from);
         return {
           dateKey: key,
-          label: format(first, "EEEE dd MMM"),
-          am: slots.filter((s) => new Date(s.valid_from).getHours() < 12),
-          pm: slots.filter((s) => new Date(s.valid_from).getHours() >= 12),
+          label: formatUK(first, "EEEE dd MMM"),
+          am: slots.filter((s) => getUKHour(s.valid_from) < 12),
+          pm: slots.filter((s) => getUKHour(s.valid_from) >= 12),
         };
       });
   }, [sortedRates]);

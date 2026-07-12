@@ -12,7 +12,7 @@ import { addSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } from "lucide-react";
 import PriceList from "@/components/PriceList";
-import { format } from "date-fns";
+import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
 import { toast } from "sonner";
 
 function rateColor(p: number): string {

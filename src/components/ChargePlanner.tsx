@@ -210,7 +210,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;
     addSession({
-      session_date: new Date().toISOString().slice(0, 10),
+      session_date: formatUK(new Date(), "yyyy-MM-dd"),
       vehicle_id: selectedVehicle.id,
       vehicle_name: selectedVehicle.name,
       charge_mode: mode,
@@ -229,9 +229,9 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
         valid_to: s.valid_to,
         value_inc_vat: s.value_inc_vat,
       })),
-      start_time: activeSlots.length > 0 ? new Date(activeSlots[0].valid_from).toTimeString().slice(0, 5) : undefined,
+      start_time: activeSlots.length > 0 ? formatUK(activeSlots[0].valid_from, "HH:mm") : undefined,
       end_time: activeSlots.length > 0
-        ? new Date(new Date(activeSlots[activeSlots.length - 1].valid_to).getTime() + (estimates.hasTail ? 30 * 60 * 1000 : 0)).toTimeString().slice(0, 5)
+        ? formatUK(new Date(new Date(activeSlots[activeSlots.length - 1].valid_to).getTime() + (estimates.hasTail ? 30 * 60 * 1000 : 0)), "HH:mm")
         : undefined,
     });
     toast.success("Charge session saved!");

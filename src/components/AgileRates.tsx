@@ -477,7 +477,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                     if (!vehicle || !selectedCost) return;
                     const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
                     addSession({
-                      session_date: new Date().toISOString().slice(0, 10),
+                      session_date: formatUK(new Date(), "yyyy-MM-dd"),
                       start_time: sorted.length > 0 ? formatUK(sorted[0].valid_from, "HH:mm") : undefined,
                       end_time: sorted.length > 0 ? formatUK(sorted[sorted.length - 1].valid_to, "HH:mm") : undefined,
                       vehicle_id: vehicle.id,

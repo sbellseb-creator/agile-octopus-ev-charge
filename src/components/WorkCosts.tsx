@@ -20,6 +20,7 @@ import {
 import type { ChargeSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { toast } from "sonner";
+import { formatUK } from "@/lib/timezone";
 
 type Period = "week" | "month" | "year" | "all";
 
@@ -40,7 +41,7 @@ function filterByPeriod<T extends { trip_date?: string }>(rows: T[], period: Per
   if (period === "week") cutoff.setDate(now.getDate() - 7);
   else if (period === "month") cutoff.setMonth(now.getMonth() - 1);
   else if (period === "year") cutoff.setFullYear(now.getFullYear() - 1);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = formatUK(cutoff, "yyyy-MM-dd");
   return rows.filter((r) => (r.trip_date as string) >= cutoffStr);
 }
 
@@ -185,7 +186,7 @@ export default function WorkCosts({ sessions }: Props) {
   const [trips, setTrips] = useState<WorkTrip[]>(loadTrips);
   const [period, setPeriod] = useState<Period>("month");
   const [rate, setRate] = useState<number>(getDefaultRate());
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => formatUK(new Date(), "yyyy-MM-dd"));
   const [miles, setMiles] = useState("");
   const [desc, setDesc] = useState("");
   const [extraCharges, setExtraCharges] = useState<ExtraChargeDraft[]>(() => [newExtraChargeDraft()]);

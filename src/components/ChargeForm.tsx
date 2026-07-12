@@ -9,6 +9,7 @@ import { Plus, Loader2 } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
 import { recalcSessionCost } from "@/lib/session-cost";
+import { formatUK } from "@/lib/timezone";
 
 interface Props {
   onAdd: (data: {
@@ -49,7 +50,7 @@ interface Estimates {
 
 export default function ChargeForm({ onAdd, vehicles }: Props) {
   const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(formatUK(new Date(), "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicle?.id || "");

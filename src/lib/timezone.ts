@@ -7,9 +7,9 @@ export function formatUK(date: Date | string, formatStr: string): string {
   return formatInTimeZone(date, UK_TIMEZONE, formatStr);
 }
 
-/** Return a UK day key like "2026-7-12" for grouping slots. */
+/** Return a UK day key like "2026-07-12" (ISO date) for grouping slots. */
 export function getUKDayKey(date: Date | string): string {
-  return formatUK(date, "yyyy-M-d");
+  return formatUK(date, "yyyy-MM-dd");
 }
 
 /** Return the UK local hour (0-23) for a UTC date/string. */

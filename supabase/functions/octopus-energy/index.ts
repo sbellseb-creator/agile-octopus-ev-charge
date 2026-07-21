@@ -13,7 +13,6 @@ serve(async (req) => {
   }
 
   const apiKey = Deno.env.get('OCTOPUS_API_KEY');
-  const accountId = Deno.env.get('OCTOPUS_ACCOUNT_ID');
 
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'OCTOPUS_API_KEY not configured' }), {
@@ -26,21 +25,6 @@ serve(async (req) => {
     const action = url.searchParams.get('action') || 'rates';
     const authHeader = 'Basic ' + btoa(apiKey + ':');
 
-    if (action === 'account') {
-      if (!accountId) {
-        return new Response(JSON.stringify({ error: 'OCTOPUS_ACCOUNT_ID not configured' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const res = await fetch(`${OCTOPUS_BASE}/accounts/${accountId}/`, {
-        headers: { 'Authorization': authHeader },
-      });
-      if (!res.ok) throw new Error(`Octopus API error [${res.status}]: ${await res.text()}`);
-      const data = await res.json();
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     if (action === 'rates') {
       const tariffCode = url.searchParams.get('tariff_code') || 'AGILE-24-10-01';

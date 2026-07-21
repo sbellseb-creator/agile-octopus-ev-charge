@@ -24,13 +24,6 @@ export async function fetchAgileRates(tariffCode?: string, periodFrom?: string, 
   return (data?.results || []) as AgileRate[];
 }
 
-export async function fetchAccountData() {
-  const { data, error } = await supabase.functions.invoke("octopus-energy?action=account", {
-    method: "GET",
-  });
-  if (error) throw error;
-  return data;
-}
 
 export async function fetchTrackerRates(tariffCode?: string, region?: string, periodFrom?: string, periodTo?: string): Promise<AgileRate[]> {
   const params: Record<string, string> = { action: "tracker" };

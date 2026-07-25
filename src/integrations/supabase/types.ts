@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      tesla_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          device_id: string
+          expires_at: string
+          refresh_token: string
+          region: string
+          updated_at: string
+          vehicles: Json
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          device_id: string
+          expires_at: string
+          refresh_token: string
+          region?: string
+          updated_at?: string
+          vehicles?: Json
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          device_id?: string
+          expires_at?: string
+          refresh_token?: string
+          region?: string
+          updated_at?: string
+          vehicles?: Json
+        }
+        Relationships: []
+      }
+      tesla_oauth_states: {
+        Row: {
+          code_verifier: string
+          created_at: string
+          device_id: string
+          return_url: string
+          state: string
+        }
+        Insert: {
+          code_verifier: string
+          created_at?: string
+          device_id: string
+          return_url: string
+          state: string
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string
+          device_id?: string
+          return_url?: string
+          state?: string
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           battery_kwh: number

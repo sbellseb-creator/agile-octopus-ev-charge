@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Car } from "lucide-react";
+import TeslaConnect from "@/components/TeslaConnect";
 import type { Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
@@ -52,7 +53,9 @@ export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
 
   return (
     <div className="space-y-6">
+      <TeslaConnect />
       <Card>
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Plus className="h-5 w-5 text-primary" />

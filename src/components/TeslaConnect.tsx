@@ -77,7 +77,7 @@ export default function TeslaConnect() {
           <div key={v.id} className="rounded-lg border border-border p-3 space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{v.display_name}</span>
-              <Badge variant="outline">VIN ••••{v.vin_last4}</Badge>
+              <Badge variant="outline">ND74 VCA</Badge>
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div>

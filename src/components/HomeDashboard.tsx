@@ -10,7 +10,7 @@ import { formatUK } from "@/lib/timezone";
 import { minutesToClock } from "@/lib/schedule-time";
 import { loadSchedules, type ChargeSchedule } from "@/lib/charge-schedule";
 import ScheduleStatusBadge from "@/components/schedule/ScheduleStatusBadge";
-import { formatRegistration, vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
+import { formatRegistration, linkTeslaVehicleIds, vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 import type { ChargeSession } from "@/lib/charge-data";
 import { listTeslaVehicles, type TeslaVehicle } from "@/lib/tesla";
 import { getSettings } from "@/lib/app-settings";
@@ -53,9 +53,12 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
   const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(teslaVehicles);
   useEffect(() => {
     let alive = true;
-    if (!vehicles.some((v) => v.source === "tesla")) return;
     listTeslaVehicles(false)
-      .then((res) => alive && res.vehicles.length > 0 && setLiveVehicles(res.vehicles))
+      .then(async (res) => {
+        if (!alive || res.vehicles.length === 0) return;
+        setLiveVehicles(res.vehicles);
+        await linkTeslaVehicleIds(vehicles, res.vehicles);
+      })
       .catch(() => undefined);
     return () => {
       alive = false;

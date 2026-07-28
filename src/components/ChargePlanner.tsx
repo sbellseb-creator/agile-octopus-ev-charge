@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatUK } from "@/lib/timezone";
 import { toast } from "sonner";
+import ScheduleReviewCard from "@/components/schedule/ScheduleReviewCard";
 
 interface SlotRate {
   valid_from: string;
@@ -178,6 +179,11 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     setPrevRecKey(recKey);
     setRemovedSlots(new Set());
   }
+
+  const sortedActiveSlots = useMemo(
+    () => [...activeSlots].sort((a, b) => a.valid_from.localeCompare(b.valid_from)),
+    [activeSlots],
+  );
 
   const estimates = useMemo(() => {
     if (!recommendation || activeSlots.length === 0) return null;

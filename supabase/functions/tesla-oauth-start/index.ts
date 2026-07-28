@@ -4,8 +4,10 @@ import { getAuthedUserId, logEvent, safeMessage, serviceClient } from "../_share
 // Customer-facing authorisation page (must be opened in a top-level browser tab).
 // The fleet-auth host is server-side only, for the POST token exchange.
 const AUTH_BASE = "https://auth.tesla.com/oauth2/v3";
-// vehicle_charging_cmds is the minimum extra grant needed to add/remove charge
-// schedules and set the charge limit. No other command scope is requested.
+// vehicle_charging_cmds is the grant needed to add/remove charge schedules and
+// set the charge limit. Tesla only re-prompts for newly-added permissions when
+// prompt_missing_scopes is set, and require_requested_scopes prevents a silent
+// reconnect that still lacks the charging permission.
 const SCOPES = "openid offline_access vehicle_device_data vehicle_charging_cmds";
 const FN = "tesla-oauth-start";
 
@@ -90,6 +92,9 @@ Deno.serve(async (req) => {
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
       prompt: "login",
+      prompt_missing_scopes: "true",
+      require_requested_scopes: "true",
+      show_keypair_step: "true",
     });
 
     logEvent(FN, "authorize_url_issued", { userId });

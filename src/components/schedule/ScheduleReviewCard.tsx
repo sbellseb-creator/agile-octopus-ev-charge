@@ -293,8 +293,11 @@ export default function ScheduleReviewCard({
                   <TriangleAlert className="h-3 w-3 shrink-0" /> Charging permission missing
                 </p>
                 <p className="text-muted-foreground">
-                  Your Tesla connection cannot change charging yet. Disconnect and reconnect Tesla on the Vehicles page to allow it.
+                  Tesla has not granted Vehicle Charging Management yet. Disconnect and reconnect Tesla on the Vehicles page, then accept the charging permission when Tesla asks.
                 </p>
+                {capability.grantedScopes && capability.grantedScopes.length > 0 && (
+                  <p className="break-words text-muted-foreground">Currently granted: {capability.grantedScopes.join(", ")}</p>
+                )}
               </>
             ) : (
               <>

@@ -6,7 +6,7 @@
  * confirmation, per the project's wake-safety rule.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { buildAddSchedulePayload, scheduleMatches } from "@/lib/schedule-time";
+import { buildAddSchedulePayload, scheduleDifferences, scheduleMatches } from "@/lib/schedule-time";
 
 export type ScheduleStatus =
   | "app_plan"
@@ -139,7 +139,7 @@ export async function deleteSchedule(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 interface CommandBody {
-  action: "dry_run" | "read" | "add" | "replace" | "remove" | "set_charge_limit";
+  action: "dry_run" | "read" | "add" | "replace" | "remove" | "set_charge_limit" | "capability";
   tesla_vehicle_id?: string | null;
   confirmed?: boolean;
   start_minutes?: number;
@@ -206,6 +206,42 @@ export interface SendResult {
   message: string;
   teslaScheduleId?: number | null;
   verified?: boolean;
+  /** Plain-English list of fields where the car disagrees with the plan. */
+  differences?: string[];
+}
+
+export interface TeslaCapability {
+  connected: boolean;
+  chargingCommands: boolean;
+  signedCommandsConfigured: boolean;
+  /** Plain-English reason when the app is not ready to send. */
+  reason?: string;
+}
+
+/**
+ * Readiness check for the Send button. Inspects the stored connection only —
+ * it never contacts the vehicle, so it can never wake the car.
+ */
+export async function checkTeslaCapability(teslaVehicleId?: string | null): Promise<TeslaCapability> {
+  try {
+    const data = await callTesla({ action: "capability", tesla_vehicle_id: teslaVehicleId ?? null });
+    if (!data || data.error) {
+      return { connected: false, chargingCommands: false, signedCommandsConfigured: false, reason: data?.error ?? "Tesla is not connected." };
+    }
+    return {
+      connected: Boolean(data.connected),
+      chargingCommands: Boolean(data.charging_commands),
+      signedCommandsConfigured: Boolean(data.signed_commands_configured),
+      reason: data.charging_commands ? undefined : "Charging permission missing",
+    };
+  } catch (e) {
+    return {
+      connected: false,
+      chargingCommands: false,
+      signedCommandsConfigured: false,
+      reason: e instanceof Error ? e.message : "Could not check the Tesla connection.",
+    };
+  }
 }
 
 /**
@@ -235,6 +271,7 @@ export async function sendScheduleToTesla(plan: ChargeSchedule, opts: { replace?
 
   const requested = { startMinutes: plan.start_minutes, endMinutes: plan.end_minutes, daysMask: plan.days_mask, oneTime: plan.one_time };
   const agrees = data.schedule ? scheduleMatches(requested, data.schedule) : Boolean(data.verified);
+  const differences = data.schedule ? scheduleDifferences(requested, data.schedule) : agrees ? [] : ["Tesla did not return the schedule for checking."];
   const status: ScheduleStatus = agrees ? "confirmed" : "differs";
 
   await updateSchedule(plan.id, {
@@ -242,12 +279,12 @@ export async function sendScheduleToTesla(plan: ChargeSchedule, opts: { replace?
     tesla_schedule_id: data.tesla_schedule_id ?? plan.tesla_schedule_id,
     last_verified_at: new Date().toISOString(),
     verification: data.schedule ?? {},
-    last_error: agrees ? null : data.verify_error ?? "Tesla returned a schedule that differs from the request.",
+    last_error: agrees ? null : data.verify_error ?? differences.join(" ") ?? "Tesla returned a schedule that differs from the request.",
   });
 
   let message = agrees
-    ? "Scheduled on Tesla and verified by reading it back."
-    : "Tesla accepted the command but the read-back did not match. Review the schedule in the Tesla app.";
+    ? "Charging schedule successfully sent to Tesla."
+    : "Tesla accepted the command but the read-back did not match the plan.";
 
   if (opts.alsoSetLimit && plan.charge_limit_soc !== null) {
     const limitRes = await callTesla({
@@ -264,7 +301,7 @@ export async function sendScheduleToTesla(plan: ChargeSchedule, opts: { replace?
     }
   }
 
-  return { ok: true, status, message, teslaScheduleId: data.tesla_schedule_id ?? null, verified: agrees };
+  return { ok: true, status, message, teslaScheduleId: data.tesla_schedule_id ?? null, verified: agrees, differences };
 }
 
 /** Remove an app-created schedule from the vehicle. Never touches external ones. */

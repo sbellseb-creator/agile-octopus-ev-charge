@@ -33,36 +33,39 @@ export function buildAddSchedulePayload(input: SchedulePayloadInput): Record<str
 }
 
 /** Map a Tesla failure to a stable code plus a plain-English explanation. */
-export function explainTeslaFailure(status: number, rawBody: string): { code: string; message: string } {
+export function explainTeslaFailure(
+  status: number,
+  rawBody: string,
+): { code: string; message: string; detail: string } {
   const body = (rawBody || "").toLowerCase();
+  // The verbatim Tesla response always travels with the explanation so the UI
+  // and logs can show exactly what Tesla said, never a substituted message.
+  const detail = `HTTP ${status}: ${(rawBody || "").slice(0, 600)}`;
+  const out = (code: string, message: string) => ({ code, message: `${message} (Tesla said — ${detail})`, detail });
 
   if (body.includes("unsigned command") || body.includes("vehicle command protocol") || body.includes("signature")) {
-    return {
-      code: "signed_command_required",
-      message:
-        "This vehicle requires signed commands (Tesla Vehicle Command Protocol). The virtual key must be paired with the car and the command proxy must be configured.",
-    };
+    return out("signed_command_required", "This vehicle requires signed commands (Tesla Vehicle Command Protocol). The virtual key must be paired with the car and the command proxy must be configured.");
   }
   if (body.includes("virtual key") || body.includes("keys not paired") || body.includes("missing_key")) {
-    return { code: "missing_virtual_key", message: "The app's virtual key is not paired with this vehicle. Add the key in the Tesla app, then retry." };
+    return out("missing_virtual_key", "The app's virtual key is not paired with this vehicle. Add the key in the Tesla app, then retry.");
   }
   if (status === 401 || body.includes("invalid bearer") || body.includes("token expired")) {
-    return { code: "auth_expired", message: "The Tesla sign-in has expired. Reconnect Tesla and try again." };
+    return out("auth_expired", "The Tesla sign-in has expired. Reconnect Tesla and try again.");
   }
   if (status === 403 || body.includes("scope")) {
-    return { code: "missing_scope", message: "The Tesla connection is missing the charging-commands permission. Reconnect Tesla to grant it." };
+    return out("missing_scope", "The Tesla connection is missing the charging-commands permission. Reconnect Tesla to grant it.");
   }
-  if (status === 404) return { code: "not_found", message: "Tesla could not find that vehicle or schedule." };
+  if (status === 404) return out("not_found", "Tesla could not find that vehicle or schedule.");
   if (status === 408 || body.includes("timeout") || body.includes("vehicle unavailable") || body.includes("asleep")) {
-    return { code: "vehicle_unavailable", message: "The vehicle is asleep or unreachable right now. Try the command again." };
+    return out("vehicle_unavailable", "The vehicle is asleep or unreachable right now. Try the command again.");
   }
-  if (body.includes("offline")) return { code: "vehicle_offline", message: "The vehicle is offline. Try again when it has signal." };
+  if (body.includes("offline")) return out("vehicle_offline", "The vehicle is offline. Try again when it has signal.");
   if (body.includes("firmware") || body.includes("not supported") || body.includes("unsupported")) {
-    return { code: "unsupported_firmware", message: "This vehicle's firmware does not support charge schedules through the Fleet API." };
+    return out("unsupported_firmware", "This vehicle's firmware does not support charge schedules through the Fleet API.");
   }
   if (body.includes("limit") && body.includes("schedule")) {
-    return { code: "schedule_limit", message: "The vehicle has reached its maximum number of charge schedules. Remove one in the Tesla app first." };
+    return out("schedule_limit", "The vehicle has reached its maximum number of charge schedules. Remove one in the Tesla app first.");
   }
-  if (status === 429) return { code: "rate_limited", message: "Tesla is rate limiting requests. Wait a moment and retry." };
-  return { code: "command_failed", message: `Tesla rejected the command (${status}).` };
+  if (status === 429) return out("rate_limited", "Tesla is rate limiting requests. Wait a moment and retry.");
+  return out("command_failed", "Tesla rejected the command.");
 }

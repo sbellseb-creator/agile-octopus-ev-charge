@@ -83,6 +83,30 @@ Deno.serve(async (req) => {
     const accessToken = await getValidAccessToken(supabase, conn);
     const authHeaders = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
 
+    /**
+     * Proactive scope check. Connections made before charging support was added
+     * only hold vehicle_device_data, so a command would fail after needlessly
+     * waking the car. Fail fast and ask the user to reconnect instead.
+     */
+    const tokenScopes = (() => {
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        const scp = payload?.scp;
+        return Array.isArray(scp) ? (scp as string[]) : [];
+      } catch {
+        return [];
+      }
+    })();
+    const commandAction = action !== "read" && action !== "dry_run";
+    if (commandAction && tokenScopes.length > 0 && !tokenScopes.includes("vehicle_charging_cmds")) {
+      logEvent(FN, "missing_scope", { userId, action }, "warn");
+      return json({
+        error: "The Tesla connection is missing the charging-commands permission. Reconnect Tesla to grant it.",
+        code: "missing_scope",
+      }, 200);
+    }
+
+
     /** Read charge_schedule_data. Never wakes the vehicle. */
     const readSchedules = async () => {
       const res = await fetch(

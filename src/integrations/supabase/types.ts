@@ -240,6 +240,7 @@ export type Database = {
           last_wake_at: string | null
           refresh_token: string
           region: string
+          scopes: string[]
           updated_at: string
           user_id: string | null
           vehicles: Json
@@ -253,6 +254,7 @@ export type Database = {
           last_wake_at?: string | null
           refresh_token: string
           region?: string
+          scopes?: string[]
           updated_at?: string
           user_id?: string | null
           vehicles?: Json
@@ -266,6 +268,7 @@ export type Database = {
           last_wake_at?: string | null
           refresh_token?: string
           region?: string
+          scopes?: string[]
           updated_at?: string
           user_id?: string | null
           vehicles?: Json

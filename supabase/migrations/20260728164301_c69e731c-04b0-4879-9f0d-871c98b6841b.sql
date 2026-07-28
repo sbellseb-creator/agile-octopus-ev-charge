@@ -1,0 +1,1 @@
+ALTER TABLE public.tesla_connections ADD COLUMN IF NOT EXISTS scopes text[] NOT NULL DEFAULT '{}';

@@ -137,3 +137,52 @@ export async function getDefaultVehicle(): Promise<Vehicle | undefined> {
   const vehicles = await loadVehicles();
   return vehicles.find((v) => v.is_default) || vehicles[0];
 }
+
+const TESLA_MODELS: Record<string, string> = {
+  model3: "Model 3",
+  modely: "Model Y",
+  models: "Model S",
+  modelx: "Model X",
+  cybertruck: "Cybertruck",
+  roadster: "Roadster",
+  semi: "Semi",
+};
+
+/** Recognised trims only — never inferred from raw codes or numeric fragments. */
+const TRIM_PATTERNS: [RegExp, string][] = [
+  [/long\s*range/i, "Long Range"],
+  [/performance/i, "Performance"],
+  [/standard\s*range/i, "Standard Range"],
+  [/plaid/i, "Plaid"],
+];
+
+function cleanTrim(...candidates: (string | null | undefined)[]): string {
+  for (const c of candidates) {
+    if (!c) continue;
+    for (const [re, label] of TRIM_PATTERNS) if (re.test(c)) return label;
+  }
+  return "";
+}
+
+/**
+ * One clean human-readable model line, e.g. "Tesla Model Y" or
+ * "Tesla Model Y Long Range". Raw identifiers ("modely", option codes,
+ * numeric fragments) are never surfaced.
+ */
+export function vehicleModelLine(
+  v: Pick<Vehicle, "make" | "model" | "car_type">,
+  live?: { car_type?: string | null; trim_badging?: string | null } | null,
+): string {
+  const rawType = (live?.car_type ?? v.car_type ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  const teslaModel = TESLA_MODELS[rawType];
+
+  if (teslaModel) {
+    const trim = cleanTrim(live?.trim_badging, v.model);
+    return `Tesla ${teslaModel}${trim ? ` ${trim}` : ""}`;
+  }
+
+  const make = (v.make ?? "").trim();
+  const model = (v.model ?? "").trim();
+  const line = [make, model].filter(Boolean).join(" ").trim();
+  return line || "Vehicle";
+}

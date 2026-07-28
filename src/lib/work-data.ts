@@ -1,3 +1,5 @@
+import { readJSON, readNumber, writeJSON, writeString } from "@/lib/safe-storage";
+
 export interface WorkTrip {
   id: string;
   trip_date: string; // YYYY-MM-DD

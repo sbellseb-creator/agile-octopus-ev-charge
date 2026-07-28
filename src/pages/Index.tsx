@@ -37,6 +37,9 @@ export default function Index() {
       loadVehicles().then(setVehicles);
     });
     void loadSettingsFromCloud();
+    const reload = () => void loadVehicles().then(setVehicles);
+    window.addEventListener("vehicles:updated", reload);
+    return () => window.removeEventListener("vehicles:updated", reload);
   }, []);
 
   useEffect(() => {

@@ -57,7 +57,8 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
       .then(async (res) => {
         if (!alive || res.vehicles.length === 0) return;
         setLiveVehicles(res.vehicles);
-        await linkTeslaVehicleIds(vehicles, res.vehicles);
+        const changed = await linkTeslaVehicleIds(vehicles, res.vehicles);
+        if (changed) window.dispatchEvent(new Event("vehicles:updated"));
       })
       .catch(() => undefined);
     return () => {

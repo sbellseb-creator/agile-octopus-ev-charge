@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -23,11 +23,12 @@ import SettingsPanel from "@/components/SettingsPanel";
 import VehicleIdentityBar from "@/components/vehicles/VehicleIdentityBar";
 import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
+import HomeDashboard from "@/components/HomeDashboard";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [tab, setTab] = useState("agile");
+  const [tab, setTab] = useState("home");
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -94,7 +95,10 @@ export default function Index() {
 
       <main className="container py-6">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full h-auto p-1 gap-1">
+          <TabsList className="grid grid-cols-4 w-full h-auto p-1 gap-1">
+            <TabsTrigger value="home" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <HomeIcon className="h-4 w-4 shrink-0" /> Home
+            </TabsTrigger>
             <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <TrendingDown className="h-4 w-4 shrink-0" /> Agile
             </TabsTrigger>
@@ -119,6 +123,10 @@ export default function Index() {
               <Car className="h-4 w-4 shrink-0" /> Vehicles
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="home" className="space-y-6">
+            <HomeDashboard vehicles={vehicles} sessions={sessions} onManageSchedule={() => setTab("planner")} />
+          </TabsContent>
 
           <TabsContent value="agile" className="space-y-6">
             <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />

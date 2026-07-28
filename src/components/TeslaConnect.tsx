@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plug, RefreshCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { listTeslaVehicles, startTeslaOAuth, type TeslaVehicle } from "@/lib/tesla";
-import type { Vehicle } from "@/lib/vehicle-data";
+import { vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
   /** App vehicles, used to resolve the registration for a Tesla. */

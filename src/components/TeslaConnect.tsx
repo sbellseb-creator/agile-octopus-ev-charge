@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plug, RefreshCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { listTeslaVehicles, startTeslaOAuth, type TeslaVehicle } from "@/lib/tesla";
-import type { Vehicle } from "@/lib/vehicle-data";
+import { vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
   /** App vehicles, used to resolve the registration for a Tesla. */
@@ -226,8 +226,9 @@ export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, comp
                 <Badge variant="outline" className="shrink-0 text-[10px]">{v.state ?? "Unknown"}</Badge>
               </div>
               <p className="break-words text-xs text-muted-foreground">
-                {[v.display_name, v.car_type, v.trim_badging].filter(Boolean).join(" · ") || "Unknown"}
+                {vehicleModelLine({ make: "", model: "", car_type: v.car_type ?? "" }, v)}
               </p>
+
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="min-w-0">
                   <div className="text-muted-foreground">Battery</div>

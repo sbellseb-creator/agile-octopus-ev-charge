@@ -1,6 +1,6 @@
 import { Car } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { Vehicle } from "@/lib/vehicle-data";
+import { vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
   vehicles: Vehicle[];
@@ -25,7 +25,7 @@ export default function VehicleIdentityBar({ vehicles }: Props) {
           {v.registration || "No reg"}
         </span>
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {[v.name, v.make, v.model].filter(Boolean).join(" · ") || "Vehicle"}
+          {vehicleModelLine(v)}
         </span>
         {v.source === "tesla" && <Badge variant="outline" className="shrink-0 text-[10px]">Tesla</Badge>}
       </div>

@@ -80,7 +80,7 @@ export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
           id: `tesla-${t.id}`,
           name: t.display_name,
           make: "Tesla",
-          model: t.trim_badging ?? "",
+          model: "",
           registration: "",
           vin: "",
           tesla_vehicle_id: t.id,

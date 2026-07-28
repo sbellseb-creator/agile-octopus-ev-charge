@@ -1,7 +1,8 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { logEvent, safeMessage, serviceClient } from "../_shared/auth.ts";
 
 const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
+const FN = "tesla-oauth-callback";
 
 function html(message: string, returnUrl?: string) {
   return `<!doctype html><meta charset="utf-8"><title>Tesla</title>
@@ -24,10 +25,10 @@ Deno.serve(async (req) => {
       return new Response(html("Missing authorization code."), { status: 400, headers: htmlHeaders });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabase = serviceClient();
+
+    // Clear anything already expired before validating.
+    await supabase.from("tesla_oauth_states").delete().lt("expires_at", new Date().toISOString());
 
     const { data: stateRow, error: stateErr } = await supabase
       .from("tesla_oauth_states")
@@ -35,7 +36,10 @@ Deno.serve(async (req) => {
       .eq("state", state)
       .maybeSingle();
     if (stateErr) throw new Error(stateErr.message);
-    if (!stateRow) return new Response(html("Invalid or expired sign-in state."), { status: 400, headers: htmlHeaders });
+    if (!stateRow) {
+      logEvent(FN, "invalid_or_expired_state", {}, "warn");
+      return new Response(html("Invalid or expired sign-in state."), { status: 400, headers: htmlHeaders });
+    }
 
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/tesla-oauth-callback`;
     const tokenRes = await fetch(`${AUTH_BASE}/token`, {
@@ -53,7 +57,7 @@ Deno.serve(async (req) => {
 
     const tokenText = await tokenRes.text();
     if (!tokenRes.ok) {
-      console.error("Tesla token exchange failed:", tokenRes.status, tokenText);
+      logEvent(FN, "token_exchange_failed", { status: tokenRes.status }, "error");
       return new Response(html(`Tesla sign-in failed (${tokenRes.status}).`, stateRow.return_url), {
         status: 502,
         headers: htmlHeaders,
@@ -65,6 +69,7 @@ Deno.serve(async (req) => {
     const { error: upsertErr } = await supabase.from("tesla_connections").upsert(
       {
         device_id: stateRow.device_id,
+        user_id: stateRow.user_id,
         access_token: token.access_token,
         refresh_token: token.refresh_token,
         expires_at: expiresAt,
@@ -77,9 +82,10 @@ Deno.serve(async (req) => {
 
     await supabase.from("tesla_oauth_states").delete().eq("state", state);
 
+    logEvent(FN, "connected", { userId: stateRow.user_id });
     return new Response(html("Tesla connected. Redirecting…", stateRow.return_url), { headers: htmlHeaders });
   } catch (e) {
-    console.error("tesla-oauth-callback error:", e);
+    logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
     return new Response(html("Something went wrong completing Tesla sign-in."), {
       status: 500,
       headers: htmlHeaders,

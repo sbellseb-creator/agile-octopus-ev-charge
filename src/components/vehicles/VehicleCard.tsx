@@ -10,7 +10,16 @@ interface Props {
   vehicle: Vehicle;
   onDelete?: (id: string) => void;
   /** Live Tesla status for this vehicle, when available. */
-  live?: { battery_level: number | null; charging_state: string | null; charge_limit_soc: number | null } | null;
+  live?: {
+    battery_level: number | null;
+    charging_state: string | null;
+    charge_limit_soc: number | null;
+    state?: string | null;
+    display_name?: string | null;
+    car_type?: string | null;
+    trim_badging?: string | null;
+    vin_last4?: string | null;
+  } | null;
 }
 
 const val = (v: string | number | null | undefined, suffix = "") =>

@@ -214,6 +214,8 @@ export interface TeslaCapability {
   connected: boolean;
   chargingCommands: boolean;
   signedCommandsConfigured: boolean;
+  /** Scopes Tesla actually granted on the stored token. */
+  grantedScopes?: string[];
   /** Plain-English reason when the app is not ready to send. */
   reason?: string;
 }

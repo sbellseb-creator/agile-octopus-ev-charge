@@ -122,7 +122,7 @@ export async function updateVehicle(id: string, updates: Partial<Omit<Vehicle, "
   }
   const patch: Record<string, unknown> = { ...updates };
   if (typeof updates.registration === "string") patch.registration = formatRegistration(updates.registration) || null;
-  const { error } = await supabase.from("vehicles").update(patch).eq("id", id);
+  const { error } = await supabase.from("vehicles").update(patch as never).eq("id", id);
   if (error) console.error("Failed to update vehicle:", error);
   return loadVehicles();
 }

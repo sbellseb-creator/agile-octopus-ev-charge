@@ -50,7 +50,12 @@ export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, comp
         setTeslaVehicles(res.vehicles);
         vehiclesRef.current?.(res.vehicles);
 
-        if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
+        if (res.error)
+          toast({
+            title: res.rateLimited ? "Showing latest saved data" : "Tesla",
+            description: res.error,
+            variant: res.rateLimited ? "default" : "destructive",
+          });
         return res.connected;
       } catch (e) {
         toast({

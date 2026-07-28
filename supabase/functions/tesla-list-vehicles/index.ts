@@ -40,16 +40,16 @@ Deno.serve(async (req) => {
     }
     if (wakeRequested && !allowWake) {
       logEvent(FN, "wake_rate_limited", { userId, retryAfterMs }, "warn");
-      return json(
-        {
-          connected: true,
-          vehicles: conn.vehicles ?? [],
-          cached: true,
-          last_updated: conn.updated_at,
-          error: `Refresh is rate limited. Try again in ${Math.ceil(retryAfterMs / 1000)}s.`,
-        },
-        429,
-      );
+      // Return 200 so the client SDK surfaces the cached snapshot instead of throwing.
+      return json({
+        connected: true,
+        vehicles: conn.vehicles ?? [],
+        cached: true,
+        last_updated: conn.updated_at,
+        rate_limited: true,
+        retry_after_ms: retryAfterMs,
+        error: `Refresh is rate limited. Try again in ${Math.ceil(retryAfterMs / 1000)}s.`,
+      });
     }
 
     const accessToken = await getValidAccessToken(supabase, conn);

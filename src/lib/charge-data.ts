@@ -92,15 +92,25 @@ registerEntity({
   table: "charge_sessions",
   storageKey: STORAGE_KEY,
   sort: (a: ChargeSession, b: ChargeSession) => a.session_date.localeCompare(b.session_date),
-  toRow: (s: ChargeSession) => ({
+  toRow: (s: ChargeSession) => {
+    // start_time/end_time/target_time are clock times ("14:00") in the local
+    // model but timestamptz in the database — combine with the session date.
+    const startIso = ukClockToIso(s.session_date, s.start_time);
+    let endIso = ukClockToIso(s.session_date, s.end_time);
+    // Overnight session: finish rolls into the next day.
+    if (startIso && endIso && new Date(endIso) <= new Date(startIso)) {
+      endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+    }
+    const targetIso = ukClockToIso(s.session_date, s.target_time);
+    return {
     session_date: s.session_date,
-    start_time: s.start_time ?? null,
-    end_time: s.end_time ?? null,
+    start_time: startIso,
+    end_time: endIso,
     vehicle_id: s.vehicle_id ?? null,
     vehicle_name: s.vehicle_name ?? "",
     vehicle_registration: s.vehicle_registration ?? null,
     charge_mode: s.charge_mode ?? "immediate",
-    target_time: s.target_time ?? null,
+    target_time: targetIso,
     start_soc: num(s.start_soc),
     end_soc: num(s.end_soc),
     energy_added_kwh: num(s.energy_added_kwh),

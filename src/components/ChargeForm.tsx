@@ -10,6 +10,7 @@ import type { Vehicle } from "@/lib/vehicle-data";
 import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
 import { recalcSessionCost } from "@/lib/session-cost";
 import { formatUK } from "@/lib/timezone";
+import { CHARGER_MAX_KW, getSettings } from "@/lib/app-settings";
 
 interface Props {
   onAdd: (data: {
@@ -36,8 +37,7 @@ interface Props {
   vehicles: Vehicle[];
 }
 
-const CHARGER_KW = 6.9;
-const KWH_PER_SLOT = CHARGER_KW * 0.5;
+
 
 interface Estimates {
   kwh: number;
@@ -62,6 +62,9 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
   const [notes, setNotes] = useState("");
   const [estimates, setEstimates] = useState<Estimates | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(false);
+  // Home charger default: 30 A / 6.9 kW, overridable per session.
+  const [chargerKw, setChargerKw] = useState<string>(() => String(getSettings().charger_kw || CHARGER_MAX_KW));
+  const kwhPerSlot = ((parseFloat(chargerKw) || CHARGER_MAX_KW) * 0.5);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
   const debounceRef = useRef<number | null>(null);
@@ -82,7 +85,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
 
     // No times yet — show SoC-derived kWh/slots only, no pricing.
     if (!startTime || !endTime) {
-      const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+      const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
       setEstimates({
         kwh: kwhFromSoc,
         slots,
@@ -121,7 +124,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
         };
         const recalc = await recalcSessionCost(synthetic, {});
         if (!recalc) {
-          const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+          const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
           setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
           return;
         }
@@ -139,7 +142,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
         });
       } catch (e) {
         console.warn("Failed to fetch Agile prices for log estimate", e);
-        const slots = Math.ceil(kwhFromSoc / KWH_PER_SLOT);
+        const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
         setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
       } finally {
         setLoadingPrices(false);
@@ -149,7 +152,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [date, startTime, endTime, selectedVehicle, startSoc, endSoc, chargeMode]);
+  }, [date, startTime, endTime, selectedVehicle, startSoc, endSoc, chargeMode, kwhPerSlot]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,7 +216,10 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
                 <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
                 <SelectContent>
                   {vehicles.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                    <SelectItem key={v.id} value={v.id}>
+                      <span className="font-mono font-semibold uppercase">{v.registration || "No reg"}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{v.name}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -238,6 +244,17 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
               <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
             </div>
           )}
+          <div className="space-y-2">
+            <Label>Charger power (kW)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={chargerKw}
+              onChange={(e) => setChargerKw(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">Default 30 A / {CHARGER_MAX_KW} kW — override if you charged elsewhere.</p>
+          </div>
           <div className="space-y-2">
             <Label>Start SoC % *</Label>
             <Input type="number" step="1" placeholder="e.g. 20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} required />

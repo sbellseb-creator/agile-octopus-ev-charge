@@ -20,6 +20,7 @@ import WorkCosts from "@/components/WorkCosts";
 import TariffComparison from "@/components/TariffComparison";
 import SyncIndicator from "@/components/SyncIndicator";
 import SettingsPanel from "@/components/SettingsPanel";
+import VehicleIdentityBar from "@/components/vehicles/VehicleIdentityBar";
 import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
 
@@ -89,6 +90,7 @@ export default function Index() {
         </div>
       </header>
 
+      <VehicleIdentityBar vehicles={vehicles} />
 
       <main className="container py-6">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">

@@ -10,15 +10,19 @@ import type { Vehicle } from "@/lib/vehicle-data";
 interface Props {
   /** App vehicles, used to resolve the registration for a Tesla. */
   vehicles?: Vehicle[];
+  /** Notified whenever the connection state is known (no extra API calls). */
+  onStatus?: (connected: boolean) => void;
 }
 
-export default function TeslaConnect({ vehicles = [] }: Props) {
+export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [teslaVehicles, setTeslaVehicles] = useState<TeslaVehicle[]>([]);
   const pollRef = useRef<number | null>(null);
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
 
   /** Registration for a Tesla: matched by Tesla id, then VIN suffix, else default vehicle. */
   const regFor = (t: TeslaVehicle): string => {
@@ -36,6 +40,7 @@ export default function TeslaConnect({ vehicles = [] }: Props) {
       try {
         const res = await listTeslaVehicles(wake);
         setConnected(res.connected);
+        statusRef.current?.(res.connected);
         setTeslaVehicles(res.vehicles);
         if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
         return res.connected;

@@ -22,6 +22,7 @@ interface Props {
  * collapsed — it exists for non-Tesla or extra manually managed vehicles.
  */
 export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
+  const [teslaConnected, setTeslaConnected] = useState(false);
   const [open, setOpen] = useState(false);
   const [registration, setRegistration] = useState("");
   const [name, setName] = useState("");
@@ -60,22 +61,28 @@ export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
     setOpen(false);
   };
 
+  const otherVehicles = teslaConnected ? vehicles.filter((v) => v.source !== "tesla") : vehicles;
+
   return (
     <div className="space-y-4">
-      <TeslaConnect vehicles={vehicles} />
+      <TeslaConnect vehicles={vehicles} onStatus={setTeslaConnected} />
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Car className="h-5 w-5 shrink-0 text-primary" />
-            <span className="min-w-0 truncate">My vehicles ({vehicles.length})</span>
+            <span className="min-w-0 truncate">
+              {teslaConnected ? `Other vehicles (${otherVehicles.length})` : `My vehicles (${vehicles.length})`}
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {vehicles.length === 0 ? (
-            <p className="py-2 text-center text-sm text-muted-foreground">No vehicles yet.</p>
+          {otherVehicles.length === 0 ? (
+            <p className="py-2 text-center text-sm text-muted-foreground">
+              {teslaConnected ? "Your Tesla is shown above." : "No vehicles yet."}
+            </p>
           ) : (
-            vehicles.map((v) => <VehicleCard key={v.id} vehicle={v} onDelete={onDelete} />)
+            otherVehicles.map((v) => <VehicleCard key={v.id} vehicle={v} onDelete={onDelete} />)
           )}
           <p className="text-xs text-muted-foreground">
             Edit vehicle details in Settings → Vehicle.
@@ -89,11 +96,12 @@ export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
             <button type="button" className="flex w-full items-center justify-between gap-2 p-3 text-left">
               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                 <Plus className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 truncate">Add a manual vehicle</span>
+                <span className="min-w-0 truncate">Add a non-Tesla vehicle</span>
               </span>
               <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
           </CollapsibleTrigger>
+
           <CollapsibleContent>
             <CardContent className="pt-0">
               <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">

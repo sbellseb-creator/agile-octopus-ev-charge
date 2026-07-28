@@ -119,7 +119,13 @@ export async function saveAppPlan(plan: SchedulePlanInput, existingId?: string):
 }
 
 export async function updateSchedule(id: string, patch: Record<string, unknown>): Promise<ChargeSchedule | null> {
-  const { data, error } = await supabase.from("charge_schedules").update(patch).eq("id", id).select().maybeSingle();
+  const { data, error } = await supabase
+    .from("charge_schedules")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(patch as any)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
   if (error || !data) return null;
   return toSchedule(data);
 }

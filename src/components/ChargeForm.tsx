@@ -18,6 +18,7 @@ interface Props {
     end_time?: string;
     vehicle_id: string;
     vehicle_name: string;
+    vehicle_registration?: string;
     charge_mode: ChargeMode;
     target_time?: string;
     start_soc: number;
@@ -104,6 +105,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
           end_time: endTime,
           vehicle_id: selectedVehicle.id,
           vehicle_name: selectedVehicle.name,
+          vehicle_registration: selectedVehicle.registration || undefined,
           charge_mode: chargeMode,
           start_soc: parseFloat(startSoc) || 0,
           end_soc: parseFloat(endSoc) || 0,
@@ -159,6 +161,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
       end_time: endTime || undefined,
       vehicle_id: selected?.id || "",
       vehicle_name: selected?.name || "",
+      vehicle_registration: selected?.registration || undefined,
       charge_mode: chargeMode,
       target_time: chargeMode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Settings as Cog } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
-import { loadVehicles, addVehicle, deleteVehicle, claimLegacyVehicles } from "@/lib/vehicle-data";
+import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, claimLegacyVehicles } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { useAuth } from "@/hooks/useAuth";
 import ChargeForm from "@/components/ChargeForm";
@@ -19,11 +19,14 @@ import FuelComparison from "@/components/FuelComparison";
 import WorkCosts from "@/components/WorkCosts";
 import TariffComparison from "@/components/TariffComparison";
 import SyncIndicator from "@/components/SyncIndicator";
+import SettingsPanel from "@/components/SettingsPanel";
+import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [tab, setTab] = useState("agile");
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function Index() {
     claimLegacyVehicles().finally(() => {
       loadVehicles().then(setVehicles);
     });
+    void loadSettingsFromCloud();
   }, []);
 
   useEffect(() => {
@@ -53,6 +57,11 @@ export default function Index() {
     setVehicles(updated);
   }, []);
   
+  const handleUpdateVehicle = useCallback(async (id: string, updates: Partial<Omit<Vehicle, "id">>) => {
+    const updated = await updateVehicle(id, updates);
+    setVehicles(updated);
+  }, []);
+
   const handleDeleteVehicle = useCallback(async (id: string) => {
     const updated = await deleteVehicle(id);
     setVehicles(updated);
@@ -65,6 +74,15 @@ export default function Index() {
           <Zap className="h-5 w-5 shrink-0 text-primary sm:h-7 sm:w-7" />
           <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
           <SyncIndicator />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setTab("settings")}
+            aria-label="Settings"
+          >
+            <Cog className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
@@ -73,7 +91,7 @@ export default function Index() {
 
 
       <main className="container py-6">
-        <Tabs defaultValue="agile" className="space-y-6">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
           <TabsList className="grid grid-cols-3 w-full h-auto p-1 gap-1">
             <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <TrendingDown className="h-4 w-4 shrink-0" /> Agile
@@ -131,6 +149,10 @@ export default function Index() {
 
           <TabsContent value="vehicles" className="space-y-6">
             <VehicleManager vehicles={vehicles} onAdd={handleAddVehicle} onDelete={handleDeleteVehicle} />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <SettingsPanel vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} />
           </TabsContent>
         </Tabs>
       </main>

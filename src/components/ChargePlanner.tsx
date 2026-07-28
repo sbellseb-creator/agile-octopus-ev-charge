@@ -213,6 +213,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
       session_date: formatUK(new Date(), "yyyy-MM-dd"),
       vehicle_id: selectedVehicle.id,
       vehicle_name: selectedVehicle.name,
+      vehicle_registration: selectedVehicle.registration || undefined,
       charge_mode: mode,
       target_time: mode === "target_time" ? targetTime : undefined,
       start_soc: parseFloat(startSoc) || 0,

@@ -47,6 +47,8 @@ export interface ChargeSession extends LearningFields {
   end_time?: string;
   vehicle_id: string;
   vehicle_name: string;
+  /** Primary visible vehicle identifier for this session, e.g. "ND74 VCA". */
+  vehicle_registration?: string;
   charge_mode: ChargeMode;
   target_time?: string;
   start_soc: number;
@@ -95,6 +97,7 @@ registerEntity({
     end_time: s.end_time ?? null,
     vehicle_id: s.vehicle_id ?? null,
     vehicle_name: s.vehicle_name ?? "",
+    vehicle_registration: s.vehicle_registration ?? null,
     charge_mode: s.charge_mode ?? "immediate",
     target_time: s.target_time ?? null,
     start_soc: num(s.start_soc),
@@ -135,6 +138,7 @@ registerEntity({
     end_time: opt(r.end_time),
     vehicle_id: r.vehicle_id ?? "",
     vehicle_name: r.vehicle_name ?? "",
+    vehicle_registration: r.vehicle_registration ?? undefined,
     charge_mode: (r.charge_mode ?? "immediate") as ChargeMode,
     target_time: opt(r.target_time),
     start_soc: num(r.start_soc),

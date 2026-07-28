@@ -103,9 +103,14 @@ Deno.serve(async (req) => {
         }
       }
 
+      let carType: string | null = null;
+      let trimBadging: string | null = null;
+      let exteriorColor: string | null = null;
+      let chargerPowerKw: number | null = null;
+
       try {
         const dRes = await fetch(
-          `${FLEET_BASE}/api/1/vehicles/${v.id}/vehicle_data?endpoints=charge_state`,
+          `${FLEET_BASE}/api/1/vehicles/${v.id}/vehicle_data?endpoints=charge_state%3Bvehicle_config`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         if (dRes.ok) {
@@ -114,6 +119,11 @@ Deno.serve(async (req) => {
           battery = cs.battery_level ?? null;
           chargingState = cs.charging_state ?? null;
           chargeLimit = cs.charge_limit_soc ?? null;
+          chargerPowerKw = cs.charger_power ?? null;
+          const cfg = d?.response?.vehicle_config ?? {};
+          carType = cfg.car_type ?? null;
+          trimBadging = cfg.trim_badging ?? null;
+          exteriorColor = cfg.exterior_color ?? null;
         } else {
           await dRes.text();
         }
@@ -128,6 +138,10 @@ Deno.serve(async (req) => {
         battery_level: battery,
         charging_state: chargingState,
         charge_limit_soc: chargeLimit,
+        car_type: carType,
+        trim_badging: trimBadging,
+        exterior_color: exteriorColor,
+        charger_power_kw: chargerPowerKw,
       });
     }
 
@@ -138,7 +152,7 @@ Deno.serve(async (req) => {
       .eq("device_id", conn.device_id);
 
     logEvent(FN, "listed", { userId, count: vehicles.length, woke: allowWake });
-    return json({ connected: true, vehicles, cached: false, last_updated: updatedAt });
+    return json({ connected: true, vehicles, cached: false, last_updated: updatedAt, woke: allowWake });
   } catch (e) {
     logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
     return json({ error: safeMessage(e) }, 500);

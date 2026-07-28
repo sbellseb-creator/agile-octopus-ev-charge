@@ -23,6 +23,10 @@ export interface SyncStatus {
   lastSyncedAt: string | null;
   pendingLocalChanges: number;
   message?: string;
+  /** Which entity failed, so the message is actionable on mobile. */
+  failedTable?: string | null;
+  /** Records that could not be pushed and are being skipped (kept locally). */
+  quarantined?: number;
 }
 
 interface Tombstone {
@@ -105,6 +109,16 @@ export interface EntitySync<TLocal extends SyncedRecord, TRow> {
   sort: (a: TLocal, b: TLocal) => number;
 }
 
+/** Error carrying the entity that failed so the UI can explain it. */
+export class SyncError extends Error {
+  table: string;
+  constructor(message: string, table: string) {
+    super(message);
+    this.name = "SyncError";
+    this.table = table;
+  }
+}
+
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.id ?? null;
@@ -126,13 +140,13 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   if (tombs.length) {
     const ids = tombs.map((t) => t.local_id);
     const { error } = await supabase.from(table).delete().eq("user_id", userId).in("local_id", ids);
-    if (error) throw new Error(error.message);
+    if (error) throw new SyncError(`${table} delete: ${error.message}`, table);
     clearTombstones(storageKey, ids);
   }
 
   // 2. Pull remote state.
   const { data: remoteRows, error: pullErr } = await supabase.from(table).select("*").eq("user_id", userId);
-  if (pullErr) throw new Error(pullErr.message);
+  if (pullErr) throw new SyncError(`${table} read: ${pullErr.message}`, table);
   const remote = (remoteRows ?? []) as unknown as TRow[];
   const remoteByLocalId = new Map<string, TRow>();
   for (const r of remote) if (r.local_id) remoteByLocalId.set(r.local_id, r);
@@ -149,19 +163,36 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
     return new Date(l.updated_at ?? 0).getTime() > new Date(r.updated_at).getTime();
   });
 
+  let skipped = 0;
   if (toPush.length) {
     const rows = toPush.map((l) => ({ ...cfg.toRow(l), user_id: userId, local_id: l.id, source_device: deviceId() }));
     // onConflict on (user_id, local_id) makes repeated imports idempotent.
     const { error } = await supabase.from(table).upsert(rows as never, { onConflict: "user_id,local_id" });
-    if (error) throw new Error(error.message);
+    if (error) {
+      // One bad legacy record must not block the whole device from syncing.
+      // Retry record by record and quarantine only the offenders.
+      const failures: string[] = [];
+      for (const row of rows) {
+        const { error: rowErr } = await supabase
+          .from(table)
+          .upsert([row] as never, { onConflict: "user_id,local_id" });
+        if (rowErr) failures.push(`${row.local_id}: ${rowErr.message}`);
+      }
+      if (failures.length === rows.length) {
+        // Nothing got through — this is a real connectivity/permission failure.
+        throw new SyncError(`${table}: ${error.message}`, table);
+      }
+      skipped = failures.length;
+      console.warn(`[sync] ${table}: skipped ${failures.length} record(s)`, failures);
+    }
   }
 
   // 4. Re-read the authoritative state and mirror it locally.
   const { data: finalRows, error: finalErr } = await supabase.from(table).select("*").eq("user_id", userId);
-  if (finalErr) throw new Error(finalErr.message);
+  if (finalErr) throw new SyncError(`${table} read: ${finalErr.message}`, table);
   const merged = ((finalRows ?? []) as unknown as TRow[]).map(cfg.toLocal).sort(cfg.sort);
   writeJSON(storageKey, merged);
-  return merged.length;
+  return skipped;
 }
 
 /* ---------------------------------------------------------- public interface */
@@ -217,18 +248,31 @@ export async function syncNow(): Promise<SyncStatus> {
   }
 
   running = true;
-  setStatus({ state: "syncing", message: undefined });
+  setStatus({ state: "syncing", message: undefined, failedTable: null });
   try {
+    let quarantined = 0;
     for (const cfg of registry) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await syncEntity(cfg as any, userId);
+      quarantined += await syncEntity(cfg as any, userId);
     }
     const at = nowIso();
     writeString(LAST_SYNC_KEY, at);
-    setStatus({ state: "idle", lastSyncedAt: at, pendingLocalChanges: 0, message: undefined });
+    // A successful run always clears the warning.
+    setStatus({
+      state: "idle",
+      lastSyncedAt: at,
+      pendingLocalChanges: 0,
+      message: undefined,
+      failedTable: null,
+      quarantined,
+    });
     window.dispatchEvent(new CustomEvent("cloud-sync:updated"));
   } catch (e) {
-    setStatus({ state: "error", message: e instanceof Error ? e.message : "Sync failed" });
+    setStatus({
+      state: "error",
+      message: e instanceof Error ? e.message : "Sync failed",
+      failedTable: e instanceof SyncError ? e.table : null,
+    });
   } finally {
     running = false;
     if (rerun) {

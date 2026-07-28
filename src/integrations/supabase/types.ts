@@ -33,7 +33,7 @@ export type Database = {
           grid_kwh: number
           history: Json
           id: string
-          local_id: string | null
+          local_id: string
           notes: string
           num_slots: number
           observed_charger_kw: number | null
@@ -75,7 +75,7 @@ export type Database = {
           grid_kwh?: number
           history?: Json
           id?: string
-          local_id?: string | null
+          local_id: string
           notes?: string
           num_slots?: number
           observed_charger_kw?: number | null
@@ -117,7 +117,7 @@ export type Database = {
           grid_kwh?: number
           history?: Json
           id?: string
-          local_id?: string | null
+          local_id?: string
           notes?: string
           num_slots?: number
           observed_charger_kw?: number | null
@@ -288,7 +288,7 @@ export type Database = {
           description: string
           extra_charges: Json
           id: string
-          local_id: string | null
+          local_id: string
           miles: number
           rate_pence_per_mile: number
           source_device: string | null
@@ -302,7 +302,7 @@ export type Database = {
           description?: string
           extra_charges?: Json
           id?: string
-          local_id?: string | null
+          local_id: string
           miles?: number
           rate_pence_per_mile?: number
           source_device?: string | null
@@ -316,7 +316,7 @@ export type Database = {
           description?: string
           extra_charges?: Json
           id?: string
-          local_id?: string | null
+          local_id?: string
           miles?: number
           rate_pence_per_mile?: number
           source_device?: string | null

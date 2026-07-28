@@ -23,6 +23,8 @@ export interface TeslaListResult {
   last_updated?: string;
   /** True when the request was allowed to wake the car. */
   woke?: boolean;
+  /** True when the refresh was throttled and cached data was returned. */
+  rateLimited?: boolean;
   error?: string;
 }
 

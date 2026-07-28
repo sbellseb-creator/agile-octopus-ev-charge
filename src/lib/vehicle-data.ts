@@ -156,18 +156,28 @@ const TRIM_PATTERNS: [RegExp, string][] = [
   [/plaid/i, "Plaid"],
 ];
 
-function cleanTrim(...candidates: (string | null | undefined)[]): string {
+/** Recognised drivetrains only — never inferred from option codes. */
+const DRIVE_PATTERNS: [RegExp, string][] = [
+  [/\brear[-\s]?wheel\s*drive\b|\brwd\b/i, "Rear-Wheel Drive"],
+  [/\ball[-\s]?wheel\s*drive\b|\bawd\b|\bdual\s*motor\b/i, "All-Wheel Drive"],
+];
+
+function matchFirst(patterns: [RegExp, string][], candidates: (string | null | undefined)[]): string {
   for (const c of candidates) {
     if (!c) continue;
-    for (const [re, label] of TRIM_PATTERNS) if (re.test(c)) return label;
+    for (const [re, label] of patterns) if (re.test(c)) return label;
   }
   return "";
 }
 
+function cleanTrim(...candidates: (string | null | undefined)[]): string {
+  return matchFirst(TRIM_PATTERNS, candidates);
+}
+
 /**
  * One clean human-readable model line, e.g. "Tesla Model Y" or
- * "Tesla Model Y Long Range". Raw identifiers ("modely", option codes,
- * numeric fragments) are never surfaced.
+ * "Tesla Model Y Long Range Rear-Wheel Drive". Raw identifiers ("modely",
+ * option codes, numeric fragments) are never surfaced.
  */
 export function vehicleModelLine(
   v: Pick<Vehicle, "make" | "model" | "car_type">,
@@ -188,8 +198,10 @@ export function vehicleModelLine(
   const resolved = teslaModel ?? (savedTesla ? `Model ${savedTesla}` : "");
   if (resolved) {
     const trim = cleanTrim(live?.trim_badging, model);
-    return `Tesla ${resolved}${trim ? ` ${trim}` : ""}`;
+    const drive = matchFirst(DRIVE_PATTERNS, [live?.trim_badging, model]);
+    return `Tesla ${resolved}${trim ? ` ${trim}` : ""}${drive ? ` ${drive}` : ""}`;
   }
+
 
   const line = [make, model].filter(Boolean).join(" ").trim();
   return line || "Vehicle";
@@ -220,4 +232,50 @@ export async function linkTeslaVehicleIds(
     changed = true;
   }
   return changed;
+}
+
+/**
+ * Tesla paint codes → the names Tesla uses in its own UI. Unknown codes are
+ * never guessed; the colour line is simply hidden instead.
+ */
+const TESLA_PAINT: Record<string, string> = {
+  quicksilver: "Quicksilver",
+  pearlwhite: "Pearl White",
+  pearlwhitemulticoat: "Pearl White",
+  solidwhite: "White",
+  midnightsilver: "Midnight Silver",
+  midnightsilvermetallic: "Midnight Silver",
+  deepblue: "Deep Blue",
+  deepbluemetallic: "Deep Blue Metallic",
+  solidblack: "Solid Black",
+  obsidianblack: "Obsidian Black",
+  redmulticoat: "Red Multi-Coat",
+  ultrared: "Ultra Red",
+  stealthgrey: "Stealth Grey",
+  stealthgray: "Stealth Grey",
+  diamondblack: "Diamond Black",
+  lunarsilver: "Lunar Silver",
+  glacierblue: "Glacier Blue",
+};
+
+/**
+ * Human colour name for display, e.g. "Quicksilver". Returns "" when the
+ * stored value is a raw hex swatch or an unrecognised Tesla code.
+ */
+export function vehicleColorName(
+  v: Pick<Vehicle, "notes" | "color">,
+  live?: { exterior_color?: string | null } | null,
+): string {
+  const candidates = [live?.exterior_color, v.notes];
+  for (const c of candidates) {
+    if (!c) continue;
+    const key = c.toLowerCase().replace(/[^a-z]/g, "");
+    if (TESLA_PAINT[key]) return TESLA_PAINT[key];
+    // A user-confirmed plain word such as "Quicksilver" typed into notes.
+    if (/^[a-z][a-z\s-]{2,24}$/i.test(c.trim()) && !c.startsWith("#")) {
+      const t = c.trim();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+  }
+  return "";
 }

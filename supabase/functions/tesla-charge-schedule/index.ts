@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     const supabase = serviceClient();
     const conn = await getConnection(supabase, userId);
     if (!conn) return json({ error: "No Tesla account is connected.", code: "not_connected" }, 400);
-    if (!vehicleId) return json({ error: "tesla_vehicle_id is required" }, 400);
+    if (!vehicleId && action !== "capability") return json({ error: "tesla_vehicle_id is required" }, 400);
 
     const accessToken = await getValidAccessToken(supabase, conn);
     const authHeaders = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
         return [];
       }
     })();
-    const commandAction = action !== "read" && action !== "dry_run";
+    const commandAction = action !== "read" && action !== "dry_run" && action !== "capability";
     if (commandAction && tokenScopes.length > 0 && !tokenScopes.includes("vehicle_charging_cmds")) {
       logEvent(FN, "missing_scope", { userId, action }, "warn");
       return json({
@@ -106,6 +106,19 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
+
+    /**
+     * Readiness check. Token inspection only — no vehicle contact, no wake.
+     * Used to tell the user in plain English whether "Send to Tesla" can work.
+     */
+    if (action === "capability") {
+      return json({
+        connected: true,
+        charging_commands: tokenScopes.length === 0 ? true : tokenScopes.includes("vehicle_charging_cmds"),
+        scopes_known: tokenScopes.length > 0,
+        signed_commands_configured: signed,
+      });
+    }
 
     /** Read charge_schedule_data. Never wakes the vehicle. */
     const readSchedules = async () => {

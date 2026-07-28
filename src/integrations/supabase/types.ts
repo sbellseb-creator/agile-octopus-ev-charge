@@ -14,6 +14,135 @@ export type Database = {
   }
   public: {
     Tables: {
+      charge_sessions: {
+        Row: {
+          actual_cost_gbp: number | null
+          actual_energy_kwh: number | null
+          actual_finish: string | null
+          actual_start: string | null
+          avg_pence_per_kwh: number
+          charge_mode: string
+          charging_efficiency_pct: number | null
+          charging_location: string | null
+          confidence_score: number | null
+          configured_charger_kw: number | null
+          created_at: string
+          end_soc: number
+          end_time: string | null
+          energy_added_kwh: number
+          grid_kwh: number
+          history: Json
+          id: string
+          local_id: string | null
+          notes: string
+          num_slots: number
+          observed_charger_kw: number | null
+          outside_temp_c: number | null
+          planned_cost_gbp: number | null
+          planned_finish: string | null
+          planned_start: string | null
+          predicted_energy_kwh: number | null
+          raw_observations: Json
+          region: string | null
+          session_date: string
+          slot_prices: Json
+          source_device: string | null
+          start_soc: number
+          start_time: string | null
+          target_time: string | null
+          tariff_code: string
+          total_cost_gbp: number
+          updated_at: string
+          user_id: string
+          vehicle_id: string | null
+          vehicle_name: string
+        }
+        Insert: {
+          actual_cost_gbp?: number | null
+          actual_energy_kwh?: number | null
+          actual_finish?: string | null
+          actual_start?: string | null
+          avg_pence_per_kwh?: number
+          charge_mode?: string
+          charging_efficiency_pct?: number | null
+          charging_location?: string | null
+          confidence_score?: number | null
+          configured_charger_kw?: number | null
+          created_at?: string
+          end_soc?: number
+          end_time?: string | null
+          energy_added_kwh?: number
+          grid_kwh?: number
+          history?: Json
+          id?: string
+          local_id?: string | null
+          notes?: string
+          num_slots?: number
+          observed_charger_kw?: number | null
+          outside_temp_c?: number | null
+          planned_cost_gbp?: number | null
+          planned_finish?: string | null
+          planned_start?: string | null
+          predicted_energy_kwh?: number | null
+          raw_observations?: Json
+          region?: string | null
+          session_date: string
+          slot_prices?: Json
+          source_device?: string | null
+          start_soc?: number
+          start_time?: string | null
+          target_time?: string | null
+          tariff_code?: string
+          total_cost_gbp?: number
+          updated_at?: string
+          user_id: string
+          vehicle_id?: string | null
+          vehicle_name?: string
+        }
+        Update: {
+          actual_cost_gbp?: number | null
+          actual_energy_kwh?: number | null
+          actual_finish?: string | null
+          actual_start?: string | null
+          avg_pence_per_kwh?: number
+          charge_mode?: string
+          charging_efficiency_pct?: number | null
+          charging_location?: string | null
+          confidence_score?: number | null
+          configured_charger_kw?: number | null
+          created_at?: string
+          end_soc?: number
+          end_time?: string | null
+          energy_added_kwh?: number
+          grid_kwh?: number
+          history?: Json
+          id?: string
+          local_id?: string | null
+          notes?: string
+          num_slots?: number
+          observed_charger_kw?: number | null
+          outside_temp_c?: number | null
+          planned_cost_gbp?: number | null
+          planned_finish?: string | null
+          planned_start?: string | null
+          predicted_energy_kwh?: number | null
+          raw_observations?: Json
+          region?: string | null
+          session_date?: string
+          slot_prices?: Json
+          source_device?: string | null
+          start_soc?: number
+          start_time?: string | null
+          target_time?: string | null
+          tariff_code?: string
+          total_cost_gbp?: number
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string | null
+          vehicle_name?: string
+        }
+        Relationships: []
+      }
       tesla_connections: {
         Row: {
           access_token: string
@@ -86,6 +215,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_settings: {
+        Row: {
+          created_at: string
+          updated_at: string
+          user_id: string
+          work_rate_pence_per_mile: number
+        }
+        Insert: {
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          work_rate_pence_per_mile?: number
+        }
+        Update: {
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          work_rate_pence_per_mile?: number
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           battery_kwh: number
@@ -128,6 +278,51 @@ export type Database = {
           name?: string
           notes?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      work_trips: {
+        Row: {
+          charge_session_ids: Json
+          created_at: string
+          description: string
+          extra_charges: Json
+          id: string
+          local_id: string | null
+          miles: number
+          rate_pence_per_mile: number
+          source_device: string | null
+          trip_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          charge_session_ids?: Json
+          created_at?: string
+          description?: string
+          extra_charges?: Json
+          id?: string
+          local_id?: string | null
+          miles?: number
+          rate_pence_per_mile?: number
+          source_device?: string | null
+          trip_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          charge_session_ids?: Json
+          created_at?: string
+          description?: string
+          extra_charges?: Json
+          id?: string
+          local_id?: string | null
+          miles?: number
+          rate_pence_per_mile?: number
+          source_device?: string | null
+          trip_date?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

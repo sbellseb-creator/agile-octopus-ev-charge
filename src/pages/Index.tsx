@@ -18,6 +18,8 @@ import WeatherForecast from "@/components/WeatherForecast";
 import FuelComparison from "@/components/FuelComparison";
 import WorkCosts from "@/components/WorkCosts";
 import TariffComparison from "@/components/TariffComparison";
+import SyncIndicator from "@/components/SyncIndicator";
+import { startAutoSync } from "@/lib/cloud-sync";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -29,6 +31,17 @@ export default function Index() {
     claimLegacyVehicles().finally(() => {
       loadVehicles().then(setVehicles);
     });
+  }, []);
+
+  useEffect(() => {
+    // Cloud sync: migrate/merge local data, then keep devices in step.
+    const stop = startAutoSync();
+    const onUpdated = () => setSessions(loadSessions());
+    window.addEventListener("cloud-sync:updated", onUpdated);
+    return () => {
+      window.removeEventListener("cloud-sync:updated", onUpdated);
+      stop();
+    };
   }, []);
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
@@ -48,14 +61,16 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
-        <div className="container flex items-center gap-3 py-4">
-          <Zap className="h-7 w-7 text-primary" />
-          <h1 className="text-xl font-bold tracking-tight">EV Charge Tracker</h1>
-          <Button variant="ghost" size="icon" className="ml-auto" onClick={signOut} aria-label="Sign out">
+        <div className="container flex min-w-0 items-center gap-1.5 py-3 sm:gap-3 sm:py-4">
+          <Zap className="h-5 w-5 shrink-0 text-primary sm:h-7 sm:w-7" />
+          <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
+          <SyncIndicator />
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
+
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">

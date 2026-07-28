@@ -197,6 +197,14 @@ export default function WorkCosts({ sessions }: Props) {
 
   useEffect(() => setDefaultRate(rate), [rate]);
 
+  // Refresh when the cloud sync brings in trips recorded on another device.
+  useEffect(() => {
+    const onUpdated = () => setTrips(loadTrips());
+    window.addEventListener("cloud-sync:updated", onUpdated);
+    return () => window.removeEventListener("cloud-sync:updated", onUpdated);
+  }, []);
+
+
   const sessionsNumbered = useMemo(() => {
     const sorted = [...sessions].sort((a, b) =>
       `${a.session_date} ${a.start_time ?? ""}`.localeCompare(`${b.session_date} ${b.start_time ?? ""}`)

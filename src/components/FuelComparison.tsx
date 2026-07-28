@@ -64,6 +64,13 @@ export default function FuelComparison({ sessions, vehicles }: Props) {
     localStorage.setItem(KEY, JSON.stringify(settings));
   }, [settings]);
 
+  // Settings → Fuel and mileage writes the same key; stay in step with it.
+  useEffect(() => {
+    const onUpdated = () => setSettings(loadSettings());
+    window.addEventListener("fuel-settings:updated", onUpdated);
+    return () => window.removeEventListener("fuel-settings:updated", onUpdated);
+  }, []);
+
   const trips = useMemo(() => loadTrips(), [sessions]); // refresh when sessions change
 
   const filteredSessions = useMemo(

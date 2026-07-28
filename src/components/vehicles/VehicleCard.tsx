@@ -42,11 +42,15 @@ export default function VehicleCard({ vehicle: v, onDelete, live }: Props) {
                 {v.registration || "No reg"}
               </span>
               {v.is_default && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-              {v.source === "tesla" && <Badge variant="outline" className="text-[10px]">Tesla</Badge>}
+              {(v.source === "tesla" || live) && <Badge variant="outline" className="text-[10px]">Tesla</Badge>}
+              {live?.state && <Badge variant="secondary" className="text-[10px] capitalize">{live.state}</Badge>}
             </div>
             <p className="mt-1 break-words text-xs text-muted-foreground">
-              {[v.name, v.make, v.model].filter(Boolean).join(" · ") || "Vehicle"}
+              {[live?.car_type ?? v.make, live?.trim_badging ?? v.model, v.name]
+                .filter(Boolean)
+                .join(" · ") || "Vehicle"}
             </p>
+
           </div>
           {onDelete && (
             <Button

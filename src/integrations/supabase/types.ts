@@ -56,6 +56,7 @@ export type Database = {
           user_id: string
           vehicle_id: string | null
           vehicle_name: string
+          vehicle_registration: string | null
         }
         Insert: {
           actual_cost_gbp?: number | null
@@ -98,6 +99,7 @@ export type Database = {
           user_id: string
           vehicle_id?: string | null
           vehicle_name?: string
+          vehicle_registration?: string | null
         }
         Update: {
           actual_cost_gbp?: number | null
@@ -140,6 +142,7 @@ export type Database = {
           user_id?: string
           vehicle_id?: string | null
           vehicle_name?: string
+          vehicle_registration?: string | null
         }
         Relationships: []
       }
@@ -217,19 +220,55 @@ export type Database = {
       }
       user_settings: {
         Row: {
+          charger_amps: number
+          charger_kw: number
+          charging_location: string
           created_at: string
+          diesel_mpg: number
+          diesel_price_ppl: number
+          notify_charge_complete: boolean
+          notify_cheap_slots: boolean
+          notify_price_alerts: boolean
+          petrol_mpg: number
+          petrol_price_ppl: number
+          region: string
+          tariff: string
           updated_at: string
           user_id: string
           work_rate_pence_per_mile: number
         }
         Insert: {
+          charger_amps?: number
+          charger_kw?: number
+          charging_location?: string
           created_at?: string
+          diesel_mpg?: number
+          diesel_price_ppl?: number
+          notify_charge_complete?: boolean
+          notify_cheap_slots?: boolean
+          notify_price_alerts?: boolean
+          petrol_mpg?: number
+          petrol_price_ppl?: number
+          region?: string
+          tariff?: string
           updated_at?: string
           user_id: string
           work_rate_pence_per_mile?: number
         }
         Update: {
+          charger_amps?: number
+          charger_kw?: number
+          charging_location?: string
           created_at?: string
+          diesel_mpg?: number
+          diesel_price_ppl?: number
+          notify_charge_complete?: boolean
+          notify_cheap_slots?: boolean
+          notify_price_alerts?: boolean
+          petrol_mpg?: number
+          petrol_price_ppl?: number
+          region?: string
+          tariff?: string
           updated_at?: string
           user_id?: string
           work_rate_pence_per_mile?: number
@@ -238,7 +277,8 @@ export type Database = {
       }
       vehicles: {
         Row: {
-          battery_kwh: number
+          battery_kwh: number | null
+          car_type: string | null
           charge_efficiency_pct: number
           color: string | null
           created_at: string
@@ -249,10 +289,15 @@ export type Database = {
           model: string | null
           name: string
           notes: string | null
+          registration: string | null
+          source: string
+          tesla_vehicle_id: string | null
           user_id: string | null
+          vin: string | null
         }
         Insert: {
-          battery_kwh: number
+          battery_kwh?: number | null
+          car_type?: string | null
           charge_efficiency_pct?: number
           color?: string | null
           created_at?: string
@@ -263,10 +308,15 @@ export type Database = {
           model?: string | null
           name: string
           notes?: string | null
+          registration?: string | null
+          source?: string
+          tesla_vehicle_id?: string | null
           user_id?: string | null
+          vin?: string | null
         }
         Update: {
-          battery_kwh?: number
+          battery_kwh?: number | null
+          car_type?: string | null
           charge_efficiency_pct?: number
           color?: string | null
           created_at?: string
@@ -277,7 +327,11 @@ export type Database = {
           model?: string | null
           name?: string
           notes?: string | null
+          registration?: string | null
+          source?: string
+          tesla_vehicle_id?: string | null
           user_id?: string | null
+          vin?: string | null
         }
         Relationships: []
       }

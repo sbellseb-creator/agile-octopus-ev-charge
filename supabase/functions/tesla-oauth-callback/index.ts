@@ -78,12 +78,42 @@ Deno.serve(async (req) => {
 
     const tokenText = await tokenRes.text();
     if (!tokenRes.ok) {
-      logEvent(FN, "token_exchange_failed", { status: tokenRes.status }, "error");
-      return redirectBack(stateRow.return_url, { tesla_error: `Tesla sign-in failed (${tokenRes.status}).` });
+      let detail = "";
+      try {
+        const j = JSON.parse(tokenText);
+        detail = String(j.error_description ?? j.error ?? "").slice(0, 200);
+      } catch {
+        detail = tokenText.slice(0, 200);
+      }
+      logEvent(FN, "token_exchange_failed", { status: tokenRes.status, detail }, "error");
+      return redirectBack(stateRow.return_url, {
+        tesla_error: `Tesla token exchange failed (${tokenRes.status}): ${detail || "no detail returned"}`,
+      });
     }
     const token = JSON.parse(tokenText);
 
+    // Granted scopes: prefer the token response, fall back to the access token's scp claim.
+    let granted: string[] = String(token.scope ?? "").split(" ").filter(Boolean);
+    if (granted.length === 0) {
+      try {
+        const part = String(token.access_token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const claims = JSON.parse(atob(part + "=".repeat((4 - (part.length % 4)) % 4)));
+        if (Array.isArray(claims?.scp)) granted = claims.scp as string[];
+      } catch { /* ignore */ }
+    }
+
     const expiresAt = new Date(Date.now() + (Number(token.expires_in) || 28800) * 1000).toISOString();
+
+    // One connection per user. The user_id column has a unique index, so any
+    // previous connection from a different browser/device must go first —
+    // otherwise the upsert on device_id fails with a duplicate-key error and
+    // the freshly granted token (including new scopes) is silently lost.
+    await supabase
+      .from("tesla_connections")
+      .delete()
+      .eq("user_id", stateRow.user_id)
+      .neq("device_id", stateRow.device_id);
+
     const { error: upsertErr } = await supabase.from("tesla_connections").upsert(
       {
         device_id: stateRow.device_id,
@@ -91,6 +121,7 @@ Deno.serve(async (req) => {
         access_token: token.access_token,
         refresh_token: token.refresh_token,
         expires_at: expiresAt,
+        scopes: granted,
         region: "eu",
         updated_at: new Date().toISOString(),
       },
@@ -100,8 +131,9 @@ Deno.serve(async (req) => {
 
     await supabase.from("tesla_oauth_states").delete().eq("state", state);
 
-    logEvent(FN, "connected", { userId: stateRow.user_id });
-    return redirectBack(stateRow.return_url, { tesla: "connected" });
+    logEvent(FN, "connected", { userId: stateRow.user_id, granted_scopes: granted.join(",") });
+    return redirectBack(stateRow.return_url, { tesla: "connected", tesla_scopes: granted.join(" ") });
+
   } catch (e) {
     logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
     return redirectBack(null, { tesla_error: "Something went wrong completing Tesla sign-in." });

@@ -18,6 +18,8 @@ import WeatherForecast from "@/components/WeatherForecast";
 import FuelComparison from "@/components/FuelComparison";
 import WorkCosts from "@/components/WorkCosts";
 import TariffComparison from "@/components/TariffComparison";
+import SyncIndicator from "@/components/SyncIndicator";
+import { startAutoSync } from "@/lib/cloud-sync";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -29,6 +31,17 @@ export default function Index() {
     claimLegacyVehicles().finally(() => {
       loadVehicles().then(setVehicles);
     });
+  }, []);
+
+  useEffect(() => {
+    // Cloud sync: migrate/merge local data, then keep devices in step.
+    const stop = startAutoSync();
+    const onUpdated = () => setSessions(loadSessions());
+    window.addEventListener("cloud-sync:updated", onUpdated);
+    return () => {
+      window.removeEventListener("cloud-sync:updated", onUpdated);
+      stop();
+    };
   }, []);
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));

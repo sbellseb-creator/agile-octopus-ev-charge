@@ -22,6 +22,7 @@ interface Props {
  * collapsed — it exists for non-Tesla or extra manually managed vehicles.
  */
 export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
+  const [teslaConnected, setTeslaConnected] = useState(false);
   const [open, setOpen] = useState(false);
   const [registration, setRegistration] = useState("");
   const [name, setName] = useState("");

@@ -239,6 +239,19 @@ export async function syncNow(): Promise<SyncStatus> {
   return status;
 }
 
+/**
+ * Rollback: restore the pre-migration localStorage snapshots for both data
+ * sets. Exposed on `window.evRollbackLocalData()` so it can be triggered from
+ * the browser console without a deploy.
+ */
+export function rollbackToLocalBackups(): string {
+  const keys = registry.map((r) => r.storageKey);
+  const restored = keys.filter((k) => restoreBackup(k));
+  return restored.length
+    ? `Restored local backup for: ${restored.join(", ")}. Reload the page.`
+    : "No pre-migration backup found.";
+}
+
 let wired = false;
 
 /** Start automatic synchronisation: on load, on reconnect, on focus, hourly. */
@@ -246,6 +259,8 @@ export function startAutoSync(): () => void {
   void syncNow();
   if (wired) return () => {};
   wired = true;
+
+  (window as unknown as Record<string, unknown>).evRollbackLocalData = rollbackToLocalBackups;
 
   const onOnline = () => void syncNow();
   const onVisible = () => {

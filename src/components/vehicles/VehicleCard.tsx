@@ -104,11 +104,16 @@ export default function VehicleCard({ vehicle: v, onDelete, live }: Props) {
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-1.5 pt-2 text-xs">
-            <Row label="VIN" value={v.vin ? `••••••••${v.vin.slice(-4)}` : "Unknown"} />
+            <Row
+              label="VIN"
+              value={v.vin ? `••••••••${v.vin.slice(-4)}` : live?.vin_last4 ? `••••••••${live.vin_last4}` : "Unknown"}
+            />
+            {live?.display_name && <Row label="Tesla name" value={live.display_name} />}
             <Row label="Tesla vehicle ID" value={val(v.tesla_vehicle_id)} />
-            <Row label="Car type" value={val(v.car_type)} />
+            <Row label="Car type" value={val(live?.car_type ?? v.car_type)} />
             <Row label="Charge efficiency" value={val(v.charge_efficiency_pct, "%")} />
-            <Row label="Data source" value={v.source === "tesla" ? "Tesla Fleet API" : "Manual"} />
+            <Row label="Data source" value={v.source === "tesla" || live ? "Tesla Fleet API" : "Manual"} />
+
             {v.notes && <Row label="Notes" value={v.notes} />}
           </CollapsibleContent>
         </Collapsible>

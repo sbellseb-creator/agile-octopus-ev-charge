@@ -6,6 +6,7 @@ export interface TeslaVehicle {
   display_name: string;
   state: string | null;
   battery_level: number | null;
+  battery_range: number | null;
   charging_state: string | null;
   charge_limit_soc: number | null;
 }

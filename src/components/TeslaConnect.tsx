@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plug, RefreshCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { listTeslaVehicles, startTeslaOAuth, type TeslaVehicle } from "@/lib/tesla";
+import {
+  listTeslaVehicles,
+  startTeslaOAuth,
+  type TeslaVehicle,
+} from "@/lib/tesla";
 
 export default function TeslaConnect() {
   const { toast } = useToast();
@@ -15,15 +24,27 @@ export default function TeslaConnect() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+
     try {
       const res = await listTeslaVehicles();
+
       setConnected(res.connected);
       setVehicles(res.vehicles);
-      if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
+
+      if (res.error) {
+        toast({
+          title: "Tesla",
+          description: res.error,
+          variant: "destructive",
+        });
+      }
     } catch (e) {
       toast({
         title: "Tesla",
-        description: e instanceof Error ? e.message : "Could not load Tesla vehicles",
+        description:
+          e instanceof Error
+            ? e.message
+            : "Could not load Tesla vehicles",
         variant: "destructive",
       });
     } finally {
@@ -37,15 +58,18 @@ export default function TeslaConnect() {
 
   const connect = async () => {
     setConnecting(true);
+
     try {
       const url = await startTeslaOAuth();
       window.location.href = url;
     } catch (e) {
       toast({
         title: "Tesla sign-in failed",
-        description: e instanceof Error ? e.message : "Unknown error",
+        description:
+          e instanceof Error ? e.message : "Unknown error",
         variant: "destructive",
       });
+
       setConnecting(false);
     }
   };
@@ -57,40 +81,98 @@ export default function TeslaConnect() {
           <Plug className="h-5 w-5 text-primary" />
           Tesla
         </CardTitle>
+
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={refresh} disabled={loading} aria-label="Refresh Tesla data">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refresh}
+            disabled={loading}
+            aria-label="Refresh Tesla data"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${
+                loading ? "animate-spin" : ""
+              }`}
+            />
           </Button>
-          <Button size="sm" onClick={connect} disabled={connecting}>
-            {connecting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+
+          <Button
+            size="sm"
+            onClick={connect}
+            disabled={connecting}
+          >
+            {connecting ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : null}
+
             {connected ? "Reconnect" : "Connect Tesla"}
           </Button>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-3">
         {!connected && !loading && (
           <p className="text-sm text-muted-foreground">
-            Connect your Tesla account to see live battery and charging status.
+            Connect your Tesla account to see live battery and
+            charging status.
           </p>
         )}
+
         {vehicles.map((v) => (
-          <div key={v.id} className="rounded-lg border border-border p-3 space-y-1.5">
+          <div
+            key={v.id}
+            className="space-y-1.5 rounded-lg border border-border p-3"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{v.display_name}</span>
+              <span className="font-medium">
+                {v.display_name}
+              </span>
+
               <Badge variant="outline">ND74 VCA</Badge>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
+
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
               <div>
-                <div className="text-muted-foreground">Battery</div>
-                <div className="font-semibold">{v.battery_level != null ? `${v.battery_level}%` : "—"}</div>
+                <div className="text-muted-foreground">
+                  Battery
+                </div>
+                <div className="font-semibold">
+                  {v.battery_level != null
+                    ? `${v.battery_level}%`
+                    : "—"}
+                </div>
               </div>
+
               <div>
-                <div className="text-muted-foreground">Charging</div>
-                <div className="font-semibold">{v.charging_state ?? "—"}</div>
+                <div className="text-muted-foreground">
+                  Range
+                </div>
+                <div className="font-semibold">
+                  {v.battery_range != null
+                    ? `${Math.round(v.battery_range)} mi`
+                    : "—"}
+                </div>
               </div>
+
               <div>
-                <div className="text-muted-foreground">Limit</div>
-                <div className="font-semibold">{v.charge_limit_soc != null ? `${v.charge_limit_soc}%` : "—"}</div>
+                <div className="text-muted-foreground">
+                  Charging
+                </div>
+                <div className="font-semibold">
+                  {v.charging_state ?? "—"}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-muted-foreground">
+                  Limit
+                </div>
+                <div className="font-semibold">
+                  {v.charge_limit_soc != null
+                    ? `${v.charge_limit_soc}%`
+                    : "—"}
+                </div>
               </div>
             </div>
           </div>

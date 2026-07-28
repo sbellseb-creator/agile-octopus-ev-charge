@@ -75,6 +75,22 @@ Deno.serve(async (req) => {
       let battery: number | null = null;
       let chargingState: string | null = null;
       let chargeLimit: number | null = null;
+      let batteryRange: number | null = null;
+      if (v.state === "offline" || v.state === "asleep") {
+  console.log(`Waking vehicle ${v.id}...`);
+
+  await fetch(
+    `${FLEET_BASE}/api/1/vehicles/${v.id}/wake_up`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+  // Give the vehicle a chance to wake up
+  await new Promise((resolve) => setTimeout(resolve, 15000));
+}
       try {
         const dRes = await fetch(
           `${FLEET_BASE}/api/1/vehicles/${v.id}/vehicle_data?endpoints=charge_state`,
@@ -86,6 +102,7 @@ Deno.serve(async (req) => {
           battery = cs.battery_level ?? null;
           chargingState = cs.charging_state ?? null;
           chargeLimit = cs.charge_limit_soc ?? null;
+          batteryRange = cs.battery_range ?? null;
         } else {
           await dRes.text();
         }
@@ -96,13 +113,13 @@ Deno.serve(async (req) => {
         id: String(v.id),
         vin_last4: String(v.vin ?? "").slice(-4),
         display_name: v.display_name ?? "Tesla",
-        state: v.state ?? null,
-        battery_level: battery,
-        charging_state: chargingState,
-        charge_limit_soc: chargeLimit,
+      state: v.state ?? null,
+battery_level: battery,
+battery_range: batteryRange,
+charging_state: chargingState,
+charge_limit_soc: chargeLimit,
       });
-    }
-
+      }
     await supabase
       .from("tesla_connections")
       .update({ vehicles, updated_at: new Date().toISOString() })

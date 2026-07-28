@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  let returnUrl: string | null = null;
   try {
     if (!code || !state) {
       return redirectBack(null, { tesla_error: "Missing authorization code." });
@@ -61,6 +62,8 @@ Deno.serve(async (req) => {
       logEvent(FN, "invalid_or_expired_state", {}, "warn");
       return redirectBack(null, { tesla_error: "Invalid or expired sign-in state." });
     }
+    returnUrl = stateRow.return_url ?? null;
+
 
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/tesla-oauth-callback`;
     const tokenRes = await fetch(`${AUTH_BASE}/token`, {

@@ -5,14 +5,30 @@ import { Badge } from "@/components/ui/badge";
 import { Plug, RefreshCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { listTeslaVehicles, startTeslaOAuth, type TeslaVehicle } from "@/lib/tesla";
+import type { Vehicle } from "@/lib/vehicle-data";
 
-export default function TeslaConnect() {
+interface Props {
+  /** App vehicles, used to resolve the registration for a Tesla. */
+  vehicles?: Vehicle[];
+}
+
+export default function TeslaConnect({ vehicles = [] }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [vehicles, setVehicles] = useState<TeslaVehicle[]>([]);
+  const [teslaVehicles, setTeslaVehicles] = useState<TeslaVehicle[]>([]);
   const pollRef = useRef<number | null>(null);
+
+  /** Registration for a Tesla: matched by Tesla id, then VIN suffix, else default vehicle. */
+  const regFor = (t: TeslaVehicle): string => {
+    const byId = vehicles.find((v) => v.tesla_vehicle_id && v.tesla_vehicle_id === t.id);
+    if (byId?.registration) return byId.registration;
+    const byVin = vehicles.find((v) => v.vin && v.vin.slice(-4) === t.vin_last4);
+    if (byVin?.registration) return byVin.registration;
+    const def = vehicles.find((v) => v.is_default) ?? vehicles[0];
+    return def?.registration ?? "";
+  };
 
   const load = useCallback(
     async (wake: boolean) => {
@@ -20,7 +36,7 @@ export default function TeslaConnect() {
       try {
         const res = await listTeslaVehicles(wake);
         setConnected(res.connected);
-        setVehicles(res.vehicles);
+        setTeslaVehicles(res.vehicles);
         if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
         return res.connected;
       } catch (e) {
@@ -145,12 +161,12 @@ export default function TeslaConnect() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <Plug className="h-5 w-5 text-primary" />
-          Tesla
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
+          <Plug className="h-5 w-5 shrink-0 text-primary" />
+          <span className="min-w-0 truncate">Tesla</span>
         </CardTitle>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={loading} aria-label="Refresh Tesla data">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
@@ -166,28 +182,41 @@ export default function TeslaConnect() {
             Connect your Tesla account to see live battery and charging status.
           </p>
         )}
-        {vehicles.map((v) => (
-          <div key={v.id} className="rounded-lg border border-border p-3 space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-medium break-words">{v.display_name}</span>
-              <Badge variant="outline">VIN ••••{v.vin_last4}</Badge>
+        {teslaVehicles.map((v) => {
+          const reg = regFor(v);
+          return (
+            <div key={v.id} className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-sm font-bold uppercase tracking-wider break-all">
+                  {reg || "No reg set"}
+                </span>
+                <Badge variant="outline" className="shrink-0 text-[10px]">{v.state ?? "Unknown"}</Badge>
+              </div>
+              <p className="break-words text-xs text-muted-foreground">
+                {[v.display_name, v.car_type, v.trim_badging].filter(Boolean).join(" · ") || "Unknown"}
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="min-w-0">
+                  <div className="text-muted-foreground">Battery</div>
+                  <div className="font-semibold">{v.battery_level != null ? `${v.battery_level}%` : "Unknown"}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-muted-foreground">Charging</div>
+                  <div className="break-words font-semibold">{v.charging_state ?? "Unknown"}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-muted-foreground">Limit</div>
+                  <div className="font-semibold">{v.charge_limit_soc != null ? `${v.charge_limit_soc}%` : "Unknown"}</div>
+                </div>
+              </div>
+              {!reg && (
+                <p className="text-[11px] text-muted-foreground">
+                  Add your registration in Settings → Vehicle to show it here.
+                </p>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <div className="text-muted-foreground">Battery</div>
-                <div className="font-semibold">{v.battery_level != null ? `${v.battery_level}%` : "—"}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Charging</div>
-                <div className="font-semibold break-words">{v.charging_state ?? "—"}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Limit</div>
-                <div className="font-semibold">{v.charge_limit_soc != null ? `${v.charge_limit_soc}%` : "—"}</div>
-              </div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

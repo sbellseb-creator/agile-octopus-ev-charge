@@ -26,7 +26,7 @@ export default function TeslaConnect() {
     setLoading(true);
 
     try {
-      const res = await listTeslaVehicles();
+      const res = await listTeslaVehicles(true);
 
       setConnected(res.connected);
       setVehicles(res.vehicles);
@@ -53,8 +53,33 @@ export default function TeslaConnect() {
   }, [toast]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+  setLoading(true);
+
+  listTeslaVehicles(false)
+    .then((res) => {
+      setConnected(res.connected);
+      setVehicles(res.vehicles);
+
+      if (res.error) {
+        toast({
+          title: "Tesla",
+          description: res.error,
+          variant: "destructive",
+        });
+      }
+    })
+    .catch((e) => {
+      toast({
+        title: "Tesla",
+        description:
+          e instanceof Error
+            ? e.message
+            : "Could not load Tesla vehicles",
+        variant: "destructive",
+      });
+    })
+    .finally(() => setLoading(false));
+}, [toast]);
 
   const connect = async () => {
     setConnecting(true);

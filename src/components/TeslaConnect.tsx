@@ -62,7 +62,7 @@ export default function TeslaConnect() {
           Tesla
         </CardTitle>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={refresh} disabled={loading} aria-label="Refresh Tesla data">
+          <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={loading} aria-label="Refresh Tesla data">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           <Button size="sm" onClick={connect} disabled={connecting}>

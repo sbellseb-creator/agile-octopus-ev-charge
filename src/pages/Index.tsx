@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
-import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";
+import { loadVehicles, addVehicle, deleteVehicle, claimLegacyVehicles } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
+import { useAuth } from "@/hooks/useAuth";
 import ChargeForm from "@/components/ChargeForm";
 import ChargeCharts from "@/components/ChargeCharts";
 import ChargeTable from "@/components/ChargeTable";
@@ -20,9 +22,13 @@ import TariffComparison from "@/components/TariffComparison";
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const { signOut } = useAuth();
 
   useEffect(() => {
-    loadVehicles().then(setVehicles);
+    // Claim any pre-authentication vehicle rows, then load.
+    claimLegacyVehicles().finally(() => {
+      loadVehicles().then(setVehicles);
+    });
   }, []);
 
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));

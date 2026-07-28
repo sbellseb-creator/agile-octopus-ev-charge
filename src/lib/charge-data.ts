@@ -1,5 +1,6 @@
 import { readJSON, writeJSON } from "@/lib/safe-storage";
 import { markDirty, nowIso, recordTombstone, registerEntity } from "@/lib/cloud-sync";
+import { isoToUkClock, ukClockToIso } from "@/lib/timezone";
 
 export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
 
@@ -91,15 +92,25 @@ registerEntity({
   table: "charge_sessions",
   storageKey: STORAGE_KEY,
   sort: (a: ChargeSession, b: ChargeSession) => a.session_date.localeCompare(b.session_date),
-  toRow: (s: ChargeSession) => ({
+  toRow: (s: ChargeSession) => {
+    // start_time/end_time/target_time are clock times ("14:00") in the local
+    // model but timestamptz in the database — combine with the session date.
+    const startIso = ukClockToIso(s.session_date, s.start_time);
+    let endIso = ukClockToIso(s.session_date, s.end_time);
+    // Overnight session: finish rolls into the next day.
+    if (startIso && endIso && new Date(endIso) <= new Date(startIso)) {
+      endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+    }
+    const targetIso = ukClockToIso(s.session_date, s.target_time);
+    return {
     session_date: s.session_date,
-    start_time: s.start_time ?? null,
-    end_time: s.end_time ?? null,
+    start_time: startIso,
+    end_time: endIso,
     vehicle_id: s.vehicle_id ?? null,
     vehicle_name: s.vehicle_name ?? "",
     vehicle_registration: s.vehicle_registration ?? null,
     charge_mode: s.charge_mode ?? "immediate",
-    target_time: s.target_time ?? null,
+    target_time: targetIso,
     start_soc: num(s.start_soc),
     end_soc: num(s.end_soc),
     energy_added_kwh: num(s.energy_added_kwh),
@@ -113,10 +124,10 @@ registerEntity({
     slot_prices: s.slot_prices ?? [],
     history: s.history ?? [],
     // Learning Engine capture (stored only)
-    planned_start: s.planned_start ?? null,
-    actual_start: s.actual_start ?? s.start_time ?? null,
-    planned_finish: s.planned_finish ?? null,
-    actual_finish: s.actual_finish ?? s.end_time ?? null,
+    planned_start: ukClockToIso(s.session_date, s.planned_start),
+    actual_start: ukClockToIso(s.session_date, s.actual_start) ?? startIso,
+    planned_finish: ukClockToIso(s.session_date, s.planned_finish),
+    actual_finish: ukClockToIso(s.session_date, s.actual_finish) ?? endIso,
     planned_cost_gbp: s.planned_cost_gbp ?? null,
     actual_cost_gbp: s.actual_cost_gbp ?? null,
     configured_charger_kw: s.configured_charger_kw ?? 6.9,
@@ -129,18 +140,19 @@ registerEntity({
     confidence_score: s.confidence_score ?? null,
     raw_observations: s.raw_observations ?? {},
     updated_at: s.updated_at ?? nowIso(),
-  }),
+    };
+  },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toLocal: (r: any): ChargeSession => ({
     id: r.local_id ?? r.id,
     session_date: r.session_date,
-    start_time: opt(r.start_time),
-    end_time: opt(r.end_time),
+    start_time: isoToUkClock(r.start_time),
+    end_time: isoToUkClock(r.end_time),
     vehicle_id: r.vehicle_id ?? "",
     vehicle_name: r.vehicle_name ?? "",
     vehicle_registration: r.vehicle_registration ?? undefined,
     charge_mode: (r.charge_mode ?? "immediate") as ChargeMode,
-    target_time: opt(r.target_time),
+    target_time: isoToUkClock(r.target_time),
     start_soc: num(r.start_soc),
     end_soc: num(r.end_soc),
     energy_added_kwh: num(r.energy_added_kwh),

@@ -1,4 +1,5 @@
 import { readJSON, writeJSON } from "@/lib/safe-storage";
+import { markDirty, nowIso, recordTombstone, registerEntity } from "@/lib/cloud-sync";
 
 export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
 
@@ -16,7 +17,30 @@ export interface CachedSlotPrice {
   value_inc_vat: number; // p/kWh
 }
 
-export interface ChargeSession {
+/**
+ * Optional observations captured for the future Learning Engine.
+ * Nothing is calculated from these yet — they are stored so the engine can be
+ * built later without another database redesign.
+ */
+export interface LearningFields {
+  planned_start?: string;
+  actual_start?: string;
+  planned_finish?: string;
+  actual_finish?: string;
+  planned_cost_gbp?: number;
+  actual_cost_gbp?: number;
+  configured_charger_kw?: number;
+  observed_charger_kw?: number;
+  charging_efficiency_pct?: number;
+  charging_location?: string;
+  predicted_energy_kwh?: number;
+  actual_energy_kwh?: number;
+  outside_temp_c?: number;
+  confidence_score?: number;
+  raw_observations?: Record<string, unknown>;
+}
+
+export interface ChargeSession extends LearningFields {
   id: string;
   session_date: string;
   start_time?: string;
@@ -38,6 +62,8 @@ export interface ChargeSession {
   slot_prices?: CachedSlotPrice[];
   /** Region the slot prices were fetched from (for re-fetching missing slots on edit). */
   region?: string;
+  /** Last local modification — used for last-write-wins cloud sync. */
+  updated_at?: string;
   // History of edits
   history?: Array<{
     timestamp: string;
@@ -53,6 +79,94 @@ export interface ChargeSession {
 }
 
 const STORAGE_KEY = "charge-sessions";
+export const CHARGE_STORAGE_KEY = STORAGE_KEY;
+
+const num = (v: unknown, fallback = 0) => (v === null || v === undefined || v === "" ? fallback : Number(v));
+const opt = <T>(v: T | null | undefined) => (v === null ? undefined : v);
+
+/** Register charge sessions with the cloud sync engine. */
+registerEntity({
+  table: "charge_sessions",
+  storageKey: STORAGE_KEY,
+  sort: (a: ChargeSession, b: ChargeSession) => a.session_date.localeCompare(b.session_date),
+  toRow: (s: ChargeSession) => ({
+    session_date: s.session_date,
+    start_time: s.start_time ?? null,
+    end_time: s.end_time ?? null,
+    vehicle_id: s.vehicle_id ?? null,
+    vehicle_name: s.vehicle_name ?? "",
+    charge_mode: s.charge_mode ?? "immediate",
+    target_time: s.target_time ?? null,
+    start_soc: num(s.start_soc),
+    end_soc: num(s.end_soc),
+    energy_added_kwh: num(s.energy_added_kwh),
+    grid_kwh: num(s.grid_kwh),
+    total_cost_gbp: num(s.total_cost_gbp),
+    avg_pence_per_kwh: num(s.avg_pence_per_kwh),
+    num_slots: num(s.num_slots),
+    tariff_code: s.tariff_code ?? "",
+    notes: s.notes ?? "",
+    region: s.region ?? null,
+    slot_prices: s.slot_prices ?? [],
+    history: s.history ?? [],
+    // Learning Engine capture (stored only)
+    planned_start: s.planned_start ?? null,
+    actual_start: s.actual_start ?? s.start_time ?? null,
+    planned_finish: s.planned_finish ?? null,
+    actual_finish: s.actual_finish ?? s.end_time ?? null,
+    planned_cost_gbp: s.planned_cost_gbp ?? null,
+    actual_cost_gbp: s.actual_cost_gbp ?? null,
+    configured_charger_kw: s.configured_charger_kw ?? 6.9,
+    observed_charger_kw: s.observed_charger_kw ?? null,
+    charging_efficiency_pct: s.charging_efficiency_pct ?? null,
+    charging_location: s.charging_location ?? null,
+    predicted_energy_kwh: s.predicted_energy_kwh ?? null,
+    actual_energy_kwh: s.actual_energy_kwh ?? null,
+    outside_temp_c: s.outside_temp_c ?? null,
+    confidence_score: s.confidence_score ?? null,
+    raw_observations: s.raw_observations ?? {},
+    updated_at: s.updated_at ?? nowIso(),
+  }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toLocal: (r: any): ChargeSession => ({
+    id: r.local_id ?? r.id,
+    session_date: r.session_date,
+    start_time: opt(r.start_time),
+    end_time: opt(r.end_time),
+    vehicle_id: r.vehicle_id ?? "",
+    vehicle_name: r.vehicle_name ?? "",
+    charge_mode: (r.charge_mode ?? "immediate") as ChargeMode,
+    target_time: opt(r.target_time),
+    start_soc: num(r.start_soc),
+    end_soc: num(r.end_soc),
+    energy_added_kwh: num(r.energy_added_kwh),
+    grid_kwh: num(r.grid_kwh),
+    total_cost_gbp: num(r.total_cost_gbp),
+    avg_pence_per_kwh: num(r.avg_pence_per_kwh),
+    num_slots: num(r.num_slots),
+    tariff_code: r.tariff_code ?? "",
+    notes: r.notes ?? "",
+    region: opt(r.region),
+    slot_prices: Array.isArray(r.slot_prices) ? r.slot_prices : [],
+    history: Array.isArray(r.history) ? r.history : [],
+    planned_start: opt(r.planned_start),
+    actual_start: opt(r.actual_start),
+    planned_finish: opt(r.planned_finish),
+    actual_finish: opt(r.actual_finish),
+    planned_cost_gbp: opt(r.planned_cost_gbp) ?? undefined,
+    actual_cost_gbp: opt(r.actual_cost_gbp) ?? undefined,
+    configured_charger_kw: opt(r.configured_charger_kw) ?? undefined,
+    observed_charger_kw: opt(r.observed_charger_kw) ?? undefined,
+    charging_efficiency_pct: opt(r.charging_efficiency_pct) ?? undefined,
+    charging_location: opt(r.charging_location),
+    predicted_energy_kwh: opt(r.predicted_energy_kwh) ?? undefined,
+    actual_energy_kwh: opt(r.actual_energy_kwh) ?? undefined,
+    outside_temp_c: opt(r.outside_temp_c) ?? undefined,
+    confidence_score: opt(r.confidence_score) ?? undefined,
+    raw_observations: r.raw_observations ?? {},
+    updated_at: r.updated_at,
+  }),
+});
 
 export function loadSessions(): ChargeSession[] {
   const rows = readJSON<ChargeSession[]>(STORAGE_KEY, [], (v) => Array.isArray(v));
@@ -66,9 +180,10 @@ export function saveSessions(sessions: ChargeSession[]) {
 
 export function addSession(session: Omit<ChargeSession, "id">): ChargeSession[] {
   const sessions = loadSessions();
-  sessions.push({ ...session, id: crypto.randomUUID() });
+  sessions.push({ ...session, id: crypto.randomUUID(), updated_at: nowIso() });
   sessions.sort((a, b) => a.session_date.localeCompare(b.session_date));
   saveSessions(sessions);
+  markDirty();
   return sessions;
 }
 
@@ -90,14 +205,17 @@ export function updateSession(id: string, updates: Partial<ChargeSession>): Char
       end_time: existing.end_time,
     };
     const history = [...(existing.history || []), historyEntry];
-    sessions[idx] = { ...existing, ...updates, history };
+    sessions[idx] = { ...existing, ...updates, history, updated_at: nowIso() };
   }
   saveSessions(sessions);
+  markDirty();
   return sessions;
 }
 
 export function deleteSession(id: string): ChargeSession[] {
   const sessions = loadSessions().filter((s) => s.id !== id);
   saveSessions(sessions);
+  recordTombstone(STORAGE_KEY, id);
+  markDirty();
   return sessions;
 }

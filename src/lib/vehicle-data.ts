@@ -221,3 +221,49 @@ export async function linkTeslaVehicleIds(
   }
   return changed;
 }
+
+/**
+ * Tesla paint codes → the names Tesla uses in its own UI. Unknown codes are
+ * never guessed; the colour line is simply hidden instead.
+ */
+const TESLA_PAINT: Record<string, string> = {
+  quicksilver: "Quicksilver",
+  pearlwhite: "Pearl White",
+  pearlwhitemulticoat: "Pearl White",
+  solidwhite: "White",
+  midnightsilver: "Midnight Silver",
+  midnightsilvermetallic: "Midnight Silver",
+  deepblue: "Deep Blue",
+  deepbluemetallic: "Deep Blue Metallic",
+  solidblack: "Solid Black",
+  obsidianblack: "Obsidian Black",
+  redmulticoat: "Red Multi-Coat",
+  ultrared: "Ultra Red",
+  stealthgrey: "Stealth Grey",
+  stealthgray: "Stealth Grey",
+  diamondblack: "Diamond Black",
+  lunarsilver: "Lunar Silver",
+  glacierblue: "Glacier Blue",
+};
+
+/**
+ * Human colour name for display, e.g. "Quicksilver". Returns "" when the
+ * stored value is a raw hex swatch or an unrecognised Tesla code.
+ */
+export function vehicleColorName(
+  v: Pick<Vehicle, "notes" | "color">,
+  live?: { exterior_color?: string | null } | null,
+): string {
+  const candidates = [live?.exterior_color, v.notes];
+  for (const c of candidates) {
+    if (!c) continue;
+    const key = c.toLowerCase().replace(/[^a-z]/g, "");
+    if (TESLA_PAINT[key]) return TESLA_PAINT[key];
+    // A user-confirmed plain word such as "Quicksilver" typed into notes.
+    if (/^[a-z][a-z\s-]{2,24}$/i.test(c.trim()) && !c.startsWith("#")) {
+      const t = c.trim();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+  }
+  return "";
+}

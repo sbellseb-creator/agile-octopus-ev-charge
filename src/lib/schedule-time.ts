@@ -129,3 +129,30 @@ export function scheduleMatches(
   if (wantEnd && Math.round(requested.endMinutes as number) !== Number(actual.end_time)) return false;
   return true;
 }
+
+/**
+ * Plain-English list of the fields where Tesla's read-back disagrees with the
+ * plan. Empty array means a genuine match, which is the only case that may be
+ * shown to the user as "Verified on Tesla".
+ */
+export function scheduleDifferences(
+  requested: SchedulePayloadInput,
+  actual: { start_time?: number | null; end_time?: number | null; days_of_week?: number | null; enabled?: boolean | null; end_enabled?: boolean | null } | null,
+): string[] {
+  if (!actual) return ["Tesla did not return a matching schedule."];
+  const diffs: string[] = [];
+  if (actual.enabled === false) diffs.push("The schedule is switched off on the car.");
+  if (Math.round(requested.startMinutes) !== Number(actual.start_time)) {
+    diffs.push(`Start time: plan ${minutesToClock(Math.round(requested.startMinutes))}, car ${minutesToClock(Number(actual.start_time ?? 0))}.`);
+  }
+  const wantEnd = requested.endMinutes !== null && requested.endMinutes !== undefined;
+  if (wantEnd !== Boolean(actual.end_enabled)) {
+    diffs.push(wantEnd ? "Ready-by time: set in the plan but not on the car." : "Ready-by time: set on the car but not in the plan.");
+  } else if (wantEnd && Math.round(requested.endMinutes as number) !== Number(actual.end_time)) {
+    diffs.push(`Ready by: plan ${minutesToClock(Math.round(requested.endMinutes as number))}, car ${minutesToClock(Number(actual.end_time ?? 0))}.`);
+  }
+  if (Number(requested.daysMask) !== Number(actual.days_of_week)) {
+    diffs.push(`Days: plan ${formatDaysMask(Number(requested.daysMask))}, car ${formatDaysMask(Number(actual.days_of_week ?? 0))}.`);
+  }
+  return diffs;
+}

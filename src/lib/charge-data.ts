@@ -124,10 +124,10 @@ registerEntity({
     slot_prices: s.slot_prices ?? [],
     history: s.history ?? [],
     // Learning Engine capture (stored only)
-    planned_start: s.planned_start ?? null,
-    actual_start: s.actual_start ?? s.start_time ?? null,
-    planned_finish: s.planned_finish ?? null,
-    actual_finish: s.actual_finish ?? s.end_time ?? null,
+    planned_start: ukClockToIso(s.session_date, s.planned_start),
+    actual_start: ukClockToIso(s.session_date, s.actual_start) ?? startIso,
+    planned_finish: ukClockToIso(s.session_date, s.planned_finish),
+    actual_finish: ukClockToIso(s.session_date, s.actual_finish) ?? endIso,
     planned_cost_gbp: s.planned_cost_gbp ?? null,
     actual_cost_gbp: s.actual_cost_gbp ?? null,
     configured_charger_kw: s.configured_charger_kw ?? 6.9,
@@ -140,7 +140,8 @@ registerEntity({
     confidence_score: s.confidence_score ?? null,
     raw_observations: s.raw_observations ?? {},
     updated_at: s.updated_at ?? nowIso(),
-  }),
+    };
+  },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toLocal: (r: any): ChargeSession => ({
     id: r.local_id ?? r.id,

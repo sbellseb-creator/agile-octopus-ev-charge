@@ -12,9 +12,13 @@ interface Props {
   vehicles?: Vehicle[];
   /** Notified whenever the connection state is known (no extra API calls). */
   onStatus?: (connected: boolean) => void;
+  /** Notified with the live Tesla vehicles so the parent can merge them into vehicle cards. */
+  onVehicles?: (vehicles: TeslaVehicle[]) => void;
+  /** Compact mode renders only the slim connection status bar (no vehicle blocks). */
+  compact?: boolean;
 }
 
-export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
+export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, compact = false }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);

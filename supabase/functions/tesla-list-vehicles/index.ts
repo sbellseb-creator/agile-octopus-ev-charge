@@ -76,6 +76,33 @@ Deno.serve(async (req) => {
       let battery: number | null = null;
       let chargingState: string | null = null;
       let chargeLimit: number | null = null;
+
+      // Only wake the car on an explicit manual refresh (wake=true).
+      if (wake && v.state !== "online") {
+        try {
+          const wRes = await fetch(`${FLEET_BASE}/api/1/vehicles/${v.id}/wake_up`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const wText = await wRes.text();
+          if (!wRes.ok) console.error("Tesla wake_up failed:", wRes.status, wText);
+          else {
+            // brief poll for the vehicle to come online
+            for (let i = 0; i < 5; i++) {
+              await new Promise((r) => setTimeout(r, 2000));
+              const sRes = await fetch(`${FLEET_BASE}/api/1/vehicles/${v.id}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              if (!sRes.ok) { await sRes.text(); break; }
+              const s = await sRes.json();
+              if (s?.response?.state === "online") { v.state = "online"; break; }
+            }
+          }
+        } catch (err) {
+          console.error("wake_up error:", err);
+        }
+      }
+
       try {
         const dRes = await fetch(
           `${FLEET_BASE}/api/1/vehicles/${v.id}/vehicle_data?endpoints=charge_state`,

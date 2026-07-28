@@ -23,7 +23,7 @@ import { getTeslaDiagnostics } from "@/lib/tesla";
 import { getDefaultRate, setDefaultRate } from "@/lib/work-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 
-export const APP_VERSION = "2B.1";
+export const APP_VERSION = "2C.0";
 const SCHEMA_VERSION = "2026-07-28 (Phase 2B)";
 const FUEL_KEY = "fuel-compare-settings";
 
@@ -89,6 +89,14 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="px-3 sm:px-6">
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px]">
+            Cloud sync: {sync.state === "error" ? "error" : sync.state}
+          </span>
+          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px]">
+            Tesla: {tesla.connected == null ? "unknown" : tesla.connected ? "connected" : "not connected"}
+          </span>
+        </div>
         <Accordion type="multiple" className="w-full">
           {/* Vehicle */}
           <AccordionItem value="vehicle">
@@ -119,7 +127,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
           {/* Home charger */}
           <AccordionItem value="charger">
             <AccordionTrigger className="gap-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2"><Zap className="h-4 w-4 shrink-0 text-primary" />Home charger</span>
+              <span className="flex min-w-0 items-center gap-2"><Zap className="h-4 w-4 shrink-0 text-primary" />Charging</span>
             </AccordionTrigger>
             <AccordionContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0 space-y-1.5">
@@ -158,7 +166,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
           {/* Tariff and region */}
           <AccordionItem value="tariff">
             <AccordionTrigger className="gap-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2"><PoundSterling className="h-4 w-4 shrink-0 text-primary" />Tariff and region</span>
+              <span className="flex min-w-0 items-center gap-2"><PoundSterling className="h-4 w-4 shrink-0 text-primary" />Electricity</span>
             </AccordionTrigger>
             <AccordionContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0 space-y-1.5">
@@ -192,7 +200,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
           {/* Fuel and mileage */}
           <AccordionItem value="fuel">
             <AccordionTrigger className="gap-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2"><Fuel className="h-4 w-4 shrink-0 text-primary" />Fuel and mileage</span>
+              <span className="flex min-w-0 items-center gap-2"><Fuel className="h-4 w-4 shrink-0 text-primary" />Fuel and mileage (comparison)</span>
             </AccordionTrigger>
             <AccordionContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0 space-y-1.5">
@@ -246,7 +254,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
           {/* Privacy and diagnostics */}
           <AccordionItem value="diagnostics" className="border-b-0">
             <AccordionTrigger className="gap-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />Privacy and diagnostics</span>
+              <span className="flex min-w-0 items-center gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />Privacy & Cloud</span>
             </AccordionTrigger>
             <AccordionContent className="space-y-1.5 text-xs">
               <Diag label="App version" value={APP_VERSION} />

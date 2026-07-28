@@ -1,47 +1,9 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { getAuthedUserId, logEvent, safeMessage, serviceClient } from "../_shared/auth.ts";
+import { evaluateRateLimit, getConnection, getValidAccessToken } from "../_shared/tesla.ts";
 
-const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
 const FLEET_BASE = "https://fleet-api.prd.eu.vn.cloud.tesla.com";
-
-// deno-lint-ignore no-explicit-any
-async function getValidAccessToken(supabase: any, deviceId: string) {
-  const { data: conn, error } = await supabase
-    .from("tesla_connections")
-    .select("*")
-    .eq("device_id", deviceId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!conn) return null;
-
-  if (new Date(conn.expires_at).getTime() - Date.now() > 120_000) return conn.access_token as string;
-
-  const res = await fetch(`${AUTH_BASE}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: Deno.env.get("TESLA_CLIENT_ID")!,
-      refresh_token: conn.refresh_token,
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    console.error("Tesla refresh failed:", res.status, text);
-    throw new Error(`Tesla token refresh failed (${res.status})`);
-  }
-  const token = JSON.parse(text);
-  await supabase
-    .from("tesla_connections")
-    .update({
-      access_token: token.access_token,
-      refresh_token: token.refresh_token ?? conn.refresh_token,
-      expires_at: new Date(Date.now() + (Number(token.expires_in) || 28800) * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("device_id", deviceId);
-  return token.access_token as string;
-}
+const FN = "tesla-list-vehicles";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -49,25 +11,61 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const deviceId = String(body.device_id ?? "");
-    const wake = body.wake === true;
-    if (!deviceId) return json({ error: "device_id is required" }, 400);
+    const userId = await getAuthedUserId(req);
+    if (!userId) {
+      logEvent(FN, "unauthorized", {}, "warn");
+      return json({ error: "Unauthorized" }, 401);
+    }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const accessToken = await getValidAccessToken(supabase, deviceId);
-    if (!accessToken) return json({ connected: false, vehicles: [] });
+    const body = await req.json().catch(() => ({}));
+    // wake is opt-in only: absent/false means never call wake_up.
+    const wakeRequested = body.wake === true;
+
+    const supabase = serviceClient();
+    const conn = await getConnection(supabase, userId);
+    if (!conn) return json({ connected: false, vehicles: [] });
+
+    const now = Date.now();
+    const { allowPoll, allowWake, retryAfterMs } = evaluateRateLimit({
+      wakeRequested,
+      lastWakeAt: conn.last_wake_at ?? null,
+      lastPollAt: conn.last_poll_at ?? null,
+      now,
+    });
+
+    if (!allowPoll && !wakeRequested) {
+      // Serve the cached vehicle snapshot rather than hammering Tesla.
+      logEvent(FN, "poll_throttled_cached", { userId, retryAfterMs });
+      return json({ connected: true, vehicles: conn.vehicles ?? [], cached: true, last_updated: conn.updated_at });
+    }
+    if (wakeRequested && !allowWake) {
+      logEvent(FN, "wake_rate_limited", { userId, retryAfterMs }, "warn");
+      return json(
+        {
+          connected: true,
+          vehicles: conn.vehicles ?? [],
+          cached: true,
+          last_updated: conn.updated_at,
+          error: `Refresh is rate limited. Try again in ${Math.ceil(retryAfterMs / 1000)}s.`,
+        },
+        429,
+      );
+    }
+
+    const accessToken = await getValidAccessToken(supabase, conn);
+
+    await supabase
+      .from("tesla_connections")
+      .update({ last_poll_at: new Date(now).toISOString(), ...(allowWake ? { last_wake_at: new Date(now).toISOString() } : {}) })
+      .eq("device_id", conn.device_id);
 
     const listRes = await fetch(`${FLEET_BASE}/api/1/vehicles`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const listText = await listRes.text();
     if (!listRes.ok) {
-      console.error("Tesla vehicles list failed:", listRes.status, listText);
-      return json({ connected: true, error: `Tesla API error (${listRes.status})`, vehicles: [] }, 502);
+      logEvent(FN, "list_failed", { userId, status: listRes.status }, "error");
+      return json({ connected: true, error: `Tesla API error (${listRes.status})`, vehicles: conn.vehicles ?? [] }, 502);
     }
     const list = JSON.parse(listText);
 
@@ -77,17 +75,19 @@ Deno.serve(async (req) => {
       let chargingState: string | null = null;
       let chargeLimit: number | null = null;
 
-      // Only wake the car on an explicit manual refresh (wake=true).
-      if (wake && v.state !== "online") {
+      // Only wake the car on an explicit, rate-limit-approved manual refresh.
+      if (allowWake && v.state !== "online") {
         try {
           const wRes = await fetch(`${FLEET_BASE}/api/1/vehicles/${v.id}/wake_up`, {
             method: "POST",
             headers: { Authorization: `Bearer ${accessToken}` },
           });
           const wText = await wRes.text();
-          if (!wRes.ok) console.error("Tesla wake_up failed:", wRes.status, wText);
-          else {
-            // brief poll for the vehicle to come online
+          if (!wRes.ok) {
+            void wText;
+            logEvent(FN, "wake_failed", { userId, status: wRes.status }, "warn");
+          } else {
+            logEvent(FN, "wake_requested", { userId });
             for (let i = 0; i < 5; i++) {
               await new Promise((r) => setTimeout(r, 2000));
               const sRes = await fetch(`${FLEET_BASE}/api/1/vehicles/${v.id}`, {
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
-          console.error("wake_up error:", err);
+          logEvent(FN, "wake_error", { userId, message: safeMessage(err) }, "warn");
         }
       }
 
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
           await dRes.text();
         }
       } catch (err) {
-        console.error("vehicle_data error:", err);
+        logEvent(FN, "vehicle_data_error", { userId, message: safeMessage(err) }, "warn");
       }
       vehicles.push({
         id: String(v.id),
@@ -131,14 +131,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    const updatedAt = new Date().toISOString();
     await supabase
       .from("tesla_connections")
-      .update({ vehicles, updated_at: new Date().toISOString() })
-      .eq("device_id", deviceId);
+      .update({ vehicles, updated_at: updatedAt })
+      .eq("device_id", conn.device_id);
 
-    return json({ connected: true, vehicles });
+    logEvent(FN, "listed", { userId, count: vehicles.length, woke: allowWake });
+    return json({ connected: true, vehicles, cached: false, last_updated: updatedAt });
   } catch (e) {
-    console.error("tesla-list-vehicles error:", e);
-    return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
+    return json({ error: safeMessage(e) }, 500);
   }
 });

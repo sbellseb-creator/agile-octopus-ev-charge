@@ -140,6 +140,6 @@ Deno.serve(async (req) => {
   } catch (e) {
     const detail = safeMessage(e);
     logEvent(FN, "unhandled_error", { message: detail, stack: e instanceof Error ? (e.stack ?? "").slice(0, 400) : "" }, "error");
-    return redirectBack(null, { tesla_error: `Tesla sign-in could not be completed: ${detail}` });
+    return redirectBack(returnUrl, { tesla_error: `Tesla sign-in could not be completed: ${detail}` });
   }
 });

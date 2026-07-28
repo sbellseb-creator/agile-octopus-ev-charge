@@ -413,6 +413,22 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {/* Review & push the window to the vehicle — explicit user action only. */}
+      {estimates && selectedVehicle && sortedActiveSlots.length > 0 && (
+        <ScheduleReviewCard
+          vehicle={selectedVehicle}
+          startIso={sortedActiveSlots[0].valid_from}
+          endIso={new Date(
+            new Date(sortedActiveSlots[sortedActiveSlots.length - 1].valid_to).getTime() + (estimates.hasTail ? 30 * 60 * 1000 : 0),
+          ).toISOString()}
+          estimatedKwh={estimates.plannedKwh}
+          estimatedCostGbp={estimates.totalCost}
+          avgPencePerKwh={estimates.avgPrice}
+          targetSoc={parseFloat(endSoc) || 80}
+        />
+      )}
+
     </div>
   );
 }

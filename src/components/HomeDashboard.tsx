@@ -12,7 +12,7 @@ import { loadSchedules, type ChargeSchedule } from "@/lib/charge-schedule";
 import ScheduleStatusBadge from "@/components/schedule/ScheduleStatusBadge";
 import { formatRegistration, vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 import type { ChargeSession } from "@/lib/charge-data";
-import type { TeslaVehicle } from "@/lib/tesla";
+import { listTeslaVehicles, type TeslaVehicle } from "@/lib/tesla";
 import { getSettings } from "@/lib/app-settings";
 
 interface Props {
@@ -49,13 +49,27 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
     };
   }, []);
 
+  // Automatic read with wake=false only: this can never wake the car.
+  const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(teslaVehicles);
+  useEffect(() => {
+    let alive = true;
+    if (!vehicles.some((v) => v.source === "tesla")) return;
+    listTeslaVehicles(false)
+      .then((res) => alive && res.vehicles.length > 0 && setLiveVehicles(res.vehicles))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length]);
+
   const live = useMemo(() => {
     if (!vehicle) return undefined;
     return (
-      teslaVehicles.find((t) => t.id === vehicle.tesla_vehicle_id) ??
-      (teslaVehicles.length === 1 && vehicle.source === "tesla" ? teslaVehicles[0] : undefined)
+      liveVehicles.find((t) => t.id === vehicle.tesla_vehicle_id) ??
+      (liveVehicles.length === 1 && vehicle.source === "tesla" ? liveVehicles[0] : undefined)
     );
-  }, [teslaVehicles, vehicle]);
+  }, [liveVehicles, vehicle]);
 
   const { data: rates = [] } = useQuery({
     queryKey: ["agile-home", settings.region],

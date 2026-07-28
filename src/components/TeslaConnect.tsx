@@ -13,27 +13,31 @@ export default function TeslaConnect() {
   const [connected, setConnected] = useState(false);
   const [vehicles, setVehicles] = useState<TeslaVehicle[]>([]);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await listTeslaVehicles();
-      setConnected(res.connected);
-      setVehicles(res.vehicles);
-      if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
-    } catch (e) {
-      toast({
-        title: "Tesla",
-        description: e instanceof Error ? e.message : "Could not load Tesla vehicles",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const load = useCallback(
+    async (wake: boolean) => {
+      setLoading(true);
+      try {
+        const res = await listTeslaVehicles(wake);
+        setConnected(res.connected);
+        setVehicles(res.vehicles);
+        if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
+      } catch (e) {
+        toast({
+          title: "Tesla",
+          description: e instanceof Error ? e.message : "Could not load Tesla vehicles",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [toast],
+  );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    // Automatic page load: never wake the car.
+    load(false);
+  }, [load]);
 
   const connect = async () => {
     setConnecting(true);
@@ -58,7 +62,7 @@ export default function TeslaConnect() {
           Tesla
         </CardTitle>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={refresh} disabled={loading} aria-label="Refresh Tesla data">
+          <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={loading} aria-label="Refresh Tesla data">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           <Button size="sm" onClick={connect} disabled={connecting}>

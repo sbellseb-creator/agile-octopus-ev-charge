@@ -30,9 +30,11 @@ export async function startTeslaOAuth(): Promise<string> {
   return data.url as string;
 }
 
-export async function listTeslaVehicles(): Promise<{ connected: boolean; vehicles: TeslaVehicle[]; error?: string }> {
+export async function listTeslaVehicles(
+  wake = false,
+): Promise<{ connected: boolean; vehicles: TeslaVehicle[]; error?: string }> {
   const { data, error } = await supabase.functions.invoke("tesla-list-vehicles", {
-    body: { device_id: getDeviceId() },
+    body: { device_id: getDeviceId(), wake },
   });
   if (error) throw new Error(error.message);
   return { connected: Boolean(data?.connected), vehicles: data?.vehicles ?? [], error: data?.error };

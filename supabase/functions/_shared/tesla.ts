@@ -32,19 +32,38 @@ export async function getValidAccessToken(supabase: any, conn: any): Promise<str
   });
   const text = await res.text();
   if (!res.ok) {
-    void text;
-    logEvent("tesla-token", "refresh_failed", { status: res.status }, "error");
-    throw new Error(`Tesla token refresh failed (${res.status})`);
+    let detail = "";
+    try {
+      const j = JSON.parse(text);
+      detail = String(j.error_description ?? j.error ?? "").slice(0, 200);
+    } catch {
+      detail = text.slice(0, 200);
+    }
+    logEvent("tesla-token", "refresh_failed", { status: res.status, detail }, "error");
+    throw new Error(`Tesla token refresh failed (${res.status}): ${detail || "no detail returned"}`);
   }
   const token = JSON.parse(text);
+  const granted = String(token.scope ?? "").split(" ").filter(Boolean);
   await supabase
     .from("tesla_connections")
     .update({
       access_token: token.access_token,
       refresh_token: token.refresh_token ?? conn.refresh_token,
       expires_at: new Date(Date.now() + (Number(token.expires_in) || 28800) * 1000).toISOString(),
+      ...(granted.length ? { scopes: granted } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("device_id", conn.device_id);
   return token.access_token as string;
+}
+
+/** Scopes actually present on a Fleet API access token (scp claim). */
+export function tokenScopes(accessToken: string): string[] {
+  try {
+    const part = accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(part + "=".repeat((4 - (part.length % 4)) % 4)));
+    return Array.isArray(claims?.scp) ? (claims.scp as string[]) : [];
+  } catch {
+    return [];
+  }
 }

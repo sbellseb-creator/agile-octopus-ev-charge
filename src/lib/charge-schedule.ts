@@ -214,6 +214,8 @@ export interface TeslaCapability {
   connected: boolean;
   chargingCommands: boolean;
   signedCommandsConfigured: boolean;
+  /** Scopes Tesla actually granted on the stored token. */
+  grantedScopes?: string[];
   /** Plain-English reason when the app is not ready to send. */
   reason?: string;
 }
@@ -228,12 +230,17 @@ export async function checkTeslaCapability(teslaVehicleId?: string | null): Prom
     if (!data || data.error) {
       return { connected: false, chargingCommands: false, signedCommandsConfigured: false, reason: data?.error ?? "Tesla is not connected." };
     }
+    const granted: string[] = Array.isArray(data.granted_scopes) ? data.granted_scopes : [];
     return {
       connected: Boolean(data.connected),
       chargingCommands: Boolean(data.charging_commands),
       signedCommandsConfigured: Boolean(data.signed_commands_configured),
-      reason: data.charging_commands ? undefined : "Charging permission missing",
+      grantedScopes: granted,
+      reason: data.charging_commands
+        ? undefined
+        : `Tesla granted these permissions: ${granted.join(", ") || "none"} — vehicle_charging_cmds is missing. Reconnect Tesla to grant it.`,
     };
+
   } catch (e) {
     return {
       connected: false,

@@ -17,7 +17,7 @@
  */
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { getAuthedUserId, logEvent, safeMessage, serviceClient } from "../_shared/auth.ts";
-import { getConnection, getValidAccessToken } from "../_shared/tesla.ts";
+import { getConnection, getValidAccessToken, tokenScopes as scopesOf } from "../_shared/tesla.ts";
 import { buildAddSchedulePayload, explainTeslaFailure } from "../_shared/schedule.ts";
 
 const FLEET_BASE = "https://fleet-api.prd.eu.vn.cloud.tesla.com";
@@ -88,21 +88,24 @@ Deno.serve(async (req) => {
      * only hold vehicle_device_data, so a command would fail after needlessly
      * waking the car. Fail fast and ask the user to reconnect instead.
      */
-    const tokenScopes = (() => {
-      try {
-        const payload = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-        const scp = payload?.scp;
-        return Array.isArray(scp) ? (scp as string[]) : [];
-      } catch {
-        return [];
-      }
-    })();
+    const tokenScopes = scopesOf(accessToken);
+    const storedScopes: string[] = Array.isArray(conn.scopes) ? conn.scopes : [];
+    logEvent(FN, "scopes", { userId, action, granted_scopes: tokenScopes.join(" "), stored_scopes: storedScopes.join(" ") });
+
     const commandAction = action !== "read" && action !== "dry_run" && action !== "capability";
     if (commandAction && tokenScopes.length > 0 && !tokenScopes.includes("vehicle_charging_cmds")) {
       logEvent(FN, "missing_scope", { userId, action }, "warn");
       return json({
-        error: "The Tesla connection is missing the charging-commands permission. Reconnect Tesla to grant it.",
+        error:
+          "Tesla did not grant the charging-commands permission for this connection. " +
+          `Scopes requested: openid offline_access vehicle_device_data vehicle_charging_cmds. ` +
+          `Scopes granted by Tesla: ${tokenScopes.join(" ") || "none"}. ` +
+          "Reconnect Tesla and tick the charging permission on Tesla's consent screen; if it is not offered, add " +
+          "\"Vehicle Charging Management\" to your Tesla developer application and reconnect.",
         code: "missing_scope",
+        requested_scopes: ["openid", "offline_access", "vehicle_device_data", "vehicle_charging_cmds"],
+        granted_scopes: tokenScopes,
+        stored_scopes: storedScopes,
       }, 200);
     }
 
@@ -116,6 +119,8 @@ Deno.serve(async (req) => {
         connected: true,
         charging_commands: tokenScopes.length === 0 ? true : tokenScopes.includes("vehicle_charging_cmds"),
         scopes_known: tokenScopes.length > 0,
+        granted_scopes: tokenScopes,
+        stored_scopes: storedScopes,
         signed_commands_configured: signed,
       });
     }
@@ -137,7 +142,7 @@ Deno.serve(async (req) => {
     if (action === "read") {
       const r = await readSchedules();
       logEvent(FN, "read", { userId, ok: r.ok });
-      return r.ok ? json({ schedules: r.schedules }) : json({ error: r.message, code: r.code }, 200);
+      return r.ok ? json({ schedules: r.schedules }) : json({ error: r.message, code: r.code, detail: r.detail }, 200);
     }
 
     // ---- Everything past this point is an explicit vehicle command. --------
@@ -189,13 +194,13 @@ Deno.serve(async (req) => {
       if (chargeLimit === null || chargeLimit < 50 || chargeLimit > 100) return json({ error: "charge_limit_soc must be 50–100" }, 400);
       const r = await sendCommand("set_charge_limit", { percent: Math.round(chargeLimit) });
       logEvent(FN, "set_charge_limit", { userId, ok: r.ok });
-      return r.ok ? json({ ok: true }) : json({ error: r.message, code: r.code }, 200);
+      return r.ok ? json({ ok: true }) : json({ error: r.message, code: r.code, detail: r.detail }, 200);
     }
 
     if (action === "remove") {
       if (!scheduleId) return json({ error: "tesla_schedule_id is required to remove a schedule." }, 400);
       const r = await sendCommand("remove_charge_schedule", { id: scheduleId });
-      if (!r.ok) return json({ error: r.message, code: r.code }, 200);
+      if (!r.ok) return json({ error: r.message, code: r.code, detail: r.detail }, 200);
       const after = await readSchedules();
       const stillThere = after.ok && after.schedules.some((s: Record<string, unknown>) => Number(s.id) === scheduleId);
       logEvent(FN, "removed", { userId, verified: !stillThere });
@@ -216,7 +221,7 @@ Deno.serve(async (req) => {
 
       const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: body.lat, lon: body.lon });
       const r = await sendCommand("add_charge_schedule", payload);
-      if (!r.ok) return json({ error: r.message, code: r.code, payload }, 200);
+      if (!r.ok) return json({ error: r.message, code: r.code, detail: r.detail, payload }, 200);
 
       // Tesla returns the assigned id in the command response on most firmware.
       let newId: number | null = Number(r.response?.id ?? r.response?.result?.id ?? NaN);
@@ -237,7 +242,7 @@ Deno.serve(async (req) => {
 
     return json({ error: `Unknown action "${action}"` }, 400);
   } catch (e) {
-    logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
+    logEvent(FN, "unhandled_error", { message: safeMessage(e), stack: e instanceof Error ? (e.stack ?? "").slice(0, 400) : "" }, "error");
     return json({ error: safeMessage(e) }, 500);
   }
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Plus, Car, ChevronDown } from "lucide-react";
 import TeslaConnect from "@/components/TeslaConnect";
 import VehicleCard from "@/components/vehicles/VehicleCard";
+import type { TeslaVehicle } from "@/lib/tesla";
 import type { Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
@@ -17,12 +18,12 @@ interface Props {
 }
 
 /**
- * Vehicles view: connected Tesla first, then the vehicle cards (registration is
- * the primary identifier). The manual Add Vehicle form is secondary and
- * collapsed — it exists for non-Tesla or extra manually managed vehicles.
+ * Vehicles view: one card per real vehicle. A connected Tesla is merged into the
+ * matching saved vehicle profile (registration first, live telemetry inline).
  */
 export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
   const [teslaConnected, setTeslaConnected] = useState(false);
+  const [teslaVehicles, setTeslaVehicles] = useState<TeslaVehicle[]>([]);
   const [open, setOpen] = useState(false);
   const [registration, setRegistration] = useState("");
   const [name, setName] = useState("");
@@ -61,34 +62,82 @@ export default function VehicleManager({ vehicles, onAdd, onDelete }: Props) {
     setOpen(false);
   };
 
-  const otherVehicles = teslaConnected ? vehicles.filter((v) => v.source !== "tesla") : vehicles;
+  /**
+   * Match each live Tesla to a saved vehicle (Tesla id → VIN suffix → default
+   * vehicle) so the same car is never rendered twice.
+   */
+  const { merged, others } = useMemo(() => {
+    const used = new Set<string>();
+    const pairs = teslaVehicles.map((t) => {
+      const match =
+        vehicles.find((v) => v.tesla_vehicle_id && v.tesla_vehicle_id === t.id && !used.has(v.id)) ??
+        vehicles.find((v) => v.vin && v.vin.slice(-4) === t.vin_last4 && !used.has(v.id)) ??
+        vehicles.find((v) => v.is_default && !used.has(v.id)) ??
+        vehicles.find((v) => !used.has(v.id));
+      if (match) used.add(match.id);
+      const profile: Vehicle =
+        match ?? {
+          id: `tesla-${t.id}`,
+          name: t.display_name,
+          make: "Tesla",
+          model: t.trim_badging ?? "",
+          registration: "",
+          vin: "",
+          tesla_vehicle_id: t.id,
+          car_type: t.car_type ?? "",
+          source: "tesla",
+          battery_kwh: null,
+          charge_efficiency_pct: 90,
+          miles_per_kwh: 0,
+          is_default: false,
+          color: "#22c55e",
+          notes: "",
+        };
+      return { profile, live: t, saved: Boolean(match) };
+    });
+    return { merged: pairs, others: vehicles.filter((v) => !used.has(v.id)) };
+  }, [teslaVehicles, vehicles]);
 
   return (
     <div className="space-y-4">
-      <TeslaConnect vehicles={vehicles} onStatus={setTeslaConnected} />
+      <TeslaConnect compact vehicles={vehicles} onStatus={setTeslaConnected} onVehicles={setTeslaVehicles} />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Car className="h-5 w-5 shrink-0 text-primary" />
-            <span className="min-w-0 truncate">
-              {teslaConnected ? `Other vehicles (${otherVehicles.length})` : `My vehicles (${vehicles.length})`}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {otherVehicles.length === 0 ? (
-            <p className="py-2 text-center text-sm text-muted-foreground">
-              {teslaConnected ? "Your Tesla is shown above." : "No vehicles yet."}
+      {merged.map(({ profile, live, saved }) => (
+        <div key={profile.id} className="space-y-1">
+          <VehicleCard vehicle={profile} live={live} onDelete={saved ? onDelete : undefined} />
+          {!profile.registration && (
+            <p className="px-1 text-[11px] text-muted-foreground">
+              Add your registration in Settings → Vehicle to show it here.
             </p>
-          ) : (
-            otherVehicles.map((v) => <VehicleCard key={v.id} vehicle={v} onDelete={onDelete} />)
           )}
-          <p className="text-xs text-muted-foreground">
-            Edit vehicle details in Settings → Vehicle.
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+      ))}
+
+      {(others.length > 0 || merged.length === 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Car className="h-5 w-5 shrink-0 text-primary" />
+              <span className="min-w-0 truncate">
+                {merged.length > 0 ? `Other vehicles (${others.length})` : `My vehicles (${others.length})`}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {others.length === 0 ? (
+              <p className="py-2 text-center text-sm text-muted-foreground">
+                {teslaConnected ? "Your Tesla is shown above." : "No vehicles yet."}
+              </p>
+            ) : (
+              others.map((v) => <VehicleCard key={v.id} vehicle={v} onDelete={onDelete} />)
+            )}
+            <p className="text-xs text-muted-foreground">
+              Edit vehicle details in Settings → Vehicle.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
 
       <Collapsible open={open} onOpenChange={setOpen}>
         <Card>

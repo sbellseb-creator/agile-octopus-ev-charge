@@ -12,9 +12,13 @@ interface Props {
   vehicles?: Vehicle[];
   /** Notified whenever the connection state is known (no extra API calls). */
   onStatus?: (connected: boolean) => void;
+  /** Notified with the live Tesla vehicles so the parent can merge them into vehicle cards. */
+  onVehicles?: (vehicles: TeslaVehicle[]) => void;
+  /** Compact mode renders only the slim connection status bar (no vehicle blocks). */
+  compact?: boolean;
 }
 
-export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
+export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, compact = false }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -23,6 +27,8 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
   const pollRef = useRef<number | null>(null);
   const statusRef = useRef(onStatus);
   statusRef.current = onStatus;
+  const vehiclesRef = useRef(onVehicles);
+  vehiclesRef.current = onVehicles;
 
   /** Registration for a Tesla: matched by Tesla id, then VIN suffix, else default vehicle. */
   const regFor = (t: TeslaVehicle): string => {
@@ -42,6 +48,8 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
         setConnected(res.connected);
         statusRef.current?.(res.connected);
         setTeslaVehicles(res.vehicles);
+        vehiclesRef.current?.(res.vehicles);
+
         if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
         return res.connected;
       } catch (e) {
@@ -164,6 +172,33 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
     return () => window.removeEventListener("message", onMessage);
   }, [toast, load]);
 
+  const controls = (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={loading} aria-label="Refresh Tesla data">
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+      </Button>
+      <Button size="sm" className="px-3" onClick={connect} disabled={connecting}>
+        {connecting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+        {connecting ? "Connecting" : connected ? "Reconnect" : "Connect"}
+      </Button>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <span className="flex min-w-0 items-center gap-2 text-xs">
+          <Plug className="h-4 w-4 shrink-0 text-primary" />
+          <span className="truncate font-medium">Tesla</span>
+          <Badge variant={connected ? "secondary" : "outline"} className="shrink-0 text-[10px]">
+            {loading ? "Checking" : connected ? "Connected" : "Not connected"}
+          </Badge>
+        </span>
+        {controls}
+      </div>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
@@ -171,15 +206,7 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
           <Plug className="h-5 w-5 shrink-0 text-primary" />
           <span className="min-w-0 truncate">Tesla</span>
         </CardTitle>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={loading} aria-label="Refresh Tesla data">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-          <Button size="sm" className="px-3" onClick={connect} disabled={connecting}>
-            {connecting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-            {connecting ? "Connecting" : connected ? "Reconnect" : "Connect"}
-          </Button>
-        </div>
+        {controls}
       </CardHeader>
       <CardContent className="space-y-3">
         {!connected && !loading && (
@@ -187,6 +214,7 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
             Connect your Tesla account to see live battery and charging status.
           </p>
         )}
+
         {teslaVehicles.map((v) => {
           const reg = regFor(v);
           return (

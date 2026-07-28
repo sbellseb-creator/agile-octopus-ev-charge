@@ -20,9 +20,12 @@ export type Database = {
           created_at: string
           device_id: string
           expires_at: string
+          last_poll_at: string | null
+          last_wake_at: string | null
           refresh_token: string
           region: string
           updated_at: string
+          user_id: string | null
           vehicles: Json
         }
         Insert: {
@@ -30,9 +33,12 @@ export type Database = {
           created_at?: string
           device_id: string
           expires_at: string
+          last_poll_at?: string | null
+          last_wake_at?: string | null
           refresh_token: string
           region?: string
           updated_at?: string
+          user_id?: string | null
           vehicles?: Json
         }
         Update: {
@@ -40,9 +46,12 @@ export type Database = {
           created_at?: string
           device_id?: string
           expires_at?: string
+          last_poll_at?: string | null
+          last_wake_at?: string | null
           refresh_token?: string
           region?: string
           updated_at?: string
+          user_id?: string | null
           vehicles?: Json
         }
         Relationships: []
@@ -52,22 +61,28 @@ export type Database = {
           code_verifier: string
           created_at: string
           device_id: string
+          expires_at: string
           return_url: string
           state: string
+          user_id: string | null
         }
         Insert: {
           code_verifier: string
           created_at?: string
           device_id: string
+          expires_at?: string
           return_url: string
           state: string
+          user_id?: string | null
         }
         Update: {
           code_verifier?: string
           created_at?: string
           device_id?: string
+          expires_at?: string
           return_url?: string
           state?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -84,6 +99,7 @@ export type Database = {
           model: string | null
           name: string
           notes: string | null
+          user_id: string | null
         }
         Insert: {
           battery_kwh: number
@@ -97,6 +113,7 @@ export type Database = {
           model?: string | null
           name: string
           notes?: string | null
+          user_id?: string | null
         }
         Update: {
           battery_kwh?: number
@@ -110,6 +127,7 @@ export type Database = {
           model?: string | null
           name?: string
           notes?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -1,3 +1,5 @@
+import { readJSON, readNumber, writeJSON, writeString } from "@/lib/safe-storage";
+
 export interface WorkTrip {
   id: string;
   trip_date: string; // YYYY-MM-DD
@@ -30,27 +32,20 @@ export const SUGGESTED_RATES: { label: string; value: number; detail: string }[]
 ];
 
 export function getDefaultRate(): number {
-  const raw = localStorage.getItem(RATE_KEY);
-  const n = raw ? parseFloat(raw) : NaN;
-  return Number.isFinite(n) ? n : 15;
+  return readNumber(RATE_KEY, 15);
 }
 
 export function setDefaultRate(rate: number) {
-  localStorage.setItem(RATE_KEY, String(rate));
+  writeString(RATE_KEY, String(rate));
 }
 
 export function loadTrips(): WorkTrip[] {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as WorkTrip[];
-  } catch {
-    return [];
-  }
+  const rows = readJSON<WorkTrip[]>(STORAGE_KEY, [], (v) => Array.isArray(v));
+  return rows.filter((t): t is WorkTrip => !!t && typeof t === "object" && typeof t.id === "string");
 }
 
 export function saveTrips(trips: WorkTrip[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+  writeJSON(STORAGE_KEY, trips);
 }
 
 export function addTrip(trip: Omit<WorkTrip, "id">): WorkTrip[] {

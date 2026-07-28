@@ -1,3 +1,5 @@
+import { readJSON, writeJSON } from "@/lib/safe-storage";
+
 export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
 
 export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {
@@ -53,13 +55,13 @@ export interface ChargeSession {
 const STORAGE_KEY = "charge-sessions";
 
 export function loadSessions(): ChargeSession[] {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  return JSON.parse(raw) as ChargeSession[];
+  const rows = readJSON<ChargeSession[]>(STORAGE_KEY, [], (v) => Array.isArray(v));
+  // Drop any entry that is not a usable session object rather than crashing later.
+  return rows.filter((s): s is ChargeSession => !!s && typeof s === "object" && typeof s.id === "string");
 }
 
 export function saveSessions(sessions: ChargeSession[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  writeJSON(STORAGE_KEY, sessions);
 }
 
 export function addSession(session: Omit<ChargeSession, "id">): ChargeSession[] {

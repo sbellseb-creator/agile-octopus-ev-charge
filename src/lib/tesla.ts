@@ -8,6 +8,12 @@ export interface TeslaVehicle {
   battery_level: number | null;
   charging_state: string | null;
   charge_limit_soc: number | null;
+  /** Trusted Tesla configuration data — null when Tesla did not provide it. */
+  car_type?: string | null;
+  trim_badging?: string | null;
+  exterior_color?: string | null;
+  charge_port_latch?: string | null;
+  charger_power_kw?: number | null;
 }
 
 export interface TeslaListResult {
@@ -15,6 +21,8 @@ export interface TeslaListResult {
   vehicles: TeslaVehicle[];
   cached?: boolean;
   last_updated?: string;
+  /** True when the request was allowed to wake the car. */
+  woke?: boolean;
   error?: string;
 }
 
@@ -44,6 +52,35 @@ export async function startTeslaOAuth(): Promise<string> {
   return data.url as string;
 }
 
+/** Diagnostics: last Tesla poll recorded by the client (non-sensitive). */
+export interface TeslaDiagnostics {
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_wake_flag: boolean | null;
+  connected: boolean | null;
+}
+
+const DIAG_KEY = "tesla-diagnostics";
+
+export function getTeslaDiagnostics(): TeslaDiagnostics {
+  try {
+    const raw = localStorage.getItem(DIAG_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === "object") return parsed as TeslaDiagnostics;
+  } catch {
+    /* ignore */
+  }
+  return { last_attempt_at: null, last_success_at: null, last_wake_flag: null, connected: null };
+}
+
+function setTeslaDiagnostics(patch: Partial<TeslaDiagnostics>) {
+  try {
+    localStorage.setItem(DIAG_KEY, JSON.stringify({ ...getTeslaDiagnostics(), ...patch }));
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * List the connected Tesla vehicles.
  * @param wake ONLY pass true from an explicit user-initiated Refresh action.
@@ -52,15 +89,23 @@ export async function startTeslaOAuth(): Promise<string> {
  */
 export async function listTeslaVehicles(wake = false): Promise<TeslaListResult> {
   await requireSession();
+  const wakeFlag = wake === true;
+  setTeslaDiagnostics({ last_attempt_at: new Date().toISOString(), last_wake_flag: wakeFlag });
   const { data, error } = await supabase.functions.invoke("tesla-list-vehicles", {
-    body: { device_id: getDeviceId(), wake: wake === true },
+    body: { device_id: getDeviceId(), wake: wakeFlag },
   });
   if (error && !data) throw new Error(error.message);
-  return {
+  const result: TeslaListResult = {
     connected: Boolean(data?.connected),
     vehicles: data?.vehicles ?? [],
     cached: data?.cached,
     last_updated: data?.last_updated,
+    woke: data?.woke,
     error: data?.error,
   };
+  setTeslaDiagnostics({
+    connected: result.connected,
+    ...(result.error ? {} : { last_success_at: new Date().toISOString() }),
+  });
+  return result;
 }

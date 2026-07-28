@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      charge_schedules: {
+        Row: {
+          avg_pence_per_kwh: number
+          charge_limit_sent: boolean
+          charge_limit_soc: number | null
+          charger_kw: number
+          created_at: string
+          created_by_app: boolean
+          days_mask: number
+          end_minutes: number | null
+          estimated_cost_gbp: number
+          estimated_kwh: number
+          id: string
+          last_error: string | null
+          last_verified_at: string | null
+          one_time: boolean
+          plan_date: string | null
+          provider: string
+          registration: string
+          start_minutes: number
+          status: string
+          tesla_schedule_id: number | null
+          tesla_vehicle_id: string | null
+          updated_at: string
+          user_id: string
+          vehicle_id: string | null
+          verification: Json
+        }
+        Insert: {
+          avg_pence_per_kwh?: number
+          charge_limit_sent?: boolean
+          charge_limit_soc?: number | null
+          charger_kw?: number
+          created_at?: string
+          created_by_app?: boolean
+          days_mask?: number
+          end_minutes?: number | null
+          estimated_cost_gbp?: number
+          estimated_kwh?: number
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          one_time?: boolean
+          plan_date?: string | null
+          provider?: string
+          registration?: string
+          start_minutes?: number
+          status?: string
+          tesla_schedule_id?: number | null
+          tesla_vehicle_id?: string | null
+          updated_at?: string
+          user_id: string
+          vehicle_id?: string | null
+          verification?: Json
+        }
+        Update: {
+          avg_pence_per_kwh?: number
+          charge_limit_sent?: boolean
+          charge_limit_soc?: number | null
+          charger_kw?: number
+          created_at?: string
+          created_by_app?: boolean
+          days_mask?: number
+          end_minutes?: number | null
+          estimated_cost_gbp?: number
+          estimated_kwh?: number
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          one_time?: boolean
+          plan_date?: string | null
+          provider?: string
+          registration?: string
+          start_minutes?: number
+          status?: string
+          tesla_schedule_id?: number | null
+          tesla_vehicle_id?: string | null
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string | null
+          verification?: Json
+        }
+        Relationships: []
+      }
       charge_sessions: {
         Row: {
           actual_cost_gbp: number | null

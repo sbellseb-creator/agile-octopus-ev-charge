@@ -194,3 +194,30 @@ export function vehicleModelLine(
   const line = [make, model].filter(Boolean).join(" ").trim();
   return line || "Vehicle";
 }
+
+/**
+ * Persist the Tesla vehicle id onto the saved vehicle profile it belongs to.
+ *
+ * Without this link the app cannot tell which saved car a charge schedule
+ * should be sent to. Matching order: existing Tesla id → VIN suffix → default
+ * vehicle. Read-only when nothing needs changing; never contacts the vehicle.
+ */
+export async function linkTeslaVehicleIds(
+  vehicles: Vehicle[],
+  teslaVehicles: Array<{ id: string; vin_last4: string; car_type?: string | null }>,
+): Promise<boolean> {
+  let changed = false;
+  const used = new Set<string>();
+  for (const t of teslaVehicles) {
+    const match =
+      vehicles.find((v) => v.tesla_vehicle_id === t.id) ??
+      vehicles.find((v) => v.vin && v.vin.slice(-4) === t.vin_last4 && !used.has(v.id)) ??
+      vehicles.find((v) => v.is_default && !v.tesla_vehicle_id && !used.has(v.id));
+    if (!match) continue;
+    used.add(match.id);
+    if (match.tesla_vehicle_id === t.id) continue;
+    await updateVehicle(match.id, { tesla_vehicle_id: t.id, source: "tesla" });
+    changed = true;
+  }
+  return changed;
+}

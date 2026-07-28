@@ -4,7 +4,9 @@ import { getAuthedUserId, logEvent, safeMessage, serviceClient } from "../_share
 // Customer-facing authorisation page (must be opened in a top-level browser tab).
 // The fleet-auth host is server-side only, for the POST token exchange.
 const AUTH_BASE = "https://auth.tesla.com/oauth2/v3";
-const SCOPES = "openid offline_access vehicle_device_data";
+// vehicle_charging_cmds is the minimum extra grant needed to add/remove charge
+// schedules and set the charge limit. No other command scope is requested.
+const SCOPES = "openid offline_access vehicle_device_data vehicle_charging_cmds";
 const FN = "tesla-oauth-start";
 
 function base64url(bytes: Uint8Array) {

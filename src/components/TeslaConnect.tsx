@@ -43,7 +43,19 @@ export default function TeslaConnect() {
     setConnecting(true);
     try {
       const url = await startTeslaOAuth();
-      window.location.href = url;
+      // Tesla forbids framing its login page, so always leave any preview/embed
+      // iframe and navigate the top-level browser window.
+      const inFrame = window.self !== window.top;
+      if (inFrame) {
+        try {
+          window.top!.location.href = url;
+        } catch {
+          // Cross-origin parent: open a new top-level tab instead.
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      } else {
+        window.location.assign(url);
+      }
     } catch (e) {
       toast({
         title: "Tesla sign-in failed",

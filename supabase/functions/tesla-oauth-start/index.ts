@@ -1,7 +1,9 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { getAuthedUserId, logEvent, safeMessage, serviceClient } from "../_shared/auth.ts";
 
-const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
+// Customer-facing authorisation page (must be opened in a top-level browser tab).
+// The fleet-auth host is server-side only, for the POST token exchange.
+const AUTH_BASE = "https://auth.tesla.com/oauth2/v3";
 const SCOPES = "openid offline_access vehicle_device_data";
 const FN = "tesla-oauth-start";
 

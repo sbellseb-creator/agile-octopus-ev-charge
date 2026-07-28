@@ -482,6 +482,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                       end_time: sorted.length > 0 ? formatUK(sorted[sorted.length - 1].valid_to, "HH:mm") : undefined,
                       vehicle_id: vehicle.id,
                       vehicle_name: vehicle.name,
+                      vehicle_registration: vehicle.registration || undefined,
                       charge_mode: "agile_cheapest",
                       start_soc: 0,
                       end_soc: 0,

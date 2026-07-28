@@ -147,7 +147,7 @@ function SessionCard({
             </div>
 
             {/* Vehicle */}
-            <p className="text-xs text-muted-foreground mt-0.5">{s.vehicle_name || "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{s.vehicle_registration || s.vehicle_name || "—"}</p>
 
             {/* Stats grid */}
             <div className="grid grid-cols-4 gap-x-3 gap-y-1 mt-2 text-xs">

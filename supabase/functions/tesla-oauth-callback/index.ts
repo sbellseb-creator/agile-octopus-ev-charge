@@ -135,7 +135,8 @@ Deno.serve(async (req) => {
     return redirectBack(stateRow.return_url, { tesla: "connected", tesla_scopes: granted.join(" ") });
 
   } catch (e) {
-    logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
-    return redirectBack(null, { tesla_error: "Something went wrong completing Tesla sign-in." });
+    const detail = safeMessage(e);
+    logEvent(FN, "unhandled_error", { message: detail, stack: e instanceof Error ? (e.stack ?? "").slice(0, 400) : "" }, "error");
+    return redirectBack(null, { tesla_error: `Tesla sign-in could not be completed: ${detail}` });
   }
 });

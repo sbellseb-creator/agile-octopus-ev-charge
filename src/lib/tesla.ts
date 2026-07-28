@@ -96,14 +96,26 @@ export async function listTeslaVehicles(wake = false): Promise<TeslaListResult> 
   const { data, error } = await supabase.functions.invoke("tesla-list-vehicles", {
     body: { device_id: getDeviceId(), wake: wakeFlag },
   });
-  if (error && !data) throw new Error(error.message);
+
+  // Non-2xx responses give an error with the body on `context`; recover the payload
+  // so throttled refreshes still show cached vehicles instead of blanking the UI.
+  let payload = data as Record<string, unknown> | null;
+  if (error && !payload) {
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === "function") {
+      payload = await ctx.json().catch(() => null);
+    }
+    if (!payload) throw new Error(error.message);
+  }
+
   const result: TeslaListResult = {
-    connected: Boolean(data?.connected),
-    vehicles: data?.vehicles ?? [],
-    cached: data?.cached,
-    last_updated: data?.last_updated,
-    woke: data?.woke,
-    error: data?.error,
+    connected: Boolean(payload?.connected),
+    vehicles: (payload?.vehicles as TeslaVehicle[]) ?? [],
+    cached: payload?.cached as boolean | undefined,
+    last_updated: payload?.last_updated as string | undefined,
+    woke: payload?.woke as boolean | undefined,
+    rateLimited: payload?.rate_limited === true,
+    error: payload?.error as string | undefined,
   };
   setTeslaDiagnostics({
     connected: result.connected,

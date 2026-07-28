@@ -156,18 +156,28 @@ const TRIM_PATTERNS: [RegExp, string][] = [
   [/plaid/i, "Plaid"],
 ];
 
-function cleanTrim(...candidates: (string | null | undefined)[]): string {
+/** Recognised drivetrains only — never inferred from option codes. */
+const DRIVE_PATTERNS: [RegExp, string][] = [
+  [/\brear[-\s]?wheel\s*drive\b|\brwd\b/i, "Rear-Wheel Drive"],
+  [/\ball[-\s]?wheel\s*drive\b|\bawd\b|\bdual\s*motor\b/i, "All-Wheel Drive"],
+];
+
+function matchFirst(patterns: [RegExp, string][], candidates: (string | null | undefined)[]): string {
   for (const c of candidates) {
     if (!c) continue;
-    for (const [re, label] of TRIM_PATTERNS) if (re.test(c)) return label;
+    for (const [re, label] of patterns) if (re.test(c)) return label;
   }
   return "";
 }
 
+function cleanTrim(...candidates: (string | null | undefined)[]): string {
+  return matchFirst(TRIM_PATTERNS, candidates);
+}
+
 /**
  * One clean human-readable model line, e.g. "Tesla Model Y" or
- * "Tesla Model Y Long Range". Raw identifiers ("modely", option codes,
- * numeric fragments) are never surfaced.
+ * "Tesla Model Y Long Range Rear-Wheel Drive". Raw identifiers ("modely",
+ * option codes, numeric fragments) are never surfaced.
  */
 export function vehicleModelLine(
   v: Pick<Vehicle, "make" | "model" | "car_type">,
@@ -188,8 +198,10 @@ export function vehicleModelLine(
   const resolved = teslaModel ?? (savedTesla ? `Model ${savedTesla}` : "");
   if (resolved) {
     const trim = cleanTrim(live?.trim_badging, model);
-    return `Tesla ${resolved}${trim ? ` ${trim}` : ""}`;
+    const drive = matchFirst(DRIVE_PATTERNS, [live?.trim_badging, model]);
+    return `Tesla ${resolved}${trim ? ` ${trim}` : ""}${drive ? ` ${drive}` : ""}`;
   }
+
 
   const line = [make, model].filter(Boolean).join(" ").trim();
   return line || "Vehicle";

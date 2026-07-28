@@ -13,6 +13,23 @@ export interface Vehicle {
   notes: string;
 }
 
+async function requireUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
+  return data.user.id;
+}
+
+/**
+ * One-time migration: vehicles created before authentication existed have no
+ * owner. Claim them for the signed-in user so no data is lost.
+ */
+export async function claimLegacyVehicles(): Promise<void> {
+  const userId = await requireUserId();
+  if (!userId) return;
+  const { error } = await supabase.from("vehicles").update({ user_id: userId }).is("user_id", null);
+  if (error) console.error("Failed to claim legacy vehicles:", error.message);
+}
+
 export async function loadVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
@@ -37,10 +54,16 @@ export async function loadVehicles(): Promise<Vehicle[]> {
 }
 
 export async function addVehicle(v: Omit<Vehicle, "id">): Promise<Vehicle[]> {
+  const userId = await requireUserId();
+  if (!userId) {
+    console.error("Cannot add vehicle: not signed in");
+    return loadVehicles();
+  }
   if (v.is_default) {
-    await supabase.from("vehicles").update({ is_default: false }).eq("is_default", true);
+    await supabase.from("vehicles").update({ is_default: false }).eq("is_default", true).eq("user_id", userId);
   }
   const { error } = await supabase.from("vehicles").insert({
+    user_id: userId,
     name: v.name,
     make: v.make,
     model: v.model,

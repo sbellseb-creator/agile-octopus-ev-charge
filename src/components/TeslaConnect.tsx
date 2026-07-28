@@ -226,8 +226,9 @@ export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, comp
                 <Badge variant="outline" className="shrink-0 text-[10px]">{v.state ?? "Unknown"}</Badge>
               </div>
               <p className="break-words text-xs text-muted-foreground">
-                {[v.display_name, v.car_type, v.trim_badging].filter(Boolean).join(" · ") || "Unknown"}
+                {vehicleModelLine({ make: "", model: "", car_type: v.car_type ?? "" }, v)}
               </p>
+
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="min-w-0">
                   <div className="text-muted-foreground">Battery</div>

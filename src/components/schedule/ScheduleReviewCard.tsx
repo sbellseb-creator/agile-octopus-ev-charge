@@ -14,13 +14,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CarFront, Eye, RefreshCw, Save, Send, Trash2, TriangleAlert } from "lucide-react";
+import { CarFront, Check, Eye, Lock, RefreshCw, Save, Send, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { Vehicle } from "@/lib/vehicle-data";
-import { formatRegistration } from "@/lib/vehicle-data";
+import { formatRegistration, vehicleColorName, vehicleModelLine } from "@/lib/vehicle-data";
 import { formatUK } from "@/lib/timezone";
 import { dayMaskFor, formatDaysMask, minutesToClock, ukMinutesAfterMidnight } from "@/lib/schedule-time";
 import {
+  checkTeslaCapability,
   dryRunPayload,
   loadSchedules,
   readTeslaSchedules,
@@ -28,9 +29,10 @@ import {
   saveAppPlan,
   sendScheduleToTesla,
   type ChargeSchedule,
+  type TeslaCapability,
   type TeslaSchedule,
 } from "@/lib/charge-schedule";
-import ScheduleStatusBadge from "@/components/schedule/ScheduleStatusBadge";
+import ScheduleStatusBadge, { type BadgeState } from "@/components/schedule/ScheduleStatusBadge";
 import { getSettings } from "@/lib/app-settings";
 
 interface Props {
@@ -44,23 +46,45 @@ interface Props {
   avgPencePerKwh: number;
   /** Planner target SoC — offered as an optional charge limit. */
   targetSoc: number;
+  /** Optional live Tesla snapshot for a richer vehicle line. Never fetched here. */
+  live?: { car_type?: string | null; trim_badging?: string | null; exterior_color?: string | null } | null;
 }
 
-const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
-  <div className="flex items-baseline justify-between gap-2 border-b border-border/50 py-1 last:border-0">
-    <span className="shrink-0 text-[11px] text-muted-foreground sm:text-xs">{label}</span>
-    <span className="min-w-0 truncate text-right text-xs font-semibold sm:text-sm">{value}</span>
+/** Grouped summary block — reads as a summary, not a settings table. */
+const Group = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <section className="rounded-xl border border-border bg-muted/20 p-3">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+    {children}
+  </section>
+);
+
+const Pair = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => (
+  <div className="min-w-0">
+    <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className={strong ? "truncate text-base font-bold text-primary" : "truncate text-sm font-semibold"}>{value}</p>
   </div>
 );
 
-export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimatedKwh, estimatedCostGbp, avgPencePerKwh, targetSoc }: Props) {
+export default function ScheduleReviewCard({
+  vehicle,
+  startIso,
+  endIso,
+  estimatedKwh,
+  estimatedCostGbp,
+  avgPencePerKwh,
+  targetSoc,
+  live,
+}: Props) {
   const settings = getSettings();
   const [plan, setPlan] = useState<ChargeSchedule | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sendLimit, setSendLimit] = useState(false);
   const [showPayload, setShowPayload] = useState(false);
   const [external, setExternal] = useState<TeslaSchedule[] | null>(null);
+  const [capability, setCapability] = useState<TeslaCapability | null>(null);
+  const [differences, setDifferences] = useState<string[]>([]);
 
   const isTesla = Boolean(vehicle?.tesla_vehicle_id);
   const startMinutes = startIso ? ukMinutesAfterMidnight(startIso) : null;
@@ -80,6 +104,19 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
       alive = false;
     };
   }, [vehicle]);
+
+  // Readiness check: token inspection only, never contacts the vehicle.
+  useEffect(() => {
+    let alive = true;
+    if (!isTesla) {
+      setCapability(null);
+      return;
+    }
+    checkTeslaCapability(vehicle?.tesla_vehicle_id).then((c) => alive && setCapability(c));
+    return () => {
+      alive = false;
+    };
+  }, [isTesla, vehicle?.tesla_vehicle_id]);
 
   const buildDraft = useCallback((): Omit<ChargeSchedule, "id" | "status" | "tesla_schedule_id" | "created_by_app" | "last_error" | "last_verified_at" | "updated_at" | "charge_limit_sent"> | null => {
     if (!vehicle || startMinutes === null) return null;
@@ -113,12 +150,12 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
     setBusy(true);
     const saved = await savePlan();
     setBusy(false);
-    toast[saved ? "success" : "error"](saved ? "Saved as an app plan. Nothing was sent to the vehicle." : "Could not save the plan.");
+    toast[saved ? "success" : "error"](saved ? "Plan saved. Nothing was sent to your Tesla." : "Could not save the plan.");
   };
 
   const handleCheckTesla = async () => {
     if (!vehicle?.tesla_vehicle_id) return;
-    setBusy(true);
+    setChecking(true);
     try {
       const { schedules, error } = await readTeslaSchedules(vehicle.tesla_vehicle_id);
       if (error) toast.error(error);
@@ -127,7 +164,7 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not read schedules");
     }
-    setBusy(false);
+    setChecking(false);
   };
 
   const doSend = async () => {
@@ -139,7 +176,10 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
       const res = await sendScheduleToTesla({ ...saved }, { replace: Boolean(saved.tesla_schedule_id), alsoSetLimit: sendLimit });
       const rows = await loadSchedules();
       setPlan(rows.find((r) => r.id === saved.id) ?? saved);
+      setDifferences(res.verified ? [] : res.differences ?? []);
       toast[res.ok ? "success" : "error"](res.message);
+      // Home and any other listener refresh immediately, no manual reload.
+      window.dispatchEvent(new Event("schedules:updated"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Send failed");
     }
@@ -152,15 +192,24 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
     const res = await removeScheduleFromTesla(plan);
     const rows = await loadSchedules();
     setPlan(rows.find((r) => r.id === plan.id) ?? null);
+    setDifferences([]);
     toast[res.ok ? "success" : "error"](res.message);
+    window.dispatchEvent(new Event("schedules:updated"));
     setBusy(false);
   };
 
   if (!vehicle || startMinutes === null) return null;
 
   const payload = dryRunPayload({ start_minutes: startMinutes, end_minutes: endMinutes, days_mask: daysMask, one_time: true });
-  const status = plan?.status ?? "app_plan";
+  const verified = plan?.status === "confirmed" && Boolean(plan?.last_verified_at) && !plan?.last_error;
+  const badgeState: BadgeState = checking
+    ? "checking"
+    : isTesla && capability && !capability.connected
+      ? "not_connected"
+      : (plan?.status ?? "app_plan");
   const otherSchedules = (external ?? []).filter((s) => Number(s.id) !== Number(plan?.tesla_schedule_id ?? -1));
+  const colour = vehicleColorName(vehicle, live);
+  const canSend = Boolean(capability?.connected && capability?.chargingCommands);
 
   return (
     <Card className="border-primary/30">
@@ -168,27 +217,57 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
         <CardTitle className="flex flex-wrap items-center gap-2 text-sm sm:text-base">
           <CarFront className="h-4 w-4 shrink-0 text-primary" />
           <span className="min-w-0 flex-1">Review charging schedule</span>
-          <ScheduleStatusBadge status={status} readyToSend={isTesla} />
+          <ScheduleStatusBadge status={badgeState} readyToSend={isTesla && canSend} verified={verified} />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="rounded-lg border border-border bg-muted/30 p-2.5">
-          <Row label="Vehicle" value={vehicle.name || "Vehicle"} />
-          <Row label="Registration" value={formatRegistration(vehicle.registration) || "—"} />
-          <Row label="Date" value={planDate ? formatUK(startIso as string, "EEE dd-MM-yy") : "—"} />
-          <Row label="Start" value={`${minutesToClock(startMinutes)} UK`} />
-          <Row label="Ready by" value={endMinutes === null ? "Not set" : `${minutesToClock(endMinutes)} UK`} />
-          <Row label="Repeats" value={plan?.one_time === false ? formatDaysMask(daysMask) : "One time"} />
-          <Row label="Charge limit" value={`${targetSoc}%`} />
-          <Row label="Charger" value={`${settings.charger_amps} A / ${settings.charger_kw} kW`} />
-          <Row label="Estimated energy" value={`${estimatedKwh.toFixed(1)} kWh`} />
-          <Row label="Estimated cost" value={`£${estimatedCostGbp.toFixed(2)}`} />
-          <Row label="Average price" value={`${avgPencePerKwh.toFixed(2)}p/kWh`} />
-          <Row
-            label="Sent to Tesla"
-            value={status === "confirmed" ? `Yes · id ${plan?.tesla_schedule_id ?? "—"}` : status === "differs" ? "Sent, mismatch" : "No"}
-          />
-        </div>
+        <Group title="Vehicle">
+          <p className="break-all font-mono text-lg font-bold uppercase tracking-wider">
+            {formatRegistration(vehicle.registration) || vehicle.name || "Vehicle"}
+          </p>
+          <p className="break-words text-xs text-muted-foreground">{vehicleModelLine(vehicle, live)}</p>
+          {colour && <p className="text-xs text-muted-foreground">{colour}</p>}
+        </Group>
+
+        <Group title="Schedule">
+          <div className="grid grid-cols-2 gap-3">
+            <Pair label="Start" value={`${minutesToClock(startMinutes)}`} strong />
+            <Pair label="Ready by" value={endMinutes === null ? "Not set" : minutesToClock(endMinutes)} />
+            <Pair label="Date" value={planDate ? formatUK(startIso as string, "EEE dd-MM-yy") : "—"} />
+            <Pair label="Repeats" value={plan?.one_time === false ? formatDaysMask(daysMask) : "One time"} />
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">All times are UK time, wherever you are.</p>
+        </Group>
+
+        <Group title="Charging">
+          <div className="grid grid-cols-2 gap-3">
+            <Pair label="Charge limit" value={`${targetSoc}%`} />
+            <Pair label="Charger" value={`${settings.charger_amps} A · ${settings.charger_kw} kW`} />
+          </div>
+        </Group>
+
+        <Group title="Cost estimate">
+          <div className="grid grid-cols-2 gap-3">
+            <Pair label="Estimated cost" value={`£${estimatedCostGbp.toFixed(2)}`} strong />
+            <Pair label="Energy" value={`${estimatedKwh.toFixed(1)} kWh`} />
+            <Pair label="Average price" value={`${avgPencePerKwh.toFixed(2)}p/kWh`} />
+            {plan?.tesla_schedule_id ? <Pair label="Tesla schedule" value={`#${plan.tesla_schedule_id}`} /> : <Pair label="On the car" value="Not sent yet" />}
+          </div>
+        </Group>
+
+        <p className="flex items-start gap-1.5 rounded-lg border border-border bg-background/60 p-2 text-[11px] text-muted-foreground">
+          <Lock className="mt-0.5 h-3 w-3 shrink-0" />
+          Nothing is sent to your Tesla until you press "Send to Tesla".
+        </p>
+
+        {differences.length > 0 && (
+          <div className="space-y-1 rounded-lg border border-orange-500/50 bg-orange-500/5 p-2 text-[11px] text-orange-400">
+            <p className="font-semibold">Tesla saved something different:</p>
+            {differences.map((d) => (
+              <p key={d}>• {d}</p>
+            ))}
+          </div>
+        )}
 
         {plan?.last_error && (
           <p className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive">
@@ -196,20 +275,52 @@ export default function ScheduleReviewCard({ vehicle, startIso, endIso, estimate
           </p>
         )}
 
-        <button type="button" onClick={() => setShowPayload((v) => !v)} className="text-[11px] text-primary underline">
-          {showPayload ? "Hide" : "Show"} exact command payload (dry run — sends nothing)
-        </button>
-        {showPayload && (
-          <pre className="overflow-x-auto rounded-lg border border-border bg-background p-2 text-[10px] leading-relaxed">
-{`POST /api/1/vehicles/${vehicle.tesla_vehicle_id || "{id}"}/command/add_charge_schedule
-${JSON.stringify(payload, null, 2)}`}
-          </pre>
+        {/* Readiness card — plain English, no API terminology. */}
+        {isTesla && (
+          <div className="space-y-1 rounded-lg border border-border bg-muted/20 p-2.5 text-[11px]">
+            {capability === null ? (
+              <p className="text-muted-foreground">Checking your Tesla connection…</p>
+            ) : !capability.connected ? (
+              <>
+                <p className="flex items-center gap-1.5 text-destructive">
+                  <TriangleAlert className="h-3 w-3 shrink-0" /> Tesla connection required
+                </p>
+                <p className="text-muted-foreground">Reconnect Tesla on the Vehicles page, then come back here.</p>
+              </>
+            ) : !capability.chargingCommands ? (
+              <>
+                <p className="flex items-center gap-1.5 text-orange-400">
+                  <TriangleAlert className="h-3 w-3 shrink-0" /> Charging permission missing
+                </p>
+                <p className="text-muted-foreground">
+                  Your Tesla connection cannot change charging yet. Disconnect and reconnect Tesla on the Vehicles page to allow it.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="flex items-center gap-1.5 text-primary">
+                  <Check className="h-3 w-3 shrink-0" /> Tesla connected
+                </p>
+                <p className="flex items-center gap-1.5 text-primary">
+                  <Check className="h-3 w-3 shrink-0" /> Charging commands available
+                </p>
+                <p className="flex items-center gap-1.5 text-primary">
+                  <ShieldCheck className="h-3 w-3 shrink-0" /> Ready to send
+                </p>
+                {!capability.signedCommandsConfigured && (
+                  <p className="text-muted-foreground">
+                    Some cars also need Tesla's signed-command support. If yours does, the app will tell you plainly and keep your plan.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {!isTesla ? (
           <>
             <Button onClick={handleSaveOnly} disabled={busy} className="w-full gap-2">
-              <Save className="h-4 w-4" /> Save app plan
+              <Save className="h-4 w-4" /> Save plan only
             </Button>
             <p className="text-[11px] text-muted-foreground">
               This vehicle is not a connected Tesla, so the plan stays in the app for logging and cost analysis.
@@ -217,16 +328,17 @@ ${JSON.stringify(payload, null, 2)}`}
           </>
         ) : (
           <div className="space-y-2">
-            <Button onClick={() => setConfirmOpen(true)} disabled={busy} className="w-full gap-2">
+            <Button onClick={() => setConfirmOpen(true)} disabled={busy || !canSend} className="h-11 w-full gap-2 text-sm font-semibold">
               <Send className="h-4 w-4" />
-              {plan?.tesla_schedule_id ? "Replace Tesla schedule" : "Send schedule to Tesla"}
+              {plan?.tesla_schedule_id ? "Send to Tesla (replaces current)" : "Send to Tesla"}
             </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" onClick={handleSaveOnly} disabled={busy} className="gap-1.5 text-xs">
-                <Save className="h-3.5 w-3.5" /> Keep as app plan
+            <p className="text-center text-[10px] text-muted-foreground">Recommended action</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button variant="outline" size="sm" onClick={handleSaveOnly} disabled={busy} className="w-full gap-1.5 text-xs">
+                <Save className="h-3.5 w-3.5" /> Save plan only
               </Button>
-              <Button variant="outline" size="sm" onClick={handleCheckTesla} disabled={busy} className="gap-1.5 text-xs">
-                <Eye className="h-3.5 w-3.5" /> Check Tesla
+              <Button variant="outline" size="sm" onClick={handleCheckTesla} disabled={busy || checking} className="w-full gap-1.5 text-xs">
+                <Eye className="h-3.5 w-3.5" /> Check Tesla schedule
               </Button>
             </div>
             {plan?.tesla_schedule_id && (
@@ -234,12 +346,22 @@ ${JSON.stringify(payload, null, 2)}`}
                 <Trash2 className="h-3.5 w-3.5" /> Remove from Tesla
               </Button>
             )}
-            {status === "failed" && (
-              <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)} disabled={busy} className="w-full gap-1.5 text-xs">
-                <RefreshCw className="h-3.5 w-3.5" /> Retry sending
+            {plan?.status === "failed" && (
+              <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)} disabled={busy || !canSend} className="w-full gap-1.5 text-xs">
+                <RefreshCw className="h-3.5 w-3.5" /> Try sending again
               </Button>
             )}
           </div>
+        )}
+
+        <button type="button" onClick={() => setShowPayload((v) => !v)} className="text-[11px] text-primary underline">
+          {showPayload ? "Hide" : "Show"} exact command (dry run — sends nothing)
+        </button>
+        {showPayload && (
+          <pre className="overflow-x-auto rounded-lg border border-border bg-background p-2 text-[10px] leading-relaxed">
+{`POST /api/1/vehicles/${vehicle.tesla_vehicle_id || "{id}"}/command/add_charge_schedule
+${JSON.stringify(payload, null, 2)}`}
+          </pre>
         )}
 
         {external !== null && (
@@ -254,7 +376,7 @@ ${JSON.stringify(payload, null, 2)}`}
                   <span>{minutesToClock(Number(s.start_time ?? 0))}</span>
                   {s.end_enabled && <span>→ {minutesToClock(Number(s.end_time ?? 0))}</span>}
                   <span className="text-muted-foreground">{formatDaysMask(Number(s.days_of_week ?? 0))}</span>
-                  <span className="text-amber-500">not created here</span>
+                  <span className="text-orange-400">not created here</span>
                 </div>
               ))
             )}
@@ -276,11 +398,11 @@ ${JSON.stringify(payload, null, 2)}`}
                     This sends a command to <strong>{formatRegistration(vehicle.registration) || vehicle.name}</strong>.
                     <strong> Your car may be woken</strong> to receive it.
                   </p>
-                  <div className="rounded-md border border-border p-2">
-                    <Row label="Start" value={`${minutesToClock(startMinutes)} UK`} />
-                    <Row label="Ready by" value={endMinutes === null ? "Not set" : `${minutesToClock(endMinutes)} UK`} />
-                    <Row label="Repeats" value="One time" />
-                    <Row label="Estimated cost" value={`£${estimatedCostGbp.toFixed(2)}`} />
+                  <div className="grid grid-cols-2 gap-2 rounded-md border border-border p-2">
+                    <Pair label="Start" value={minutesToClock(startMinutes)} />
+                    <Pair label="Ready by" value={endMinutes === null ? "Not set" : minutesToClock(endMinutes)} />
+                    <Pair label="Repeats" value="One time" />
+                    <Pair label="Estimated cost" value={`£${estimatedCostGbp.toFixed(2)}`} />
                   </div>
                   {plan?.tesla_schedule_id && <p>The existing app-created schedule (id {plan.tesla_schedule_id}) will be replaced.</p>}
                   <div className="flex items-start gap-2 rounded-md border border-border p-2">
@@ -294,7 +416,7 @@ ${JSON.stringify(payload, null, 2)}`}
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2">
               <AlertDialogCancel className="mt-0">Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={doSend}>Send command</AlertDialogAction>
+              <AlertDialogAction onClick={doSend}>Send to Tesla</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

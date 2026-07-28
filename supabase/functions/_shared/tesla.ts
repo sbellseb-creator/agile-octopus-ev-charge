@@ -1,5 +1,7 @@
 import { logEvent } from "./auth.ts";
 
+export { evaluateRateLimit, POLL_MIN_INTERVAL_MS, WAKE_MIN_INTERVAL_MS } from "./rate-limit.ts";
+
 const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
 
 /** Look up the Tesla connection owned by the authenticated user. */
@@ -30,6 +32,7 @@ export async function getValidAccessToken(supabase: any, conn: any): Promise<str
   });
   const text = await res.text();
   if (!res.ok) {
+    void text;
     logEvent("tesla-token", "refresh_failed", { status: res.status }, "error");
     throw new Error(`Tesla token refresh failed (${res.status})`);
   }
@@ -44,33 +47,4 @@ export async function getValidAccessToken(supabase: any, conn: any): Promise<str
     })
     .eq("device_id", conn.device_id);
   return token.access_token as string;
-}
-
-/** Minimum gap between wake requests for one connection. */
-export const WAKE_MIN_INTERVAL_MS = 5 * 60_000;
-/** Minimum gap between (non-waking) polls for one connection. */
-export const POLL_MIN_INTERVAL_MS = 15_000;
-
-/**
- * Pure rate-limit decision so it can be unit tested without a database.
- * A wake is only ever permitted when the caller explicitly requested one.
- */
-export function evaluateRateLimit(opts: {
-  wakeRequested: boolean;
-  lastWakeAt: string | null;
-  lastPollAt: string | null;
-  now: number;
-}): { allowPoll: boolean; allowWake: boolean; retryAfterMs: number } {
-  const { wakeRequested, lastWakeAt, lastPollAt, now } = opts;
-  const sinceWake = lastWakeAt ? now - new Date(lastWakeAt).getTime() : Infinity;
-  const sincePoll = lastPollAt ? now - new Date(lastPollAt).getTime() : Infinity;
-
-  const allowPoll = sincePoll >= POLL_MIN_INTERVAL_MS;
-  // Never wake unless explicitly requested — app load and navigation must not wake the car.
-  const allowWake = wakeRequested && sinceWake >= WAKE_MIN_INTERVAL_MS;
-  const retryAfterMs = wakeRequested && !allowWake && sinceWake !== Infinity
-    ? Math.max(0, WAKE_MIN_INTERVAL_MS - sinceWake)
-    : Math.max(0, POLL_MIN_INTERVAL_MS - sincePoll);
-
-  return { allowPoll, allowWake, retryAfterMs };
 }

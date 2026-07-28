@@ -51,6 +51,9 @@ export default function Index() {
         <div className="container flex items-center gap-3 py-4">
           <Zap className="h-7 w-7 text-primary" />
           <h1 className="text-xl font-bold tracking-tight">EV Charge Tracker</h1>
+          <Button variant="ghost" size="icon" className="ml-auto" onClick={signOut} aria-label="Sign out">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 

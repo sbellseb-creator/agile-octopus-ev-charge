@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
      */
     const tokenScopes = scopesOf(accessToken);
     const storedScopes: string[] = Array.isArray(conn.scopes) ? conn.scopes : [];
-    logEvent(FN, "scopes", { userId, action, token_scopes: tokenScopes.join(" "), stored_scopes: storedScopes.join(" ") });
+    logEvent(FN, "scopes", { userId, action, granted_scopes: tokenScopes.join(" "), stored_scopes: storedScopes.join(" ") });
 
     const commandAction = action !== "read" && action !== "dry_run" && action !== "capability";
     if (commandAction && tokenScopes.length > 0 && !tokenScopes.includes("vehicle_charging_cmds")) {

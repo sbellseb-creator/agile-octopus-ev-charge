@@ -51,6 +51,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const deviceId = String(body.device_id ?? "");
+    const wake = body.wake === true;
     if (!deviceId) return json({ error: "device_id is required" }, 400);
 
     const supabase = createClient(

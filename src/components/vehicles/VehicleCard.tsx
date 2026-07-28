@@ -4,7 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, Trash2, Car } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { Vehicle } from "@/lib/vehicle-data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { vehicleModelLine, type Vehicle } from "@/lib/vehicle-data";
 
 interface Props {
   vehicle: Vehicle;
@@ -28,36 +38,32 @@ const val = (v: string | number | null | undefined, suffix = "") =>
 /** Vehicle card. Registration is the primary identifier; VIN lives in Advanced. */
 export default function VehicleCard({ vehicle: v, onDelete, live }: Props) {
   const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const isTesla = v.source === "tesla" || Boolean(live);
 
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-3 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <span
-                className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-sm font-bold uppercase tracking-wider break-all"
+                className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-sm font-bold uppercase tracking-wider"
                 style={{ borderColor: v.color || undefined }}
               >
                 {v.registration || "No reg"}
               </span>
               {v.is_default && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-              {(v.source === "tesla" || live) && <Badge variant="outline" className="text-[10px]">Tesla</Badge>}
-              {live?.state && <Badge variant="secondary" className="text-[10px] capitalize">{live.state}</Badge>}
+              {live?.state && <Badge variant="outline" className="text-[10px] capitalize">{live.state}</Badge>}
             </div>
-            <p className="mt-1 break-words text-xs text-muted-foreground">
-              {[live?.car_type ?? v.make, live?.trim_badging ?? v.model, v.name]
-                .filter(Boolean)
-                .join(" · ") || "Vehicle"}
-            </p>
-
+            <p className="mt-1 break-words text-xs text-muted-foreground">{vehicleModelLine(v, live)}</p>
           </div>
           {onDelete && (
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 shrink-0 text-destructive"
-              onClick={() => onDelete(v.id)}
+              onClick={() => setConfirm(true)}
               aria-label={`Delete ${v.registration || v.name}`}
             >
               <Trash2 className="h-4 w-4" />
@@ -110,14 +116,40 @@ export default function VehicleCard({ vehicle: v, onDelete, live }: Props) {
             />
             {live?.display_name && <Row label="Tesla name" value={live.display_name} />}
             <Row label="Tesla vehicle ID" value={val(v.tesla_vehicle_id)} />
-            <Row label="Car type" value={val(live?.car_type ?? v.car_type)} />
+            <Row label="Model code" value={val(live?.car_type ?? v.car_type)} />
+            {live?.trim_badging && <Row label="Trim badge" value={live.trim_badging} />}
             <Row label="Charge efficiency" value={val(v.charge_efficiency_pct, "%")} />
-            <Row label="Data source" value={v.source === "tesla" || live ? "Tesla Fleet API" : "Manual"} />
+            <Row label="Data source" value={isTesla ? "Tesla Fleet API" : "Manual"} />
 
             {v.notes && <Row label="Notes" value={v.notes} />}
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+
+      <AlertDialog open={confirm} onOpenChange={setConfirm}>
+        <AlertDialogContent className="max-w-[92vw] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {v.registration || v.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isTesla
+                ? "This vehicle is linked to your connected Tesla. Deleting removes the saved profile (registration, capacity, efficiency) — it does not disconnect your Tesla account, and it will reappear as an unnamed vehicle on the next refresh."
+                : "This removes the saved vehicle profile."}{" "}
+              Existing charging sessions are kept and stay linked to this vehicle's ID.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => onDelete?.(v.id)}
+            >
+              Delete vehicle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

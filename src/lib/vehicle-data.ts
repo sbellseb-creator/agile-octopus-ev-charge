@@ -176,13 +176,21 @@ export function vehicleModelLine(
   const rawType = (live?.car_type ?? v.car_type ?? "").toLowerCase().replace(/[^a-z]/g, "");
   const teslaModel = TESLA_MODELS[rawType];
 
-  if (teslaModel) {
-    const trim = cleanTrim(live?.trim_badging, v.model);
-    return `Tesla ${teslaModel}${trim ? ` ${trim}` : ""}`;
-  }
-
   const make = (v.make ?? "").trim();
   const model = (v.model ?? "").trim();
+
+  // Saved Tesla profiles may hold shorthand such as "Y LR" or "Model Y LR".
+  const savedTesla =
+    !teslaModel && /tesla/i.test(make)
+      ? (model.match(/model\s*([3sxy])/i)?.[1] ?? model.match(/^\s*([3sxy])\b/i)?.[1] ?? "").toUpperCase()
+      : "";
+
+  const resolved = teslaModel ?? (savedTesla ? `Model ${savedTesla}` : "");
+  if (resolved) {
+    const trim = cleanTrim(live?.trim_badging, model);
+    return `Tesla ${resolved}${trim ? ` ${trim}` : ""}`;
+  }
+
   const line = [make, model].filter(Boolean).join(" ").trim();
   return line || "Vehicle";
 }

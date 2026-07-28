@@ -27,6 +27,8 @@ export default function TeslaConnect({ vehicles = [], onStatus, onVehicles, comp
   const pollRef = useRef<number | null>(null);
   const statusRef = useRef(onStatus);
   statusRef.current = onStatus;
+  const vehiclesRef = useRef(onVehicles);
+  vehiclesRef.current = onVehicles;
 
   /** Registration for a Tesla: matched by Tesla id, then VIN suffix, else default vehicle. */
   const regFor = (t: TeslaVehicle): string => {

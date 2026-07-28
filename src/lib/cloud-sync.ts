@@ -172,7 +172,8 @@ const listeners = new Set<Listener>();
 let status: SyncStatus = { state: "idle", lastSyncedAt: readString(LAST_SYNC_KEY), pendingLocalChanges: 0 };
 let running = false;
 let rerun = false;
-const registry: EntitySync<never, never>[] = [];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const registry: EntitySync<any, any>[] = [];
 
 function setStatus(patch: Partial<SyncStatus>) {
   status = { ...status, ...patch };

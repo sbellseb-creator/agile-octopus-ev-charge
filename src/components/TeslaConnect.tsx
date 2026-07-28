@@ -39,6 +39,20 @@ export default function TeslaConnect() {
     load(false);
   }, [load]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ok = params.get("tesla");
+    const err = params.get("tesla_error");
+    if (!ok && !err) return;
+    if (err) toast({ title: "Tesla sign-in failed", description: err, variant: "destructive" });
+    else toast({ title: "Tesla connected", description: "Your Tesla account is linked." });
+    params.delete("tesla");
+    params.delete("tesla_error");
+    const q = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : "") + window.location.hash);
+  }, [toast]);
+
+
   const connect = async () => {
     setConnecting(true);
     try {

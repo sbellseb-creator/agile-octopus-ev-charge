@@ -4,12 +4,35 @@ import { logEvent, safeMessage, serviceClient } from "../_shared/auth.ts";
 const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
 const FN = "tesla-oauth-callback";
 
-function html(message: string, returnUrl?: string) {
-  return `<!doctype html><meta charset="utf-8"><title>Tesla</title>
-<body style="font-family:system-ui;background:#0b0f10;color:#e6f7ef;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-<div style="text-align:center"><p>${message}</p>${
-    returnUrl ? `<p><a style="color:#22d3ee" href="${returnUrl}">Return to app</a></p><script>setTimeout(()=>location.replace(${JSON.stringify(returnUrl)}),1200)</script>` : ""
-  }</div></body>`;
+function safeReturn(returnUrl: string | null | undefined) {
+  if (!returnUrl) return null;
+  try {
+    const u = new URL(returnUrl);
+    if (u.protocol !== "https:" && u.hostname !== "localhost") return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The edge gateway serves function responses with
+ * `content-security-policy: default-src 'none'; sandbox`, so inline scripts in
+ * an HTML body never execute. Use a real 302 redirect instead.
+ */
+function redirectBack(returnUrl: string | null | undefined, params: Record<string, string>) {
+  const u = safeReturn(returnUrl);
+  if (u) {
+    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    return new Response(null, { status: 302, headers: { ...corsHeaders, Location: u.toString() } });
+  }
+  const message = params.tesla_error ?? "Tesla connected. You can close this window.";
+  return new Response(
+    `<!doctype html><html><head><meta charset="utf-8"><title>Tesla</title></head>` +
+      `<body style="font-family:system-ui;background:#0b0f10;color:#e6f7ef;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">` +
+      `<p>${message.replace(/[<>&]/g, "")}</p></body></html>`,
+    { headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" } },
+  );
 }
 
 Deno.serve(async (req) => {
@@ -18,11 +41,9 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const htmlHeaders = { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" };
-
   try {
     if (!code || !state) {
-      return new Response(html("Missing authorization code."), { status: 400, headers: htmlHeaders });
+      return redirectBack(null, { tesla_error: "Missing authorization code." });
     }
 
     const supabase = serviceClient();
@@ -38,7 +59,7 @@ Deno.serve(async (req) => {
     if (stateErr) throw new Error(stateErr.message);
     if (!stateRow) {
       logEvent(FN, "invalid_or_expired_state", {}, "warn");
-      return new Response(html("Invalid or expired sign-in state."), { status: 400, headers: htmlHeaders });
+      return redirectBack(null, { tesla_error: "Invalid or expired sign-in state." });
     }
 
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/tesla-oauth-callback`;
@@ -58,10 +79,7 @@ Deno.serve(async (req) => {
     const tokenText = await tokenRes.text();
     if (!tokenRes.ok) {
       logEvent(FN, "token_exchange_failed", { status: tokenRes.status }, "error");
-      return new Response(html(`Tesla sign-in failed (${tokenRes.status}).`, stateRow.return_url), {
-        status: 502,
-        headers: htmlHeaders,
-      });
+      return redirectBack(stateRow.return_url, { tesla_error: `Tesla sign-in failed (${tokenRes.status}).` });
     }
     const token = JSON.parse(tokenText);
 
@@ -83,12 +101,9 @@ Deno.serve(async (req) => {
     await supabase.from("tesla_oauth_states").delete().eq("state", state);
 
     logEvent(FN, "connected", { userId: stateRow.user_id });
-    return new Response(html("Tesla connected. Redirecting…", stateRow.return_url), { headers: htmlHeaders });
+    return redirectBack(stateRow.return_url, { tesla: "connected" });
   } catch (e) {
     logEvent(FN, "unhandled_error", { message: safeMessage(e) }, "error");
-    return new Response(html("Something went wrong completing Tesla sign-in."), {
-      status: 500,
-      headers: htmlHeaders,
-    });
+    return redirectBack(null, { tesla_error: "Something went wrong completing Tesla sign-in." });
   }
 });

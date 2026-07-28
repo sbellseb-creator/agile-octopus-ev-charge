@@ -18,6 +18,7 @@ interface Props {
     end_time?: string;
     vehicle_id: string;
     vehicle_name: string;
+    vehicle_registration?: string;
     charge_mode: ChargeMode;
     target_time?: string;
     start_soc: number;

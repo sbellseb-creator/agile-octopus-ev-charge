@@ -1,4 +1,4 @@
-import { formatInTimeZone, fromZonedTime } from "date-tz-placeholder";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 export const UK_TIMEZONE = "Europe/London";
 

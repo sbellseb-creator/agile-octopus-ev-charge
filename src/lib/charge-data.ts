@@ -152,7 +152,7 @@ registerEntity({
     vehicle_name: r.vehicle_name ?? "",
     vehicle_registration: r.vehicle_registration ?? undefined,
     charge_mode: (r.charge_mode ?? "immediate") as ChargeMode,
-    target_time: opt(r.target_time),
+    target_time: isoToUkClock(r.target_time),
     start_soc: num(r.start_soc),
     end_soc: num(r.end_soc),
     energy_added_kwh: num(r.energy_added_kwh),

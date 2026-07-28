@@ -146,8 +146,8 @@ registerEntity({
   toLocal: (r: any): ChargeSession => ({
     id: r.local_id ?? r.id,
     session_date: r.session_date,
-    start_time: opt(r.start_time),
-    end_time: opt(r.end_time),
+    start_time: isoToUkClock(r.start_time),
+    end_time: isoToUkClock(r.end_time),
     vehicle_id: r.vehicle_id ?? "",
     vehicle_name: r.vehicle_name ?? "",
     vehicle_registration: r.vehicle_registration ?? undefined,

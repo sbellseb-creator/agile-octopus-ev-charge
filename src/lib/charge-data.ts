@@ -1,3 +1,5 @@
+import { readJSON, writeJSON } from "@/lib/safe-storage";
+
 export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
 
 export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {

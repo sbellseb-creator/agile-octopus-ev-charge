@@ -36,7 +36,7 @@ export default function VehicleCard({ vehicle: v, onDelete, live }: Props) {
               {v.source === "tesla" && <Badge variant="outline" className="text-[10px]">Tesla</Badge>}
             </div>
             <p className="mt-1 break-words text-xs text-muted-foreground">
-              {[v.name, v.make, v.model].filter(Boolean).join(" · ') ".slice(0, 3)) || "Vehicle"}
+              {[v.name, v.make, v.model].filter(Boolean).join(" · ") || "Vehicle"}
             </p>
           </div>
           {onDelete && (

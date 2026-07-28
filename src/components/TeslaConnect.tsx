@@ -40,6 +40,7 @@ export default function TeslaConnect({ vehicles = [], onStatus }: Props) {
       try {
         const res = await listTeslaVehicles(wake);
         setConnected(res.connected);
+        statusRef.current?.(res.connected);
         setTeslaVehicles(res.vehicles);
         if (res.error) toast({ title: "Tesla", description: res.error, variant: "destructive" });
         return res.connected;

@@ -34,6 +34,15 @@ const Tile = ({ icon: Icon, label, value, sub }: { icon: typeof Zap; label: stri
   </div>
 );
 
+/** "Tonight" / "Tomorrow" / weekday, in UK time. */
+function dayLabel(planDate: string): string {
+  const today = formatUK(new Date(), "yyyy-MM-dd");
+  const tomorrow = formatUK(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
+  if (planDate === today) return "Tonight";
+  if (planDate === tomorrow) return "Tomorrow";
+  return formatUK(`${planDate}T12:00:00Z`, "EEE");
+}
+
 export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], onManageSchedule }: Props) {
   const settings = getSettings();
   const [schedules, setSchedules] = useState<ChargeSchedule[]>([]);
@@ -43,9 +52,12 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
   // can never wake the Tesla.
   useEffect(() => {
     let alive = true;
-    loadSchedules().then((rows) => alive && setSchedules(rows));
+    const load = () => loadSchedules().then((rows) => alive && setSchedules(rows));
+    load();
+    window.addEventListener("schedules:updated", load);
     return () => {
       alive = false;
+      window.removeEventListener("schedules:updated", load);
     };
   }, []);
 
@@ -180,16 +192,27 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
           <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
             <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
             <span className="min-w-0 flex-1">Next planned charge</span>
-            {nextPlan && <ScheduleStatusBadge status={nextPlan.status} readyToSend={Boolean(nextPlan.tesla_vehicle_id)} />}
+            {nextPlan && (
+              <ScheduleStatusBadge
+                status={nextPlan.status}
+                readyToSend={Boolean(nextPlan.tesla_vehicle_id)}
+                verified={nextPlan.status === "confirmed" && Boolean(nextPlan.last_verified_at) && !nextPlan.last_error}
+              />
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {nextPlan ? (
             <>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-                <span className="font-mono text-base font-bold text-primary">{minutesToClock(nextPlan.start_minutes)}</span>
-                {nextPlan.end_minutes !== null && <span className="text-xs text-muted-foreground">ready by {minutesToClock(nextPlan.end_minutes)}</span>}
-                {nextPlan.plan_date && <span className="text-xs text-muted-foreground">{formatUK(`${nextPlan.plan_date}T12:00:00Z`, "EEE dd-MM-yy")}</span>}
+              <div className="min-w-0">
+                <p className="break-words font-mono text-base font-bold text-primary">
+                  {nextPlan.plan_date ? `${dayLabel(nextPlan.plan_date)} ` : ""}
+                  {minutesToClock(nextPlan.start_minutes)}
+                  {nextPlan.end_minutes !== null ? ` \u2192 ${minutesToClock(nextPlan.end_minutes)}` : ""}
+                </p>
+                {nextPlan.plan_date && (
+                  <p className="truncate text-[11px] text-muted-foreground">{formatUK(`${nextPlan.plan_date}T12:00:00Z`, "EEE dd-MM-yy")} \u00b7 UK time</p>
+                )}
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 <span>{nextPlan.estimated_kwh.toFixed(1)} kWh</span>
@@ -202,8 +225,9 @@ export default function HomeDashboard({ vehicles, sessions, teslaVehicles = [], 
           ) : (
             <p className="text-xs text-muted-foreground">No plan yet. Use the Planner to find a cheap window.</p>
           )}
-          <Button variant="outline" size="sm" onClick={onManageSchedule} className="w-full gap-1.5 text-xs">
-            <CalendarClock className="h-3.5 w-3.5" /> {nextPlan ? "Review or manage schedule" : "Plan a charge"}
+          <Button size="sm" onClick={onManageSchedule} className="w-full gap-1.5 text-xs">
+            <CalendarClock className="h-3.5 w-3.5" />
+            {!nextPlan ? "Plan a charge" : nextPlan.status === "confirmed" ? "Review or change schedule" : nextPlan.status === "failed" ? "Try sending again" : "Review and send to Tesla"}
           </Button>
         </CardContent>
       </Card>

@@ -114,16 +114,6 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Tesla connection */}
-          <AccordionItem value="tesla">
-            <AccordionTrigger className="gap-2 text-sm">
-              <span className="flex min-w-0 items-center gap-2"><Plug className="h-4 w-4 shrink-0 text-primary" />Tesla connection</span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <TeslaConnect vehicles={vehicles} />
-            </AccordionContent>
-          </AccordionItem>
-
           {/* Home charger */}
           <AccordionItem value="charger">
             <AccordionTrigger className="gap-2 text-sm">
@@ -235,6 +225,16 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
                   className="w-full"
                 />
               </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Tesla connection */}
+          <AccordionItem value="tesla">
+            <AccordionTrigger className="gap-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2"><Plug className="h-4 w-4 shrink-0 text-primary" />Tesla connection</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <TeslaConnect vehicles={vehicles} />
             </AccordionContent>
           </AccordionItem>
 

@@ -51,7 +51,11 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const deviceId = String(body.device_id ?? "");
-    if (!deviceId) return json({ error: "device_id is required" }, 400);
+    const wake = Boolean(body.wake);
+
+    if (!deviceId) {
+      return json({ error: "device_id is required" }, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -76,7 +80,7 @@ Deno.serve(async (req) => {
       let chargingState: string | null = null;
       let chargeLimit: number | null = null;
       let batteryRange: number | null = null;
-      if (v.state === "offline" || v.state === "asleep") {
+      if (wake && (v.state === "offline" || v.state === "asleep")) {
   console.log(`Waking vehicle ${v.id}...`);
 
   await fetch(

@@ -27,6 +27,8 @@ import {
   readTeslaSchedules,
   removeScheduleFromTesla,
   saveAppPlan,
+  homeLocation,
+  NO_HOME_LOCATION_MESSAGE,
   sendScheduleToTesla,
   type ChargeSchedule,
   type TeslaCapability,
@@ -209,7 +211,8 @@ export default function ScheduleReviewCard({
       : (plan?.status ?? "app_plan");
   const otherSchedules = (external ?? []).filter((s) => Number(s.id) !== Number(plan?.tesla_schedule_id ?? -1));
   const colour = vehicleColorName(vehicle, live);
-  const canSend = Boolean(capability?.connected && capability?.chargingCommands);
+  const home = homeLocation();
+  const canSend = Boolean(capability?.connected && capability?.chargingCommands && home);
 
   return (
     <Card className="border-primary/30">
@@ -307,9 +310,16 @@ export default function ScheduleReviewCard({
                 <p className="flex items-center gap-1.5 text-primary">
                   <Check className="h-3 w-3 shrink-0" /> Charging commands available
                 </p>
-                <p className="flex items-center gap-1.5 text-primary">
-                  <ShieldCheck className="h-3 w-3 shrink-0" /> Ready to send
-                </p>
+                {home ? (
+                  <p className="flex items-center gap-1.5 text-primary">
+                    <ShieldCheck className="h-3 w-3 shrink-0" /> Ready to send
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-1.5 text-orange-400">
+                    <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>{NO_HOME_LOCATION_MESSAGE} Add it under Settings › Charging.</span>
+                  </p>
+                )}
                 {!capability.signedCommandsConfigured && (
                   <p className="text-muted-foreground">
                     Some cars also need Tesla's signed-command support. If yours does, the app will tell you plainly and keep your plan.

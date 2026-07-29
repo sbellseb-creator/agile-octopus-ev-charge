@@ -30,6 +30,14 @@ const FN = "tesla-charge-schedule";
  * is configured we send commands there; otherwise we call the Fleet API
  * directly and surface Tesla's "signed command required" response verbatim.
  */
+/** Strict coordinate validation: finite number in range, no strings/placeholders. */
+function coord(v: unknown, max: number): number | null {
+  if (v === null || v === undefined || v === "" || typeof v === "boolean") return null;
+  const n = typeof v === "string" ? Number(v.trim()) : Number(v);
+  if (!Number.isFinite(n) || Math.abs(n) > max) return null;
+  return n;
+}
+
 function commandBase(): { base: string; signed: boolean } {
   const proxy = Deno.env.get("TESLA_COMMAND_PROXY_URL");
   if (proxy) return { base: proxy.replace(/\/+$/, ""), signed: true };
@@ -59,10 +67,12 @@ Deno.serve(async (req) => {
     const chargeLimit = body.charge_limit_soc === undefined || body.charge_limit_soc === null ? null : Number(body.charge_limit_soc);
 
     const { base, signed } = commandBase();
+    const dryLat = coord(body.lat, 90);
+    const dryLon = coord(body.lon, 180);
 
     // ---- Dry run: never touches the network. -------------------------------
     if (action === "dry_run") {
-      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: body.lat, lon: body.lon, scheduleId });
+      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: dryLat, lon: dryLon, scheduleId });
       return json({
         dry_run: true,
         signed_path: signed,
@@ -177,12 +187,6 @@ Deno.serve(async (req) => {
      * call the vehicle just to obtain a position, so preparing or sending a
      * schedule cannot wake the car for location purposes.
      */
-    const coord = (v: unknown, max: number): number | null => {
-      if (v === null || v === undefined || v === "" || typeof v === "boolean") return null;
-      const n = typeof v === "string" ? Number(v.trim()) : Number(v);
-      if (!Number.isFinite(n) || Math.abs(n) > max) return null;
-      return n;
-    };
     const homeLat = coord(body.lat, 90);
     const homeLon = coord(body.lon, 180);
     const homeLocationValid = homeLat !== null && homeLon !== null && !(homeLat === 0 && homeLon === 0);

@@ -6,6 +6,7 @@
  * confirmation, per the project's wake-safety rule.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { getSettings, hasHomeLocation } from "@/lib/app-settings";
 import { buildAddSchedulePayload, scheduleDifferences, scheduleMatches } from "@/lib/schedule-time";
 
 export type ScheduleStatus =
@@ -148,6 +149,17 @@ interface CommandBody {
   one_time?: boolean;
   tesla_schedule_id?: number | null;
   charge_limit_soc?: number | null;
+  lat?: number | null;
+  lon?: number | null;
+}
+
+export const NO_HOME_LOCATION_MESSAGE = "Set your home charging location before sending a schedule to Tesla.";
+
+/** Saved home coordinates, or null when they are not configured/valid. */
+export function homeLocation(): { lat: number; lon: number } | null {
+  const s = getSettings();
+  if (!hasHomeLocation(s)) return null;
+  return { lat: s.home_latitude as number, lon: s.home_longitude as number };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,7 +185,10 @@ export interface TeslaSchedule {
 
 /** Local, offline preview of the exact payload. No network, no wake. */
 export function dryRunPayload(plan: Pick<ChargeSchedule, "start_minutes" | "end_minutes" | "days_mask" | "one_time">) {
+  const home = homeLocation();
   return buildAddSchedulePayload({
+    lat: home?.lat ?? null,
+    lon: home?.lon ?? null,
     startMinutes: plan.start_minutes,
     endMinutes: plan.end_minutes,
     daysMask: plan.days_mask,
@@ -183,8 +198,11 @@ export function dryRunPayload(plan: Pick<ChargeSchedule, "start_minutes" | "end_
 
 /** Server-side dry run: returns the endpoint + payload without contacting the car. */
 export async function dryRunOnServer(plan: ChargeSchedule) {
+  const home = homeLocation();
   return callTesla({
     action: "dry_run",
+    lat: home?.lat ?? null,
+    lon: home?.lon ?? null,
     tesla_vehicle_id: plan.tesla_vehicle_id,
     start_minutes: plan.start_minutes,
     end_minutes: plan.end_minutes,
@@ -257,6 +275,9 @@ export async function checkTeslaCapability(teslaVehicleId?: string | null): Prom
  */
 export async function sendScheduleToTesla(plan: ChargeSchedule, opts: { replace?: boolean; alsoSetLimit?: boolean } = {}): Promise<SendResult> {
   if (!plan.tesla_vehicle_id) return { ok: false, status: "failed", message: "No Tesla vehicle is selected." };
+  const home = homeLocation();
+  // App-side validation failure: nothing is sent to Tesla and the plan is kept.
+  if (!home) return { ok: false, status: plan.status, message: NO_HOME_LOCATION_MESSAGE };
   await updateSchedule(plan.id, { status: "pending", last_error: null });
 
   const data = await callTesla({
@@ -268,6 +289,8 @@ export async function sendScheduleToTesla(plan: ChargeSchedule, opts: { replace?
     days_mask: plan.days_mask,
     one_time: plan.one_time,
     tesla_schedule_id: plan.tesla_schedule_id,
+    lat: home.lat,
+    lon: home.lon,
   });
 
   if (!data?.ok) {

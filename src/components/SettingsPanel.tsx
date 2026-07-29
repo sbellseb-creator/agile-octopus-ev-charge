@@ -179,7 +179,8 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
                   Tesla charge schedules are tied to a location. Your device location is only read when you press this button.
                 </p>
               </div>
-
+              <p className="text-[11px] text-muted-foreground sm:col-span-2">
+                Your charger is fixed at 30 A / 6.9 kW. These values are shared with the planner and future optimiser.
               </p>
             </AccordionContent>
           </AccordionItem>

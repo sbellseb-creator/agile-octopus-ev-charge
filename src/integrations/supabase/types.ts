@@ -313,6 +313,8 @@ export type Database = {
           created_at: string
           diesel_mpg: number
           diesel_price_ppl: number
+          home_latitude: number | null
+          home_longitude: number | null
           notify_charge_complete: boolean
           notify_cheap_slots: boolean
           notify_price_alerts: boolean
@@ -331,6 +333,8 @@ export type Database = {
           created_at?: string
           diesel_mpg?: number
           diesel_price_ppl?: number
+          home_latitude?: number | null
+          home_longitude?: number | null
           notify_charge_complete?: boolean
           notify_cheap_slots?: boolean
           notify_price_alerts?: boolean
@@ -349,6 +353,8 @@ export type Database = {
           created_at?: string
           diesel_mpg?: number
           diesel_price_ppl?: number
+          home_latitude?: number | null
+          home_longitude?: number | null
           notify_charge_complete?: boolean
           notify_cheap_slots?: boolean
           notify_price_alerts?: boolean

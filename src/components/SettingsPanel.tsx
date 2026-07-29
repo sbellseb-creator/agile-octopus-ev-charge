@@ -73,6 +73,25 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
 
   const patch = (p: Partial<AppSettings>) => void saveSettings(p);
 
+  /** Device location is only ever read from this explicit button press. */
+  const useCurrentLocation = () => {
+    if (!("geolocation" in navigator)) {
+      toast.error("This device cannot provide a location. Enter the coordinates manually.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        patch({
+          home_latitude: Number(pos.coords.latitude.toFixed(6)),
+          home_longitude: Number(pos.coords.longitude.toFixed(6)),
+        });
+        toast.success("Home charging location saved.");
+      },
+      () => toast.error("Location permission was declined. Enter the coordinates manually."),
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
+
   const saveFuel = (p: Partial<FuelSettings>) => {
     const next = { ...fuel, ...p };
     setFuel(next);

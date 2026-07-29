@@ -30,6 +30,14 @@ const FN = "tesla-charge-schedule";
  * is configured we send commands there; otherwise we call the Fleet API
  * directly and surface Tesla's "signed command required" response verbatim.
  */
+/** Strict coordinate validation: finite number in range, no strings/placeholders. */
+function coord(v: unknown, max: number): number | null {
+  if (v === null || v === undefined || v === "" || typeof v === "boolean") return null;
+  const n = typeof v === "string" ? Number(v.trim()) : Number(v);
+  if (!Number.isFinite(n) || Math.abs(n) > max) return null;
+  return n;
+}
+
 function commandBase(): { base: string; signed: boolean } {
   const proxy = Deno.env.get("TESLA_COMMAND_PROXY_URL");
   if (proxy) return { base: proxy.replace(/\/+$/, ""), signed: true };
@@ -59,10 +67,12 @@ Deno.serve(async (req) => {
     const chargeLimit = body.charge_limit_soc === undefined || body.charge_limit_soc === null ? null : Number(body.charge_limit_soc);
 
     const { base, signed } = commandBase();
+    const dryLat = coord(body.lat, 90);
+    const dryLon = coord(body.lon, 180);
 
     // ---- Dry run: never touches the network. -------------------------------
     if (action === "dry_run") {
-      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: body.lat, lon: body.lon, scheduleId });
+      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: dryLat, lon: dryLon, scheduleId });
       return json({
         dry_run: true,
         signed_path: signed,
@@ -169,37 +179,17 @@ Deno.serve(async (req) => {
     };
 
     /**
-     * Tesla charge schedules are location-bound. Fetch the current vehicle
-     * co-ordinates only after the user has explicitly confirmed the command and
-     * the vehicle is online; never on page load, never during dry runs.
+     * Tesla charge schedules are location-bound and Tesla rejects the command
+     * with HTTP 400 "param is missing ... lat" when lat/lon are absent.
+     *
+     * The coordinates always come from the user's SAVED home charging location
+     * (Settings). We never read the phone's live location here and we never
+     * call the vehicle just to obtain a position, so preparing or sending a
+     * schedule cannot wake the car for location purposes.
      */
-    const scheduleLocation = async (): Promise<{ lat: number; lon: number } | { error: string; code: string }> => {
-      const bodyLat = Number(body.lat);
-      const bodyLon = Number(body.lon);
-      if (Number.isFinite(bodyLat) && Number.isFinite(bodyLon)) return { lat: bodyLat, lon: bodyLon };
-
-      const locRes = await fetch(
-        `${FLEET_BASE}/api/1/vehicles/${vehicleId}/vehicle_data?endpoints=drive_state`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      const locText = await locRes.text();
-      if (!locRes.ok) {
-        const explained = explainTeslaFailure(locRes.status, locText);
-        return { error: explained.message, code: explained.code };
-      }
-
-      const loc = JSON.parse(locText || "{}");
-      const driveState = loc?.response?.drive_state ?? {};
-      const lat = Number(driveState.latitude ?? driveState.active_route_latitude);
-      const lon = Number(driveState.longitude ?? driveState.active_route_longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return {
-          error: "Tesla did not return the car's location, so a location-based charge schedule could not be created. Open the Tesla app once, confirm location sharing is available, then try Send to Tesla again.",
-          code: "missing_location",
-        };
-      }
-      return { lat, lon };
-    };
+    const homeLat = coord(body.lat, 90);
+    const homeLon = coord(body.lon, 180);
+    const homeLocationValid = homeLat !== null && homeLon !== null && !(homeLat === 0 && homeLon === 0);
 
     const sendCommand = async (name: string, payload: Record<string, unknown>) => {
       const res = await fetch(`${base}/api/1/vehicles/${vehicleId}/command/${name}`, {
@@ -216,6 +206,17 @@ Deno.serve(async (req) => {
       }
       return { ok: true as const, response: result ?? {} };
     };
+
+    // App-side validation happens BEFORE any vehicle contact, so an invalid
+    // request never wakes the car and is never confused with a Tesla rejection.
+    if ((action === "add" || action === "replace") && !homeLocationValid) {
+      logEvent(FN, "validation_failed", { userId, action, reason: "home_location_missing_or_invalid" }, "warn");
+      return json({
+        error: "Set your home charging location before sending a schedule to Tesla.",
+        code: "missing_home_location",
+        source: "app_validation",
+      }, 200);
+    }
 
     const awake = await ensureAwake();
     if (!awake.online) {
@@ -243,12 +244,6 @@ Deno.serve(async (req) => {
     if (action === "add" || action === "replace") {
       if (!Number.isFinite(startMinutes)) return json({ error: "start_minutes is required" }, 400);
 
-      const location = await scheduleLocation();
-      if ("error" in location) {
-        logEvent(FN, "missing_location", { userId, action, code: location.code }, "warn");
-        return json({ error: location.error, code: location.code }, 200);
-      }
-
       // Replace only ever removes a schedule this app created and recorded.
       if (action === "replace" && scheduleId) {
         const prior = await sendCommand("remove_charge_schedule", { id: scheduleId });
@@ -258,9 +253,20 @@ Deno.serve(async (req) => {
       const before = await readSchedules();
       const beforeIds = new Set((before.ok ? before.schedules : []).map((s: Record<string, unknown>) => Number(s.id)));
 
-      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: location.lat, lon: location.lon });
+      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: homeLat, lon: homeLon });
+      // Sanitised diagnostics: no VIN, no tokens, coordinates redacted to presence only.
+      logEvent(FN, "add_charge_schedule_request", {
+        userId,
+        action,
+        payload: { ...payload, lat: "[redacted]", lon: "[redacted]" },
+        has_location: true,
+      });
       const r = await sendCommand("add_charge_schedule", payload);
-      if (!r.ok) return json({ error: r.message, code: r.code, detail: r.detail, payload }, 200);
+      if (!r.ok) {
+        logEvent(FN, "tesla_rejected", { userId, action, code: r.code, detail: r.detail, source: "tesla_api" }, "error");
+        // No automatic retry: a 400 is a request problem, retrying cannot help.
+        return json({ error: r.message, code: r.code, detail: r.detail, source: "tesla_api", payload: { ...payload, lat: "[redacted]", lon: "[redacted]" } }, 200);
+      }
 
       // Tesla returns the assigned id in the command response on most firmware.
       let newId: number | null = Number(r.response?.id ?? r.response?.result?.id ?? NaN);

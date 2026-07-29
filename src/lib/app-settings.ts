@@ -19,6 +19,9 @@ export interface AppSettings {
   charger_amps: number;
   charger_kw: number;
   charging_location: string;
+  /** Saved home charging coordinates. Required by Tesla charge schedules. */
+  home_latitude: number | null;
+  home_longitude: number | null;
   /** Tariff and region */
   region: string;
   tariff: string;
@@ -38,6 +41,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   charger_amps: CHARGER_MAX_AMPS,
   charger_kw: CHARGER_MAX_KW,
   charging_location: "Home",
+  home_latitude: null,
+  home_longitude: null,
   region: "F",
   tariff: "agile",
   petrol_price_ppl: 134.9,
@@ -53,9 +58,27 @@ export const DEFAULT_SETTINGS: AppSettings = {
 const KEY = "app-settings";
 const listeners = new Set<(s: AppSettings) => void>();
 
+/** True only for a real, finite coordinate pair (never 0,0 placeholders). */
+export function hasHomeLocation(s: AppSettings): boolean {
+  const { home_latitude: lat, home_longitude: lon } = s;
+  return (
+    typeof lat === "number" && Number.isFinite(lat) && Math.abs(lat) <= 90 &&
+    typeof lon === "number" && Number.isFinite(lon) && Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0)
+  );
+}
+
+function coord(v: unknown, max: number): number | null {
+  const n = typeof v === "string" ? Number(v.trim()) : Number(v);
+  if (v === null || v === undefined || v === "" || !Number.isFinite(n) || Math.abs(n) > max) return null;
+  return n;
+}
+
 function clampCharger(s: AppSettings): AppSettings {
   return {
     ...s,
+    home_latitude: coord(s.home_latitude, 90),
+    home_longitude: coord(s.home_longitude, 180),
     charger_amps: Math.min(Number(s.charger_amps) || CHARGER_MAX_AMPS, CHARGER_MAX_AMPS),
     charger_kw: Math.min(Number(s.charger_kw) || CHARGER_MAX_KW, CHARGER_MAX_KW),
   };
@@ -107,6 +130,8 @@ export async function loadSettingsFromCloud(): Promise<AppSettings> {
       charger_amps: Number(data.charger_amps),
       charger_kw: Number(data.charger_kw),
       charging_location: data.charging_location ?? "Home",
+      home_latitude: coord((data as Record<string, unknown>).home_latitude, 90),
+      home_longitude: coord((data as Record<string, unknown>).home_longitude, 180),
       region: data.region ?? "F",
       tariff: data.tariff ?? "agile",
       petrol_price_ppl: Number(data.petrol_price_ppl),

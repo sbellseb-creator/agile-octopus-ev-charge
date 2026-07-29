@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import ReviewScheduleDialog from "@/components/ReviewScheduleDialog";
+import { buildTeslaSchedule } from "@/lib/teslaScheduler";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +68,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [startSoc, setStartSoc] = useState("20");
   const [endSoc, setEndSoc] = useState("80");
   const [notes, setNotes] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
@@ -210,6 +213,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const handleSave = () => {
     if (!estimates || !selectedVehicle || !recommendation) return;
     addSession({
+
       session_date: formatUK(new Date(), "yyyy-MM-dd"),
       vehicle_id: selectedVehicle.id,
       vehicle_name: selectedVehicle.name,
@@ -406,12 +410,32 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               <Label>Notes</Label>
               <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
             </div>
-            <Button onClick={handleSave} className="w-full gap-2">
-              <Save className="h-4 w-4" /> Save as Charge Session
-            </Button>
+           <Button
+  onClick={() => setReviewOpen(true)}
+  className="w-full gap-2"
+>
+  <Save className="h-4 w-4" />
+  Review Tesla Schedule
+</Button>
           </CardContent>
         </Card>
       )}
+    <ReviewScheduleDialog
+  open={reviewOpen}
+  onOpenChange={setReviewOpen}
+  schedule={
+    recommendation && estimates
+      ? buildTeslaSchedule({
+          slots: activeSlots,
+          startSoc: parseFloat(startSoc),
+          endSoc: parseFloat(endSoc),
+          chargerKw: CHARGER_KW,
+          batteryKwh: selectedVehicle?.battery_kwh ?? 0,
+        })
+      : undefined
+  }
+/>
+
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Car, Plug, Zap, PoundSterling, Fuel, Bell, ShieldCheck, Settings as Cog } from "lucide-react";
+import { toast } from "sonner";
 import TeslaConnect from "@/components/TeslaConnect";
 import VehicleEditForm from "@/components/vehicles/VehicleEditForm";
 import {

@@ -19,6 +19,9 @@ export interface AppSettings {
   charger_amps: number;
   charger_kw: number;
   charging_location: string;
+  /** Saved home charging coordinates. Required by Tesla charge schedules. */
+  home_latitude: number | null;
+  home_longitude: number | null;
   /** Tariff and region */
   region: string;
   tariff: string;

@@ -168,6 +168,39 @@ Deno.serve(async (req) => {
       return { woke: true, online: false };
     };
 
+    /**
+     * Tesla charge schedules are location-bound. Fetch the current vehicle
+     * co-ordinates only after the user has explicitly confirmed the command and
+     * the vehicle is online; never on page load, never during dry runs.
+     */
+    const scheduleLocation = async (): Promise<{ lat: number; lon: number } | { error: string; code: string }> => {
+      const bodyLat = Number(body.lat);
+      const bodyLon = Number(body.lon);
+      if (Number.isFinite(bodyLat) && Number.isFinite(bodyLon)) return { lat: bodyLat, lon: bodyLon };
+
+      const locRes = await fetch(
+        `${FLEET_BASE}/api/1/vehicles/${vehicleId}/vehicle_data?endpoints=drive_state`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      const locText = await locRes.text();
+      if (!locRes.ok) {
+        const explained = explainTeslaFailure(locRes.status, locText);
+        return { error: explained.message, code: explained.code };
+      }
+
+      const loc = JSON.parse(locText || "{}");
+      const driveState = loc?.response?.drive_state ?? {};
+      const lat = Number(driveState.latitude ?? driveState.active_route_latitude);
+      const lon = Number(driveState.longitude ?? driveState.active_route_longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return {
+          error: "Tesla did not return the car's location, so a location-based charge schedule could not be created. Open the Tesla app once, confirm location sharing is available, then try Send to Tesla again.",
+          code: "missing_location",
+        };
+      }
+      return { lat, lon };
+    };
+
     const sendCommand = async (name: string, payload: Record<string, unknown>) => {
       const res = await fetch(`${base}/api/1/vehicles/${vehicleId}/command/${name}`, {
         method: "POST",
@@ -210,6 +243,12 @@ Deno.serve(async (req) => {
     if (action === "add" || action === "replace") {
       if (!Number.isFinite(startMinutes)) return json({ error: "start_minutes is required" }, 400);
 
+      const location = await scheduleLocation();
+      if ("error" in location) {
+        logEvent(FN, "missing_location", { userId, action, code: location.code }, "warn");
+        return json({ error: location.error, code: location.code }, 200);
+      }
+
       // Replace only ever removes a schedule this app created and recorded.
       if (action === "replace" && scheduleId) {
         const prior = await sendCommand("remove_charge_schedule", { id: scheduleId });
@@ -219,7 +258,7 @@ Deno.serve(async (req) => {
       const before = await readSchedules();
       const beforeIds = new Set((before.ok ? before.schedules : []).map((s: Record<string, unknown>) => Number(s.id)));
 
-      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: body.lat, lon: body.lon });
+      const payload = buildAddSchedulePayload({ startMinutes, endMinutes, daysMask, oneTime, lat: location.lat, lon: location.lon });
       const r = await sendCommand("add_charge_schedule", payload);
       if (!r.ok) return json({ error: r.message, code: r.code, detail: r.detail, payload }, 200);
 

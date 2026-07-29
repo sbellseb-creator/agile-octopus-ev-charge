@@ -147,8 +147,39 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
                 <Label className="text-xs">Charging location</Label>
                 <Input value={settings.charging_location} onChange={(e) => patch({ charging_location: e.target.value })} className="w-full" />
               </div>
-              <p className="text-[11px] text-muted-foreground sm:col-span-2">
-                Your charger is fixed at 30 A / 6.9 kW. These values are shared with the planner and future optimiser.
+              <div className="min-w-0 space-y-1.5">
+                <Label className="text-xs">Home latitude</Label>
+                <Input
+                  type="number"
+                  step="0.000001"
+                  inputMode="decimal"
+                  placeholder="e.g. 51.507351"
+                  value={settings.home_latitude ?? ""}
+                  onChange={(e) => patch({ home_latitude: e.target.value === "" ? null : Number(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                <Label className="text-xs">Home longitude</Label>
+                <Input
+                  type="number"
+                  step="0.000001"
+                  inputMode="decimal"
+                  placeholder="e.g. -0.127758"
+                  value={settings.home_longitude ?? ""}
+                  onChange={(e) => patch({ home_longitude: e.target.value === "" ? null : Number(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div className="min-w-0 sm:col-span-2">
+                <Button type="button" variant="outline" size="sm" className="w-full" onClick={useCurrentLocation}>
+                  Use my current location
+                </Button>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Tesla charge schedules are tied to a location. Your device location is only read when you press this button.
+                </p>
+              </div>
+
               </p>
             </AccordionContent>
           </AccordionItem>

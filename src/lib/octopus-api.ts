@@ -7,37 +7,69 @@ export interface AgileRate {
   valid_to: string;
 }
 
-export async function fetchAgileRates(tariffCode?: string, periodFrom?: string, periodTo?: string, region?: string): Promise<AgileRate[]> {
-  const params: Record<string, string> = { action: "rates" };
-  if (tariffCode) params.tariff_code = tariffCode;
-  if (periodFrom) params.period_from = periodFrom;
-  if (periodTo) params.period_to = periodTo;
-  if (region) params.region = region;
-
-  const queryString = new URLSearchParams(params).toString();
-
-  const { data, error } = await supabase.functions.invoke("octopus-energy?" + queryString, {
-    method: "GET",
-  });
+async function invoke(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke(
+    "octopus-energy",
+    {
+      body,
+    },
+  );
 
   if (error) throw error;
-  return (data?.results || []) as AgileRate[];
+  if (data?.error) throw new Error(data.error);
+
+  return data;
 }
 
-
-export async function fetchTrackerRates(tariffCode?: string, region?: string, periodFrom?: string, periodTo?: string): Promise<AgileRate[]> {
-  const params: Record<string, string> = { action: "tracker" };
-  if (tariffCode) params.tariff_code = tariffCode;
-  if (region) params.region = region;
-  if (periodFrom) params.period_from = periodFrom;
-  if (periodTo) params.period_to = periodTo;
-
-  const queryString = new URLSearchParams(params).toString();
-
-  const { data, error } = await supabase.functions.invoke("octopus-energy?" + queryString, {
-    method: "GET",
+export async function fetchAgileRates(
+  productCode?: string,
+  periodFrom?: string,
+  periodTo?: string,
+  region?: string,
+): Promise<AgileRate[]> {
+  const data = await invoke({
+    action: "rates",
+    productCode,
+    periodFrom,
+    periodTo,
+    region,
   });
 
-  if (error) throw error;
-  return (data?.results || []) as AgileRate[];
+  return (data.results ?? []) as AgileRate[];
+}
+
+export async function fetchTrackerRates(
+  productCode?: string,
+  region?: string,
+  periodFrom?: string,
+  periodTo?: string,
+): Promise<AgileRate[]> {
+  const data = await invoke({
+    action: "tracker",
+    productCode,
+    region,
+    periodFrom,
+    periodTo,
+  });
+
+  return (data.results ?? []) as AgileRate[];
+}
+
+export async function verifyOctopusAccount(
+  apiKey: string,
+  accountNumber: string,
+) {
+  return invoke({
+    action: "verify-account",
+    apiKey,
+    accountNumber,
+  });
+}
+
+export async function fetchRegions() {
+  const data = await invoke({
+    action: "regions",
+  });
+
+  return data.regions;
 }

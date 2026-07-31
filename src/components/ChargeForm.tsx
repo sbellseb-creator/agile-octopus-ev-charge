@@ -1,3 +1,6 @@
+import { recalcSessionCost } from "@/lib/session-cost";
+import { formatUK } from "@/lib/timezone";
+import { getOctopusConfig } from "@/lib/octopus-config";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +13,7 @@ import type { Vehicle } from "@/lib/vehicle-data";
 import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
 import { recalcSessionCost } from "@/lib/session-cost";
 import { formatUK } from "@/lib/timezone";
-
+import { getOctopusConfig } from "@/lib/octopus-config";
 interface Props {
   onAdd: (data: {
     session_date: string;
@@ -96,7 +99,7 @@ export default function ChargeForm({ onAdd, vehicles }: Props) {
     debounceRef.current = window.setTimeout(async () => {
       setLoadingPrices(true);
       try {
-        const region = localStorage.getItem("agile-region") || "F";
+        const { region } = getOctopusConfig();
         const synthetic: ChargeSession = {
           id: "draft",
           session_date: date,

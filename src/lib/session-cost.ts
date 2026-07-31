@@ -1,6 +1,7 @@
 import { fromZonedTime } from "date-fns-tz";
 import { fetchAgileRates } from "@/lib/octopus-api";
 import { UK_TIMEZONE } from "@/lib/timezone";
+import { getOctopusConfig } from "@/lib/octopus-config";
 import type { CachedSlotPrice, ChargeSession } from "@/lib/charge-data";
 
 const CHARGER_KW = 6.9;
@@ -82,8 +83,16 @@ export async function recalcSessionCost(
     const periodFrom = new Date(missing[0].from.getTime() - 60 * 60 * 1000).toISOString();
     const periodTo = new Date(missing[missing.length - 1].to.getTime() + 60 * 60 * 1000).toISOString();
     try {
-      const rates = await fetchAgileRates(undefined, periodFrom, periodTo, session.region);
-      for (const r of rates) {
+  const { productCode, region } = getOctopusConfig();
+
+  const rates = await fetchAgileRates(
+    productCode,
+    periodFrom,
+    periodTo,
+    session.region ?? region,
+  );
+
+  for (const r of rates) {
         const key = new Date(r.valid_from).toISOString();
         if (!cache.has(key)) {
           cache.set(key, {

@@ -1,71 +1,80 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { getValidAccessToken } from "../_shared/teslaAuth.ts";
 
-const AUTH_BASE = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3";
-
-export async function getValidAccessToken(supabase: ReturnType<typeof createClient>, deviceId: string) {
-  const { data: conn, error } = await supabase
-    .from("tesla_connections")
-    .select("*")
-    .eq("device_id", deviceId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!conn) return null;
-
-  const expiresAt = new Date(conn.expires_at as string).getTime();
-  if (expiresAt - Date.now() > 120_000) return conn.access_token as string;
-
-  const res = await fetch(`${AUTH_BASE}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: Deno.env.get("TESLA_CLIENT_ID")!,
-      refresh_token: conn.refresh_token as string,
-    }),
+function jsonResponse(
+  body: unknown,
+  status = 200,
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
   });
-  const text = await res.text();
-  if (!res.ok) {
-    console.error("Tesla refresh failed:", res.status, text);
-    throw new Error(`Tesla token refresh failed (${res.status})`);
-  }
-  const token = JSON.parse(text);
-  await supabase
-    .from("tesla_connections")
-    .update({
-      access_token: token.access_token,
-      refresh_token: token.refresh_token ?? conn.refresh_token,
-      expires_at: new Date(Date.now() + (Number(token.expires_in) || 28800) * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("device_id", deviceId);
-  return token.access_token as string;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  try {
-    const body = await req.json().catch(() => ({}));
-    const deviceId = String(body.device_id ?? "");
-    if (!deviceId) {
-      return new Response(JSON.stringify({ error: "device_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: corsHeaders,
+    });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(
+      { error: "Method not allowed" },
+      405,
     );
-    const token = await getValidAccessToken(supabase, deviceId);
-    return new Response(JSON.stringify({ connected: Boolean(token) }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const deviceId = String(body.device_id ?? "").trim();
+
+    if (!deviceId) {
+      return jsonResponse(
+        { error: "device_id is required" },
+        400,
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get(
+      "SUPABASE_SERVICE_ROLE_KEY",
+    );
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error(
+        "Supabase server environment is not configured",
+      );
+    }
+
+    const supabase = createClient(
+      supabaseUrl,
+      serviceRoleKey,
+    );
+
+    const accessToken = await getValidAccessToken(
+      supabase,
+      deviceId,
+    );
+
+    return jsonResponse({
+      connected: Boolean(accessToken),
     });
-  } catch (e) {
-    console.error("tesla-refresh-token error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    console.error("tesla-refresh-token error:", error);
+
+    return jsonResponse(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error",
+      },
+      500,
+    );
   }
 });

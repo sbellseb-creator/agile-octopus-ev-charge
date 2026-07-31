@@ -1,0 +1,19 @@
+* [33m7620a26[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtesla-v1-work[m[33m)[m Add Tesla schedule review dialog
+* [33m5d246d4[m Add Tesla scheduler domain model
+* [33mdb8c30c[m[33m ([m[1;31morigin/tesla-v1-work[m[33m)[m Only wake Tesla on manual refresh
+* [33m807618c[m Separate passive Tesla load from manual wake refresh
+* [33m786c2c8[m Add Tesla range display and initial vehicle wake support
+* [33m89b7c5a[m Show registration instead of VIN
+* [33m17a9ea6[m Host Tesla Fleet API public key
+*   [33m9004c8a[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Wired Tesla auth into UI
+[32m|[m[33m\[m  
+[32m|[m * [33m8987523[m Changes
+[32m|[m * [33mde6fccc[m Changes
+[32m|[m * [33m06929fc[m Changes
+[32m|[m[32m/[m  
+* [33m9816c6d[m Reverted to commit 3118086d062fa7696a4f0d443f37397a50407e2f
+*   [33m97800f8[m Added Tesla OAuth UI
+[34m|[m[35m\[m  
+[34m|[m * [33mcb3a431[m Changes
+[34m|[m * [33m07c7e08[m Changes
+[34m|[m[34m/[m  

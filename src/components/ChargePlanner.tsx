@@ -424,13 +424,16 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   open={reviewOpen}
   onOpenChange={setReviewOpen}
   schedule={
-    recommendation && estimates
+    selectedVehicle && recommendation && estimates
       ? buildTeslaSchedule({
+          vehicle: selectedVehicle,
           slots: activeSlots,
-          startSoc: parseFloat(startSoc),
-          endSoc: parseFloat(endSoc),
-          chargerKw: CHARGER_KW,
-          batteryKwh: selectedVehicle?.battery_kwh ?? 0,
+          home: {
+            latitude: 54.971225737400076,
+            longitude: -1.422143704414994,
+          },
+          estimatedCost: estimates.totalCost,
+          estimatedEnergyKwh: estimates.plannedKwh,
         })
       : undefined
   }

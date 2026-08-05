@@ -40,16 +40,6 @@ async function requireUserId(): Promise<string | null> {
   return data.user.id;
 }
 
-/**
- * One-time migration: vehicles created before authentication existed have no
- * owner. Claim them for the signed-in user so no data is lost.
- */
-export async function claimLegacyVehicles(): Promise<void> {
-  const userId = await requireUserId();
-  if (!userId) return;
-  const { error } = await supabase.from("vehicles").update({ user_id: userId }).is("user_id", null);
-  if (error) console.error("Failed to claim legacy vehicles:", error.message);
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toVehicle(d: any): Vehicle {

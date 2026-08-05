@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchWeatherForecast, weatherCodeToEmoji, weatherCodeToLabel, type AgileBaseline } from "@/lib/weather-api";
 import { fetchAgileRates } from "@/lib/octopus-api";
+import { getOctopusConfig } from "@/lib/octopus-config";
 import { CloudSun, Wind, Sun, TrendingDown, TrendingUp, Minus, Loader2, Sparkles } from "lucide-react";
 import { parseISO } from "date-fns";
 import { formatUK } from "@/lib/timezone";
@@ -33,7 +34,14 @@ function percentile(sorted: number[], p: number): number {
 }
 
 export default function WeatherForecast() {
-  const [region, setRegion] = useState("F");
+  const initialOctopusConfig = useMemo(
+    () => getOctopusConfig(),
+    [],
+  );
+
+  const [region, setRegion] = useState(
+    initialOctopusConfig.region,
+  );
 
   const { data: baseline } = useQuery<AgileBaseline>({
     queryKey: ["agile-baseline", region],

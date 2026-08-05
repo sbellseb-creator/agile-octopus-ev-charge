@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchTrackerRates } from "@/lib/octopus-api";
+import { getOctopusConfig } from "@/lib/octopus-config";
 import { Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { parseISO, subDays, addDays, startOfDay } from "date-fns";
 import { formatUK, getUKDayKey } from "@/lib/timezone";
@@ -35,6 +36,15 @@ function changeTextClass(pct: number): string {
 
 export default function TrackerRates() {
   const now = useMemo(() => new Date(), []);
+
+  const initialOctopusConfig = useMemo(
+    () => getOctopusConfig(),
+    [],
+  );
+
+  const trackerProductCode = "SILVER-24-10-01";
+  const region = initialOctopusConfig.region;
+
   const [period, setPeriod] = useState<Period>("week");
 
   const periodFrom = useMemo(() => {
@@ -48,8 +58,20 @@ export default function TrackerRates() {
   }, [now]);
 
   const { data: rates, isLoading, error } = useQuery({
-    queryKey: ["tracker-rates", periodFrom, periodTo],
-    queryFn: () => fetchTrackerRates("SILVER-24-10-01", "F", periodFrom, periodTo),
+    queryKey: [
+      "tracker-rates",
+      trackerProductCode,
+      region,
+      periodFrom,
+      periodTo,
+    ],
+    queryFn: () =>
+      fetchTrackerRates(
+        trackerProductCode,
+        region,
+        periodFrom,
+        periodTo,
+      ),
     refetchInterval: 60 * 60 * 1000,
     retry: 2,
     staleTime: 30 * 60 * 1000,
@@ -143,7 +165,7 @@ export default function TrackerRates() {
             <CardTitle className="text-sm sm:text-lg">
               Tracker Price History
               <span className="text-[10px] sm:text-xs text-muted-foreground font-normal ml-2">
-                SILVER-24-10-01 · North East
+                {trackerProductCode} · Region {region}
               </span>
             </CardTitle>
             <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>

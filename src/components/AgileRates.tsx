@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from "recharts";
 import { fetchAgileRates } from "@/lib/octopus-api";
+import { getOctopusConfig } from "@/lib/octopus-config";
 import { addSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } from "lucide-react";
@@ -178,15 +179,37 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     return tomorrow.toISOString();
   }, [now]);
 
-  const [region, setRegion] = useState("F");
+  const initialOctopusConfig = useMemo(
+    () => getOctopusConfig(),
+    [],
+  );
+
+  const [region, setRegion] = useState(
+    initialOctopusConfig.region,
+  );
+
+  const productCode = initialOctopusConfig.productCode;
+
   const [saveNotes, setSaveNotes] = useState("");
   const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
 
   const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
 
   const { data: rates, isLoading, error } = useQuery({
-    queryKey: ["agile-rates", periodFrom, region],
-    queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo, region),
+    queryKey: [
+      "agile-rates",
+      productCode,
+      periodFrom,
+      periodTo,
+      region,
+    ],
+    queryFn: () =>
+      fetchAgileRates(
+        productCode,
+        periodFrom,
+        periodTo,
+        region,
+      ),
     refetchInterval: 30 * 60 * 1000,
     retry: 2,
     staleTime: 5 * 60 * 1000,
@@ -490,7 +513,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
                       total_cost_gbp: parseFloat(selectedCost.totalCost),
                       avg_pence_per_kwh: parseFloat(selectedCost.avgPrice),
                       num_slots: selectedCost.slots,
-                      tariff_code: "AGILE-24-10-01",
+                      tariff_code: productCode,
                       notes: saveNotes,
                       region,
                       slot_prices: sorted.map(w => ({ valid_from: w.valid_from, valid_to: w.valid_to, value_inc_vat: w.price })),

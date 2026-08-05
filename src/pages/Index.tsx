@@ -3,7 +3,7 @@ import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogO
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
-import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, claimLegacyVehicles } from "@/lib/vehicle-data";
+import { loadVehicles, addVehicle, updateVehicle, deleteVehicle } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { useAuth } from "@/hooks/useAuth";
 import ChargeForm from "@/components/ChargeForm";
@@ -32,10 +32,7 @@ export default function Index() {
   const { signOut } = useAuth();
 
   useEffect(() => {
-    // Claim any pre-authentication vehicle rows, then load.
-    claimLegacyVehicles().finally(() => {
-      loadVehicles().then(setVehicles);
-    });
+    void loadVehicles().then(setVehicles);
     void loadSettingsFromCloud();
     const reload = () => void loadVehicles().then(setVehicles);
     window.addEventListener("vehicles:updated", reload);

@@ -1,21 +1,43 @@
-import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Briefcase,
+  CalendarClock,
+  Car,
+  CloudSun,
+  Gauge,
+  Settings,
+  TrendingDown,
+  Zap,
+} from "lucide-react";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
-import { loadVehicles, addVehicle, deleteVehicle } from "@/lib/vehicle-data";
-import type { Vehicle } from "@/lib/vehicle-data";
-import ChargeForm from "@/components/ChargeForm";
-import ChargeCharts from "@/components/ChargeCharts";
-import ChargeTable from "@/components/ChargeTable";
-import ChargeStats from "@/components/ChargeStats";
-import VehicleManager from "@/components/VehicleManager";
+
 import AgileRates from "@/components/AgileRates";
+import ChargeCharts from "@/components/ChargeCharts";
+import ChargeForm from "@/components/ChargeForm";
 import ChargePlanner from "@/components/ChargePlanner";
-import TrackerRates from "@/components/TrackerRates";
-import WeatherForecast from "@/components/WeatherForecast";
+import ChargeStats from "@/components/ChargeStats";
+import ChargeTable from "@/components/ChargeTable";
 import FuelComparison from "@/components/FuelComparison";
-import WorkCosts from "@/components/WorkCosts";
+import OctopusConnect from "@/components/OctopusConnect";
 import TariffComparison from "@/components/TariffComparison";
+import TrackerRates from "@/components/TrackerRates";
+import VehicleManager from "@/components/VehicleManager";
+import WeatherForecast from "@/components/WeatherForecast";
+import WorkCosts from "@/components/WorkCosts";
+
+import {
+  addSession,
+  deleteSession,
+  loadSessions,
+  updateSession,
+} from "@/lib/charge-data";
+import {
+  addVehicle,
+  deleteVehicle,
+  loadVehicles,
+} from "@/lib/vehicle-data";
+import type { Vehicle } from "@/lib/vehicle-data";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -25,59 +47,126 @@ export default function Index() {
     loadVehicles().then(setVehicles);
   }, []);
 
-  const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
-  const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
-  const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
-  
-  const handleAddVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
-    const updated = await addVehicle(v);
-    setVehicles(updated);
-  }, []);
-  
+  const handleAddSession = (
+    data: Parameters<typeof addSession>[0],
+  ) => {
+    setSessions(addSession(data));
+  };
+
+  const handleDeleteSession = (id: string) => {
+    setSessions(deleteSession(id));
+  };
+
+  const handleUpdateSession = (
+    id: string,
+    updates: Partial<Parameters<typeof updateSession>[1]>,
+  ) => {
+    setSessions(updateSession(id, updates));
+  };
+
+  const handleAddVehicle = useCallback(
+    async (vehicle: Omit<Vehicle, "id">) => {
+      const updated = await addVehicle(vehicle);
+      setVehicles(updated);
+    },
+    [],
+  );
+
   const handleDeleteVehicle = useCallback(async (id: string) => {
     const updated = await deleteVehicle(id);
     setVehicles(updated);
   }, []);
+
+  const refreshSessions = () => {
+    setSessions(loadSessions());
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container flex items-center gap-3 py-4">
           <Zap className="h-7 w-7 text-primary" />
-          <h1 className="text-xl font-bold tracking-tight">EV Charge Tracker</h1>
+          <h1 className="text-xl font-bold tracking-tight">
+            EV Charge Tracker
+          </h1>
         </div>
       </header>
 
       <main className="container py-6">
         <Tabs defaultValue="agile" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full h-auto p-1 gap-1">
-            <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <TrendingDown className="h-4 w-4 shrink-0" /> Agile
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1">
+            <TabsTrigger
+              value="agile"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <TrendingDown className="h-4 w-4 shrink-0" />
+              Agile
             </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Gauge className="h-4 w-4 shrink-0" /> Tracker
+
+            <TabsTrigger
+              value="tracker"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <Gauge className="h-4 w-4 shrink-0" />
+              Tracker
             </TabsTrigger>
-            <TabsTrigger value="forecast" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <CloudSun className="h-4 w-4 shrink-0" /> Forecast
+
+            <TabsTrigger
+              value="forecast"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <CloudSun className="h-4 w-4 shrink-0" />
+              Forecast
             </TabsTrigger>
           </TabsList>
-          <TabsList className="grid grid-cols-4 w-full h-auto p-1 gap-1">
-            <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <CalendarClock className="h-4 w-4 shrink-0" /> Planner
+
+          <TabsList className="grid h-auto w-full grid-cols-5 gap-1 p-1">
+            <TabsTrigger
+              value="planner"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <CalendarClock className="h-4 w-4 shrink-0" />
+              Planner
             </TabsTrigger>
-            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Zap className="h-4 w-4 shrink-0" /> Sessions
+
+            <TabsTrigger
+              value="charging"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <Zap className="h-4 w-4 shrink-0" />
+              Sessions
             </TabsTrigger>
-            <TabsTrigger value="work" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Briefcase className="h-4 w-4 shrink-0" /> Work
+
+            <TabsTrigger
+              value="work"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <Briefcase className="h-4 w-4 shrink-0" />
+              Work
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Car className="h-4 w-4 shrink-0" /> Vehicles
+
+            <TabsTrigger
+              value="vehicles"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <Car className="h-4 w-4 shrink-0" />
+              Vehicles
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="settings"
+              className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:flex-row sm:gap-1.5 sm:text-sm"
+            >
+              <Settings className="h-4 w-4 shrink-0" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="agile" className="space-y-6">
-            <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+            <AgileRates
+              vehicles={vehicles}
+              onSessionSaved={refreshSessions}
+            />
             <TariffComparison />
           </TabsContent>
 
@@ -90,23 +179,51 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="planner" className="space-y-6">
-            <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+            <ChargePlanner
+              vehicles={vehicles}
+              onSessionSaved={refreshSessions}
+            />
           </TabsContent>
 
           <TabsContent value="charging" className="space-y-6">
             <ChargeStats sessions={sessions} />
-            <FuelComparison sessions={sessions} vehicles={vehicles} />
+
+            <FuelComparison
+              sessions={sessions}
+              vehicles={vehicles}
+            />
+
             <ChargeCharts sessions={sessions} />
-            <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
-            <ChargeTable sessions={sessions} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} />
+
+            <ChargeForm
+              onAdd={handleAddSession}
+              vehicles={vehicles}
+            />
+
+            <ChargeTable
+              sessions={sessions}
+              onDelete={handleDeleteSession}
+              onUpdate={handleUpdateSession}
+            />
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">
-            <WorkCosts sessions={sessions} vehicles={vehicles} />
+            <WorkCosts
+              sessions={sessions}
+              vehicles={vehicles}
+            />
           </TabsContent>
 
           <TabsContent value="vehicles" className="space-y-6">
-            <VehicleManager vehicles={vehicles} onAdd={handleAddVehicle} onDelete={handleDeleteVehicle} />
+            <VehicleManager
+              vehicles={vehicles}
+              onAdd={handleAddVehicle}
+              onDelete={handleDeleteVehicle}
+            />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <OctopusConnect />
           </TabsContent>
         </Tabs>
       </main>

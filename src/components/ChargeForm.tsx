@@ -11,9 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Loader2 } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
-import { recalcSessionCost } from "@/lib/session-cost";
-import { formatUK } from "@/lib/timezone";
-import { getOctopusConfig } from "@/lib/octopus-config";
 interface Props {
   onAdd: (data: {
     session_date: string;

@@ -82,21 +82,61 @@ export default function WorkMileageCard({
 }: WorkMileageCardProps) {
   const { toast } = useToast();
 
-  const vehicle = useMemo(
-    () =>
+  const [teslaVehicle, setTeslaVehicle] =
+    useState<TeslaVehicle | null>(null);
+  const [teslaChecked, setTeslaChecked] =
+    useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await listTeslaVehicles(false);
+
+        if (cancelled) return;
+
+        setTeslaVehicle(
+          response.connected
+            ? response.vehicles[0] ?? null
+            : null,
+        );
+      } catch {
+        if (!cancelled) setTeslaVehicle(null);
+      } finally {
+        if (!cancelled) setTeslaChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const vehicle = useMemo(() => {
+    if (!teslaVehicle) return undefined;
+
+    const saved =
       vehicles.find(
         (item) =>
-          item.is_default &&
-          item.source === "tesla" &&
-          Boolean(item.vin),
+          item.vin &&
+          teslaVehicle.vin &&
+          item.vin === teslaVehicle.vin,
       ) ??
       vehicles.find(
         (item) =>
-          item.source === "tesla" &&
-          Boolean(item.vin),
-      ),
-    [vehicles],
-  );
+          item.tesla_vehicle_id ===
+          String(teslaVehicle.id),
+      );
+
+    return (
+      saved ?? {
+        id: String(teslaVehicle.id),
+        name: teslaVehicle.display_name || "Tesla",
+        vin: teslaVehicle.vin,
+      } as Vehicle
+    );
+  }, [teslaVehicle, vehicles]);
 
   const [trip, setTrip] = useState<WorkTrip | null>(
     null,

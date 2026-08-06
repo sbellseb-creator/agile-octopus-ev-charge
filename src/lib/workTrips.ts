@@ -88,12 +88,6 @@ export async function getCurrentOdometer(
     throw new Error(error.message);
   }
 
-  if (data?.connected === false) {
-    throw new Error(
-      "Tesla is not connected. Connect your Tesla in Settings to track mileage automatically.",
-    );
-  }
-
   if (data?.error) {
     throw new Error(data.error);
   }
@@ -105,7 +99,6 @@ export async function getCurrentOdometer(
       "Tesla did not return a valid odometer reading.",
     );
   }
-
 
   return odometer;
 }

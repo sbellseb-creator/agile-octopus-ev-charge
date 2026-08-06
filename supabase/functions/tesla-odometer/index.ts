@@ -74,14 +74,14 @@ Deno.serve(async (request) => {
     );
 
     if (!accessToken) {
-      // Not an error condition: the user simply has no Tesla linked.
-      // Return 200 so the client can handle it gracefully.
-      return jsonResponse({
-        connected: false,
-        odometer_miles: null,
-      });
+      return jsonResponse(
+        {
+          connected: false,
+          error: "Tesla is not connected",
+        },
+        401,
+      );
     }
-
 
     if (wake) {
       const wakeResponse = await fetch(

@@ -12,8 +12,19 @@ import {
   Play,
   Route,
   Square,
+  Trash2,
 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 
 import type { Vehicle } from "@/lib/vehicle-data";
 import {
+  deleteWorkTrip,
   displayMiles,
   endWorkTrip,
   formatTripDate,
@@ -111,6 +123,12 @@ export default function WorkMileageCard({
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingTripId, setDeletingTripId] = useState<
+    string | null
+  >(null);
+  const [tripToDelete, setTripToDelete] = useState<
+    WorkTrip | null
+  >(null);
   const [lastMileageUpdate, setLastMileageUpdate] =
     useState<Date | null>(null);
 
@@ -284,6 +302,40 @@ export default function WorkMileageCard({
       });
     } finally {
       setWorking(false);
+    }
+  }
+
+  async function removeTrip(item: WorkTrip) {
+setDeletingTripId(item.id);
+
+    try {
+      await deleteWorkTrip(item.id);
+
+      setRecentTrips((current) =>
+        current.filter((tripItem) => tripItem.id !== item.id)
+      );
+
+      if (completedTrip?.id === item.id) {
+        setCompletedTrip(null);
+      }
+
+      setTripToDelete(null);
+
+      toast({
+        title: "Business trip deleted",
+        description: "The trip has been removed.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not delete business trip",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingTripId(null);
     }
   }
 
@@ -531,17 +583,90 @@ export default function WorkMileageCard({
                     </div>
                   </div>
 
-                  <p className="text-lg font-semibold">
-                    {displayMiles(
-                      item.distance_miles,
-                    )}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-lg font-semibold">
+                      {displayMiles(
+                        item.distance_miles,
+                      )}
+                    </p>
+
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Delete business trip"
+                      title="Delete business trip"
+                      disabled={deletingTripId === item.id}
+                      onClick={() => setTripToDelete(item)}
+                    >
+                      {deletingTripId === item.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </section>
       </CardContent>
+
+      <AlertDialog
+        open={tripToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && deletingTripId === null) {
+            setTripToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete business trip?
+            </AlertDialogTitle>
+
+            <AlertDialogDescription>
+              This will permanently delete this business trip.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={deletingTripId !== null}
+            >
+              Cancel
+            </AlertDialogCancel>
+
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={
+                tripToDelete === null ||
+                deletingTripId === tripToDelete.id
+              }
+              onClick={(event) => {
+                event.preventDefault();
+
+                if (tripToDelete) {
+                  void removeTrip(tripToDelete);
+                }
+              }}
+            >
+              {tripToDelete &&
+              deletingTripId === tripToDelete.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete Trip"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

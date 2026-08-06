@@ -268,6 +268,22 @@ export async function endWorkTrip(args: {
   };
 }
 
+export async function deleteWorkTrip(
+  tripId: string,
+): Promise<void> {
+  const userId = await getSignedInUserId();
+
+  const { error } = await (supabase as any)
+    .from("work_trips")
+    .delete()
+    .eq("id", tripId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export function displayMiles(
   value: number | null | undefined,
 ): string {

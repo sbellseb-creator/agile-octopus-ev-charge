@@ -134,6 +134,95 @@ async function loadChargeState(
   };
 }
 
+
+interface LocalTeslaVehicle {
+  id: string;
+  vin: string;
+  display_name: string;
+}
+
+async function syncTeslaVehicle(
+  supabase: ReturnType<typeof createClient>,
+  vehicle: LocalTeslaVehicle,
+): Promise<void> {
+  const { data: existing, error: findError } = await supabase
+    .from("vehicles")
+    .select("id")
+    .eq("tesla_vehicle_id", vehicle.id)
+    .maybeSingle();
+
+  if (findError) {
+    console.error(
+      "Could not find local Tesla vehicle:",
+      findError,
+    );
+    return;
+  }
+
+  const teslaFields = {
+    source: "tesla",
+    vin: vehicle.vin,
+    tesla_vehicle_id: vehicle.id,
+    registration: "ND74 VCA",
+    paint_colour: "Quicksilver",
+  };
+
+  if (existing?.id) {
+    const { error: updateError } = await supabase
+      .from("vehicles")
+      .update(teslaFields)
+      .eq("id", existing.id);
+
+    if (updateError) {
+      console.error(
+        "Could not update local Tesla vehicle:",
+        updateError,
+      );
+    }
+
+    return;
+  }
+
+  // Ensure the Tesla becomes the default vehicle.
+  const { error: defaultError } = await supabase
+    .from("vehicles")
+    .update({ is_default: false })
+    .eq("is_default", true);
+
+  if (defaultError) {
+    console.error(
+      "Could not clear existing default vehicle:",
+      defaultError,
+    );
+  }
+
+  const { error: insertError } = await supabase
+    .from("vehicles")
+    .insert({
+      name:
+        vehicle.display_name &&
+        vehicle.display_name.toLowerCase() !== "tesla"
+          ? vehicle.display_name
+          : "My Model Y",
+      make: "Tesla",
+      model: "Model Y Long Range RWD",
+      battery_kwh: 75,
+      charge_efficiency_pct: 93,
+      miles_per_kwh: 3.9,
+      is_default: true,
+      color: "#b8bcc2",
+      notes: "Automatically linked from Tesla Fleet API.",
+      ...teslaFields,
+    });
+
+  if (insertError) {
+    console.error(
+      "Could not create local Tesla vehicle:",
+      insertError,
+    );
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", {
@@ -259,7 +348,7 @@ Deno.serve(async (request) => {
         vin,
       );
 
-      vehicles.push({
+      const mappedVehicle = {
         id: String(vehicle.id),
         vin,
         vin_last4: vin.slice(-4),
@@ -274,6 +363,14 @@ Deno.serve(async (request) => {
           chargeState.chargingState,
         charge_limit_soc:
           chargeState.chargeLimitSoc,
+      };
+
+      vehicles.push(mappedVehicle);
+
+      await syncTeslaVehicle(supabase, {
+        id: mappedVehicle.id,
+        vin: mappedVehicle.vin,
+        display_name: mappedVehicle.display_name,
       });
     }
 

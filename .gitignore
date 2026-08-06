@@ -25,3 +25,6 @@ dist-ssr
 
 # Tesla Fleet API keys
 tesla-keys/
+.tesla-proxy/
+.tesla-vps-deploy/
+.local-secrets/

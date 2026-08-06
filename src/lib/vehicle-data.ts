@@ -11,6 +11,11 @@ export interface Vehicle {
   is_default: boolean;
   color: string;
   notes: string;
+  source?: string;
+  vin?: string;
+  registration?: string;
+  tesla_vehicle_id?: string;
+  paint_colour?: string;
 }
 
 export async function loadVehicles(): Promise<Vehicle[]> {
@@ -33,6 +38,11 @@ export async function loadVehicles(): Promise<Vehicle[]> {
     is_default: d.is_default,
     color: d.color ?? "#22c55e",
     notes: d.notes ?? "",
+    source: d.source ?? "manual",
+    vin: d.vin ?? undefined,
+    registration: d.registration ?? undefined,
+    tesla_vehicle_id: d.tesla_vehicle_id ?? undefined,
+    paint_colour: d.paint_colour ?? undefined,
   }));
 }
 

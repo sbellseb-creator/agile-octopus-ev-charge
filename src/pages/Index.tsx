@@ -25,6 +25,7 @@ import TrackerRates from "@/components/TrackerRates";
 import VehicleManager from "@/components/VehicleManager";
 import WeatherForecast from "@/components/WeatherForecast";
 import WorkCosts from "@/components/WorkCosts";
+import WorkMileageCard from "@/components/WorkMileageCard";
 
 import {
   addSession,
@@ -208,6 +209,8 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">
+            <WorkMileageCard vehicles={vehicles} />
+
             <WorkCosts
               sessions={sessions}
               vehicles={vehicles}

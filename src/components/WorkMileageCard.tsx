@@ -28,6 +28,10 @@ import { useToast } from "@/hooks/use-toast";
 
 import type { Vehicle } from "@/lib/vehicle-data";
 import {
+  listTeslaVehicles,
+  type TeslaVehicle,
+} from "@/lib/tesla";
+import {
   displayMiles,
   endWorkTrip,
   formatTripDate,
@@ -366,7 +370,7 @@ export default function WorkMileageCard({
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {loading ? (
+        {loading || !teslaChecked ? (
           <div className="flex items-center gap-2 py-5 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading business trips…

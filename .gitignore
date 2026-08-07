@@ -37,3 +37,4 @@ tesla-keys/
 # Temporary migration/reference export
 cloud-sync-migrations.txt
 .env
+supabase/.temp/

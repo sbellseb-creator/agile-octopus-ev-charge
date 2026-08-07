@@ -25,3 +25,15 @@ dist-ssr
 
 # Tesla Fleet API keys
 tesla-keys/
+
+# Local development secrets and private infrastructure
+.local-secrets/
+.tesla-proxy/
+.tesla-vps-deploy/
+
+# Local environment backups
+.env.before-owned-supabase-*
+
+# Temporary migration/reference export
+cloud-sync-migrations.txt
+.env

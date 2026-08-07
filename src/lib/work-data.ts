@@ -36,7 +36,7 @@ export const SUGGESTED_RATES: { label: string; value: number; detail: string }[]
 ];
 
 registerEntity({
-  table: "work_trips",
+  table: "work_cost_trips",
   storageKey: STORAGE_KEY,
   sort: (a: WorkTrip, b: WorkTrip) => b.trip_date.localeCompare(a.trip_date),
   toRow: (t: WorkTrip) => ({

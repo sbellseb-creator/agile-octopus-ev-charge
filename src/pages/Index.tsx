@@ -17,6 +17,7 @@ import TrackerRates from "@/components/TrackerRates";
 import WeatherForecast from "@/components/WeatherForecast";
 import FuelComparison from "@/components/FuelComparison";
 import WorkCosts from "@/components/WorkCosts";
+import WorkMileageCard from "@/components/WorkMileageCard";
 import TariffComparison from "@/components/TariffComparison";
 import SyncIndicator from "@/components/SyncIndicator";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -154,6 +155,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">
+            <WorkMileageCard vehicles={vehicles} />
             <WorkCosts sessions={sessions} vehicles={vehicles} />
           </TabsContent>
 

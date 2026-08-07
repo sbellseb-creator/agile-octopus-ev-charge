@@ -9,6 +9,7 @@ import { recalcSessionCost } from "@/lib/session-cost";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatUK } from "@/lib/timezone";
+import { formatUKDate } from "@/lib/date";
 
 type Period = "week" | "month" | "year" | "all";
 
@@ -24,11 +25,6 @@ function filterByPeriod(sessions: ChargeSession[], period: Period): ChargeSessio
 }
 
 /** Format YYYY-MM-DD to DD-MM-YY */
-function formatUkDate(dateStr: string): string {
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  return `${parts[2]}-${parts[1]}-${parts[0].slice(2)}`;
-}
 
 const CHARGER_KW = 6.9;
 
@@ -76,7 +72,7 @@ function SessionCard({
       <Card className="border-primary/40">
         <CardContent className="p-3 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">#{sessionNumber} · {formatUkDate(s.session_date)}</span>
+            <span className="text-sm font-medium">#{sessionNumber} · {formatUKDate(s.session_date)}</span>
             <div className="flex gap-1">
               <Button variant="ghost" size="icon" onClick={onSave} disabled={isSaving} className="text-primary h-7 w-7">
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -135,7 +131,7 @@ function SessionCard({
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 #{sessionNumber}
               </Badge>
-              <span className="text-sm font-semibold">{formatUkDate(s.session_date)}</span>
+              <span className="text-sm font-semibold">{formatUKDate(s.session_date)}</span>
               {(s.start_time || s.end_time) && (
                 <span className="text-xs text-muted-foreground">
                   {s.start_time || "?"} – {s.end_time || "?"}

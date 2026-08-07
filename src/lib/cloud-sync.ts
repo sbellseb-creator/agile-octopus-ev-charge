@@ -99,7 +99,7 @@ export function restoreBackup(storageKey: string): boolean {
 /* -------------------------------------------------------------- sync engine */
 
 export interface EntitySync<TLocal extends SyncedRecord, TRow> {
-  table: "charge_sessions" | "work_trips";
+  table: "charge_sessions" | "work_cost_trips";
   storageKey: string;
   /** local record -> database row (without user_id) */
   toRow: (local: TLocal) => Record<string, unknown>;
@@ -139,13 +139,13 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   const tombs = readTombstones(storageKey);
   if (tombs.length) {
     const ids = tombs.map((t) => t.local_id);
-    const { error } = await supabase.from(table).delete().eq("user_id", userId).in("local_id", ids);
+    const { error } = await (supabase as any).from(table).delete().eq("user_id", userId).in("local_id", ids);
     if (error) throw new SyncError(`${table} delete: ${error.message}`, table);
     clearTombstones(storageKey, ids);
   }
 
   // 2. Pull remote state.
-  const { data: remoteRows, error: pullErr } = await supabase.from(table).select("*").eq("user_id", userId);
+  const { data: remoteRows, error: pullErr } = await (supabase as any).from(table).select("*").eq("user_id", userId);
   if (pullErr) throw new SyncError(`${table} read: ${pullErr.message}`, table);
   const remote = (remoteRows ?? []) as unknown as TRow[];
   const remoteByLocalId = new Map<string, TRow>();
@@ -167,13 +167,13 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   if (toPush.length) {
     const rows = toPush.map((l) => ({ ...cfg.toRow(l), user_id: userId, local_id: l.id, source_device: deviceId() }));
     // onConflict on (user_id, local_id) makes repeated imports idempotent.
-    const { error } = await supabase.from(table).upsert(rows as never, { onConflict: "user_id,local_id" });
+    const { error } = await (supabase as any).from(table).upsert(rows as never, { onConflict: "user_id,local_id" });
     if (error) {
       // One bad legacy record must not block the whole device from syncing.
       // Retry record by record and quarantine only the offenders.
       const failures: string[] = [];
       for (const row of rows) {
-        const { error: rowErr } = await supabase
+        const { error: rowErr } = await (supabase as any)
           .from(table)
           .upsert([row] as never, { onConflict: "user_id,local_id" });
         if (rowErr) failures.push(`${row.local_id}: ${rowErr.message}`);
@@ -188,7 +188,7 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   }
 
   // 4. Re-read the authoritative state and mirror it locally.
-  const { data: finalRows, error: finalErr } = await supabase.from(table).select("*").eq("user_id", userId);
+  const { data: finalRows, error: finalErr } = await (supabase as any).from(table).select("*").eq("user_id", userId);
   if (finalErr) throw new SyncError(`${table} read: ${finalErr.message}`, table);
   const merged = ((finalRows ?? []) as unknown as TRow[]).map(cfg.toLocal).sort(cfg.sort);
   writeJSON(storageKey, merged);

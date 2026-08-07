@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -39,13 +38,22 @@ export default function Auth() {
 
   const google = async () => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (result.error) {
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
       setBusy(false);
-      return toast({ title: "Google sign-in failed", description: String(result.error.message ?? result.error), variant: "destructive" });
+      return toast({
+        title: "Google sign-in failed",
+        description: error.message,
+        variant: "destructive",
+      });
     }
-    if (result.redirected) return;
-    navigate("/", { replace: true });
   };
 
   return (

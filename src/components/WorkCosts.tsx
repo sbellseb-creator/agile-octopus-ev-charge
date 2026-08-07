@@ -21,6 +21,7 @@ import type { ChargeSession } from "@/lib/charge-data";
 import type { Vehicle } from "@/lib/vehicle-data";
 import { toast } from "sonner";
 import { formatUK } from "@/lib/timezone";
+import { formatUKDate } from "@/lib/date";
 
 type Period = "week" | "month" | "year" | "all";
 

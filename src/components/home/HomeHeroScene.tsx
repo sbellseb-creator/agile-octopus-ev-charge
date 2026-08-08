@@ -86,7 +86,7 @@ export default function HomeHeroScene({
   const car = homeCarAsset();
 
   return (
-    <div className="relative min-h-[380px] overflow-hidden rounded-[30px] bg-slate-950">
+    <div className="relative min-h-[300px] sm:min-h-[380px] overflow-hidden rounded-[22px] sm:rounded-[30px] bg-slate-950">
 
       {/* Real/generated weather scene */}
       <div
@@ -104,7 +104,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-black/10" />
 
       {/* Top status */}
-      <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 shadow-2xl backdrop-blur-xl">
+      <div className="absolute left-3 top-3 z-30 max-w-[46%] rounded-xl sm:rounded-2xl border border-white/15 bg-black/45 px-3 py-2 sm:px-4 sm:py-3 shadow-2xl backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -114,7 +114,7 @@ export default function HomeHeroScene({
             }
           />
 
-          <span className="text-3xl font-black tracking-tight text-white">
+          <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">
             {battery}
           </span>
         </div>
@@ -167,7 +167,7 @@ export default function HomeHeroScene({
       <img
         src={car}
         alt="Quicksilver Model Y"
-        className="absolute bottom-[52px] left-[60%] z-20 w-[58%] max-w-[540px] -translate-x-1/2 object-contain drop-shadow-[0_22px_24px_rgba(0,0,0,.46)]"
+        className="absolute bottom-[38px] left-[61%] z-20 w-[66%] max-w-[540px] -translate-x-1/2 object-contain drop-shadow-[0_18px_20px_rgba(0,0,0,.46)] sm:bottom-[52px] sm:left-[60%] sm:w-[58%]"
       />
 
       {/* Dynamic Tesla charger state */}
@@ -246,7 +246,7 @@ export default function HomeHeroScene({
       )}
 
       {charging && (
-        <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-emerald-300/30 bg-emerald-950/75 px-5 py-2 text-xs font-black tracking-[0.13em] text-emerald-100 shadow-[0_0_22px_rgba(52,211,153,.28)] backdrop-blur-xl">
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-emerald-300/30 bg-emerald-950/75 px-3 py-1.5 text-[10px] sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs font-black tracking-[0.12em] sm:tracking-[0.13em] text-emerald-100 shadow-[0_0_22px_rgba(52,211,153,.28)] backdrop-blur-xl">
           ⚡ LIVE CHARGING
         </div>
       )}

@@ -99,3 +99,17 @@
   animation: ev-charge-flow 1.35s linear infinite;
   filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.9));
 }
+
+/* Home mobile polish */
+@media (max-width: 639px) {
+  html,
+  body,
+  #root {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .ev-charge-flow {
+    filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.75));
+  }
+}

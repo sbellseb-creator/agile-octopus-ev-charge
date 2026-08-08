@@ -280,6 +280,78 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
             </AccordionContent>
           </AccordionItem>
 
+          {/* Home appearance */}
+          <AccordionItem value="appearance">
+            <AccordionTrigger className="gap-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                Home appearance
+              </span>
+            </AccordionTrigger>
+
+            <AccordionContent className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Home scene</Label>
+
+                <Select
+                  value={settings.home_theme ?? "automatic"}
+                  onValueChange={(v) =>
+                    patch({
+                      home_theme: v as typeof settings.home_theme,
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="automatic">
+                      Automatic — real weather & time
+                    </SelectItem>
+
+                    <SelectItem value="summer">
+                      ☀️ Summer
+                    </SelectItem>
+
+                    <SelectItem value="winter">
+                      ❄️ Winter
+                    </SelectItem>
+
+                    <SelectItem value="spring">
+                      🌷 Spring
+                    </SelectItem>
+
+                    <SelectItem value="autumn">
+                      🍂 Autumn
+                    </SelectItem>
+
+                    <SelectItem value="christmas">
+                      🎄 Christmas
+                    </SelectItem>
+
+                    <SelectItem value="easter">
+                      🐇 Easter
+                    </SelectItem>
+
+                    <SelectItem value="halloween">
+                      🎃 Halloween
+                    </SelectItem>
+
+                    <SelectItem value="classic">
+                      🌙 Classic dark
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Automatic follows the real weather at your saved home charging
+                location and changes with the time of day. A forced theme stays
+                active until you change it back to Automatic.
+              </p>
+            </AccordionContent>
+          </AccordionItem>
+
           {/* Tesla connection */}
           <AccordionItem value="tesla">
             <AccordionTrigger className="gap-2 text-sm">

@@ -79,7 +79,7 @@ describe("Tesla charging monitor", () => {
     );
   });
 
-  it("closes the session after the pause grace period", () => {
+  it("keeps a stopped-but-plugged session open for less than 60 minutes", () => {
     const started = advanceChargeMonitor(
       initialChargeMonitorState(),
       {
@@ -97,16 +97,42 @@ describe("Tesla charging monitor", () => {
       chargerPowerKw: 0,
     });
 
-    const completed = advanceChargeMonitor(
-      paused.state,
+    const stillPaused = advanceChargeMonitor(paused.state, {
+      observedAt: "2026-08-07T03:30:00Z",
+      chargingState: "Stopped",
+      batteryLevel: 80,
+      chargerPowerKw: 0,
+    });
+
+    expect(stillPaused.event).toBe("none");
+    expect(stillPaused.state.phase).toBe("paused");
+    expect(stillPaused.closedSession).toBeUndefined();
+  });
+
+  it("closes a stopped-but-plugged session after 60 minutes", () => {
+    const started = advanceChargeMonitor(
+      initialChargeMonitorState(),
       {
-        observedAt: "2026-08-07T03:16:00Z",
-        chargingState: "Stopped",
-        batteryLevel: 80,
-        chargerPowerKw: 0,
+        observedAt: "2026-08-07T01:00:00Z",
+        chargingState: "Charging",
+        batteryLevel: 31,
+        chargerPowerKw: 6.9,
       },
-      15 * 60 * 1000,
     );
+
+    const paused = advanceChargeMonitor(started.state, {
+      observedAt: "2026-08-07T03:00:00Z",
+      chargingState: "Stopped",
+      batteryLevel: 80,
+      chargerPowerKw: 0,
+    });
+
+    const completed = advanceChargeMonitor(paused.state, {
+      observedAt: "2026-08-07T04:01:00Z",
+      chargingState: "Stopped",
+      batteryLevel: 80,
+      chargerPowerKw: 0,
+    });
 
     expect(completed.event).toBe("charge_completed");
     expect(completed.closedSession?.actualFinish).toBe(

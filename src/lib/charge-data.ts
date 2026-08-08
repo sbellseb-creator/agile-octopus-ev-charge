@@ -4,6 +4,23 @@ import { isoToUkClock, ukClockToIso } from "@/lib/timezone";
 
 export type ChargeMode = "immediate" | "target_time" | "agile_cheapest" | "realtime";
 
+export type ChargeSessionSource = "tesla" | "manual" | "imported";
+
+export type ChargeSessionStatus =
+  | "charging"
+  | "paused"
+  | "completed"
+  | "interrupted"
+  | "manual";
+
+export type ChargeEnergySource =
+  | "tesla"
+  | "grid_meter"
+  | "time_estimate"
+  | "soc_estimate"
+  | "manual"
+  | "imported";
+
 export const CHARGE_MODE_LABELS: Record<ChargeMode, string> = {
   immediate: "Immediate",
   target_time: "Ready By Target",
@@ -43,7 +60,32 @@ export interface LearningFields {
 
 export interface ChargeSession extends LearningFields {
   id: string;
+
+  /**
+   * Legacy calendar date retained for backwards compatibility and filtering.
+   * Canonical automatic-session timing is stored in the timestamp fields below.
+   */
   session_date: string;
+
+  source?: ChargeSessionSource;
+  status?: ChargeSessionStatus;
+
+  plugged_in_at?: string;
+  started_at?: string;
+  ended_at?: string;
+  unplugged_at?: string;
+
+  /**
+   * Energy provenance.
+   * undefined means unknown — do not silently convert unknown measurements to zero.
+   */
+  battery_energy_kwh?: number;
+  measured_grid_energy_kwh?: number;
+  estimated_grid_energy_kwh?: number;
+  energy_source?: ChargeEnergySource;
+
+  imported_at?: string;
+  import_source?: string;
   start_time?: string;
   end_time?: string;
   vehicle_id: string;
@@ -104,6 +146,23 @@ registerEntity({
     const targetIso = ukClockToIso(s.session_date, s.target_time);
     return {
     session_date: s.session_date,
+
+    source: s.source ?? "manual",
+    status: s.status ?? "completed",
+
+    plugged_in_at: s.plugged_in_at ?? null,
+    started_at: s.started_at ?? s.actual_start ?? startIso,
+    ended_at: s.ended_at ?? s.actual_finish ?? endIso,
+    unplugged_at: s.unplugged_at ?? null,
+
+    battery_energy_kwh: s.battery_energy_kwh ?? null,
+    measured_grid_energy_kwh: s.measured_grid_energy_kwh ?? null,
+    estimated_grid_energy_kwh: s.estimated_grid_energy_kwh ?? null,
+    energy_source: s.energy_source ?? null,
+
+    imported_at: s.imported_at ?? null,
+    import_source: s.import_source ?? null,
+
     start_time: startIso,
     end_time: endIso,
     vehicle_id: s.vehicle_id ?? null,
@@ -146,6 +205,23 @@ registerEntity({
   toLocal: (r: any): ChargeSession => ({
     id: r.local_id ?? r.id,
     session_date: r.session_date,
+
+    source: opt(r.source) as ChargeSessionSource | undefined,
+    status: opt(r.status) as ChargeSessionStatus | undefined,
+
+    plugged_in_at: opt(r.plugged_in_at),
+    started_at: opt(r.started_at),
+    ended_at: opt(r.ended_at),
+    unplugged_at: opt(r.unplugged_at),
+
+    battery_energy_kwh: opt(r.battery_energy_kwh),
+    measured_grid_energy_kwh: opt(r.measured_grid_energy_kwh),
+    estimated_grid_energy_kwh: opt(r.estimated_grid_energy_kwh),
+    energy_source: opt(r.energy_source) as ChargeEnergySource | undefined,
+
+    imported_at: opt(r.imported_at),
+    import_source: opt(r.import_source),
+
     start_time: isoToUkClock(r.start_time),
     end_time: isoToUkClock(r.end_time),
     vehicle_id: r.vehicle_id ?? "",

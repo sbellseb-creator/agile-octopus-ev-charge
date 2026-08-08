@@ -53,7 +53,7 @@ export interface ChargeMonitorResult {
   closedSession?: AutomaticChargeSessionDraft;
 }
 
-export const CHARGE_PAUSE_GRACE_MS = 15 * 60 * 1000;
+export const CHARGE_PAUSE_GRACE_MS = 60 * 60 * 1000;
 
 export const initialChargeMonitorState = (): ChargeMonitorState => ({
   phase: "idle",

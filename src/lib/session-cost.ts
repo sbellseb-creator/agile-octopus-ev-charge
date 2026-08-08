@@ -3,137 +3,260 @@ import { fetchAgileRates } from "@/lib/octopus-api";
 import { UK_TIMEZONE } from "@/lib/timezone";
 import type { CachedSlotPrice, ChargeSession } from "@/lib/charge-data";
 
-const CHARGER_KW = 6.9;
+const DEFAULT_CHARGER_KW = 6.9;
 const SLOT_HOURS = 0.5;
-const KWH_PER_SLOT = CHARGER_KW * SLOT_HOURS;
 
 /** Build the list of half-hour slot start times that fall within [start, end). */
-function enumerateHalfHourSlots(start: Date, end: Date): { from: Date; to: Date }[] {
+function enumerateHalfHourSlots(
+  start: Date,
+  end: Date,
+): { from: Date; to: Date }[] {
   const slots: { from: Date; to: Date }[] = [];
-  // Snap start down to the previous half-hour boundary
+
   const cursor = new Date(start);
   cursor.setSeconds(0, 0);
-  const m = cursor.getMinutes();
-  cursor.setMinutes(m < 30 ? 0 : 30);
+
+  const minute = cursor.getMinutes();
+  cursor.setMinutes(minute < 30 ? 0 : 30);
+
   while (cursor.getTime() < end.getTime()) {
     const next = new Date(cursor.getTime() + 30 * 60 * 1000);
-    slots.push({ from: new Date(cursor), to: next });
+
+    slots.push({
+      from: new Date(cursor),
+      to: next,
+    });
+
     cursor.setTime(next.getTime());
   }
+
   return slots;
 }
 
-/** Combine a YYYY-MM-DD date string and HH:MM time string into a UTC Date, interpreting them as UK local time. */
-function combineDateTime(dateStr: string, timeStr: string): Date | null {
+/**
+ * Combine a YYYY-MM-DD date and HH:MM clock time,
+ * interpreting the clock time in Europe/London.
+ */
+function combineDateTime(
+  dateStr: string,
+  timeStr: string,
+): Date | null {
   if (!dateStr || !timeStr) return null;
-  const [y, mo, d] = dateStr.split("-").map(Number);
-  const [h, mi] = timeStr.split(":").map(Number);
-  if ([y, mo, d, h, mi].some((n) => Number.isNaN(n))) return null;
-  const iso = `${y.toString().padStart(4, "0")}-${mo.toString().padStart(2, "0")}-${d.toString().padStart(2, "0")}T${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}:00`;
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hour, minute] = timeStr.split(":").map(Number);
+
+  if (
+    [year, month, day, hour, minute].some((n) => Number.isNaN(n))
+  ) {
+    return null;
+  }
+
+  const iso =
+    `${year.toString().padStart(4, "0")}-` +
+    `${month.toString().padStart(2, "0")}-` +
+    `${day.toString().padStart(2, "0")}T` +
+    `${hour.toString().padStart(2, "0")}:` +
+    `${minute.toString().padStart(2, "0")}:00`;
+
   return fromZonedTime(iso, UK_TIMEZONE);
 }
 
+function positiveNumber(
+  value: number | null | undefined,
+): number | null {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+    ? value
+    : null;
+}
+
 /**
- * Recalculate session energy / cost / avg price using actual half-hour Agile prices.
- * Uses cached `slot_prices` where possible and fetches from Octopus for any slots
- * not yet cached (e.g. when the user extends a session window after the fact).
+ * Recalculate Agile slots and charging cost.
  *
- * Returns updated values + the merged slot price cache.
+ * IMPORTANT:
+ * This function does NOT replace battery/measured energy with a time estimate.
+ *
+ * Cost energy priority:
+ *   1. measured_grid_energy_kwh
+ *   2. time-based estimated grid energy
+ *
+ * battery_energy_kwh is deliberately not treated as grid consumption.
  */
 export async function recalcSessionCost(
   session: ChargeSession,
-  edits: Partial<ChargeSession>
+  edits: Partial<ChargeSession>,
 ): Promise<{
-  energy_added_kwh: number;
   total_cost_gbp: number;
   avg_pence_per_kwh: number;
   num_slots: number;
   slot_prices: CachedSlotPrice[];
+  estimated_grid_energy_kwh: number;
 } | null> {
   const merged = { ...session, ...edits };
-  const startDate = combineDateTime(merged.session_date, merged.start_time || "");
-  const endDate = combineDateTime(merged.session_date, merged.end_time || "");
+
+  const startDate = combineDateTime(
+    merged.session_date,
+    merged.start_time || "",
+  );
+
+  const endDate = combineDateTime(
+    merged.session_date,
+    merged.end_time || "",
+  );
+
   if (!startDate || !endDate) return null;
-  // Handle overnight sessions (end < start)
+
+  // Overnight charging.
   if (endDate.getTime() <= startDate.getTime()) {
     endDate.setDate(endDate.getDate() + 1);
   }
 
   const wantedSlots = enumerateHalfHourSlots(startDate, endDate);
+
   if (wantedSlots.length === 0) return null;
 
-  // Fractional overlap (in hours) of each half-hour slot with the actual session window
-  const slotHours: number[] = wantedSlots.map((s) => {
-    const overlapMs = Math.min(endDate.getTime(), s.to.getTime()) - Math.max(startDate.getTime(), s.from.getTime());
+  const slotHours = wantedSlots.map((slot) => {
+    const overlapMs =
+      Math.min(endDate.getTime(), slot.to.getTime()) -
+      Math.max(startDate.getTime(), slot.from.getTime());
+
     return Math.max(0, overlapMs) / (1000 * 60 * 60);
   });
 
-  // Index existing cache by ISO valid_from for fast lookup
+  const totalHours = slotHours.reduce(
+    (total, hours) => total + hours,
+    0,
+  );
+
+  if (totalHours <= 0) return null;
+
   const cache = new Map<string, CachedSlotPrice>();
-  for (const sp of session.slot_prices || []) {
-    cache.set(new Date(sp.valid_from).toISOString(), sp);
+
+  for (const price of session.slot_prices || []) {
+    cache.set(
+      new Date(price.valid_from).toISOString(),
+      price,
+    );
   }
 
-  // Find any wanted slots not in cache
-  const missing = wantedSlots.filter((s) => !cache.has(s.from.toISOString()));
+  const missing = wantedSlots.filter(
+    (slot) => !cache.has(slot.from.toISOString()),
+  );
 
   if (missing.length > 0) {
-    // Fetch covering window from Octopus (with small padding)
-    const periodFrom = new Date(missing[0].from.getTime() - 60 * 60 * 1000).toISOString();
-    const periodTo = new Date(missing[missing.length - 1].to.getTime() + 60 * 60 * 1000).toISOString();
+    const periodFrom = new Date(
+      missing[0].from.getTime() - 60 * 60 * 1000,
+    ).toISOString();
+
+    const periodTo = new Date(
+      missing[missing.length - 1].to.getTime() +
+        60 * 60 * 1000,
+    ).toISOString();
+
     try {
-      const rates = await fetchAgileRates(undefined, periodFrom, periodTo, session.region);
-      for (const r of rates) {
-        const key = new Date(r.valid_from).toISOString();
+      const rates = await fetchAgileRates(
+        undefined,
+        periodFrom,
+        periodTo,
+        session.region,
+      );
+
+      for (const rate of rates) {
+        const key = new Date(
+          rate.valid_from,
+        ).toISOString();
+
         if (!cache.has(key)) {
           cache.set(key, {
-            valid_from: r.valid_from,
-            valid_to: r.valid_to,
-            value_inc_vat: r.value_inc_vat,
+            valid_from: rate.valid_from,
+            valid_to: rate.valid_to,
+            value_inc_vat: rate.value_inc_vat,
           });
         }
       }
-    } catch (e) {
-      console.warn("Failed to fetch historical agile prices for recalc", e);
+    } catch (error) {
+      console.warn(
+        "Failed to fetch historical Agile prices for recalc",
+        error,
+      );
     }
   }
 
-  // Resolve each wanted slot to a price; fall back to existing avg if API can't supply
-  const fallbackPrice = session.avg_pence_per_kwh || 0;
-  const resolved: CachedSlotPrice[] = wantedSlots.map((s) => {
-    const found = cache.get(s.from.toISOString());
-    if (found) return found;
-    return {
-      valid_from: s.from.toISOString(),
-      valid_to: s.to.toISOString(),
-      value_inc_vat: fallbackPrice,
-    };
-  });
+  const fallbackPrice =
+    session.avg_pence_per_kwh || 0;
 
-  let energy = resolved.reduce((acc, _sp, i) => acc + CHARGER_KW * slotHours[i], 0);
-  let cost = resolved.reduce((acc, sp, i) => acc + (sp.value_inc_vat * CHARGER_KW * slotHours[i]) / 100, 0);
-  const totalHours = slotHours.reduce((a, b) => a + b, 0);
-  const avg = totalHours > 0
-    ? resolved.reduce((acc, sp, i) => acc + sp.value_inc_vat * slotHours[i], 0) / totalHours
-    : 0;
-  // Effective slot count (fractional) for display
-  const effectiveSlots = parseFloat((totalHours / SLOT_HOURS).toFixed(2));
+  const resolved: CachedSlotPrice[] =
+    wantedSlots.map((slot) => {
+      const found = cache.get(
+        slot.from.toISOString(),
+      );
 
-  // Real-world taper: last 1% trickle-charges ~30 min. Append small tail energy + cost
-  // when the session ends at 100% SoC.
-  const endSoc = merged.end_soc;
-  if (typeof endSoc === "number" && endSoc >= 100) {
-    const TAIL_KWH = 0.1;
-    const lastRate = resolved[resolved.length - 1]?.value_inc_vat ?? avg;
-    energy += TAIL_KWH;
-    cost += (lastRate * TAIL_KWH) / 100;
-  }
+      if (found) return found;
+
+      return {
+        valid_from: slot.from.toISOString(),
+        valid_to: slot.to.toISOString(),
+        value_inc_vat: fallbackPrice,
+      };
+    });
+
+  const chargerKw =
+    positiveNumber(merged.configured_charger_kw) ??
+    DEFAULT_CHARGER_KW;
+
+  const timeEstimatedGridEnergy =
+    chargerKw * totalHours;
+
+  const measuredGridEnergy =
+    positiveNumber(
+      merged.measured_grid_energy_kwh,
+    );
+
+  /*
+   * Allocate the energy used for costing proportionally across the
+   * session duration.
+   *
+   * If a real grid-meter measurement exists, that wins.
+   * Otherwise use the explicit time-based grid estimate.
+   */
+  const costEnergy =
+    measuredGridEnergy ??
+    timeEstimatedGridEnergy;
+
+  const slotEnergy = slotHours.map(
+    (hours) =>
+      costEnergy * (hours / totalHours),
+  );
+
+  const cost = resolved.reduce(
+    (total, price, index) =>
+      total +
+      (
+        price.value_inc_vat *
+        slotEnergy[index]
+      ) /
+        100,
+    0,
+  );
+
+  const avg =
+    costEnergy > 0
+      ? (cost * 100) / costEnergy
+      : 0;
+
+  const effectiveSlots = Number(
+    (totalHours / SLOT_HOURS).toFixed(2),
+  );
 
   return {
-    energy_added_kwh: parseFloat(energy.toFixed(2)),
-    total_cost_gbp: parseFloat(cost.toFixed(2)),
-    avg_pence_per_kwh: parseFloat(avg.toFixed(2)),
+    total_cost_gbp: Number(cost.toFixed(2)),
+    avg_pence_per_kwh: Number(avg.toFixed(2)),
     num_slots: effectiveSlots,
     slot_prices: resolved,
+    estimated_grid_energy_kwh: Number(
+      timeEstimatedGridEnergy.toFixed(2),
+    ),
   };
 }

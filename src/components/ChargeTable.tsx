@@ -234,20 +234,50 @@ export default function ChargeTable({ sessions, onDelete, onUpdate }: Props) {
       try {
         const recalc = await recalcSessionCost(session, finalUpdates);
         if (recalc) {
-          finalUpdates.energy_added_kwh = recalc.energy_added_kwh;
+          // Editing the charging window may change Agile slots and cost,
+          // but must never silently replace measured/Tesla battery energy.
           finalUpdates.total_cost_gbp = recalc.total_cost_gbp;
           finalUpdates.avg_pence_per_kwh = recalc.avg_pence_per_kwh;
           finalUpdates.num_slots = recalc.num_slots;
           finalUpdates.slot_prices = recalc.slot_prices;
+          finalUpdates.estimated_grid_energy_kwh =
+            recalc.estimated_grid_energy_kwh;
+
+          if (!session.energy_source) {
+            finalUpdates.energy_source = "time_estimate";
+          }
+
           toast.success("Recalculated using actual Agile prices");
         } else {
           // Fallback: simple time-based recalc with current avg price
           const hours = getHoursBetween(finalUpdates.start_time, finalUpdates.end_time);
           if (hours !== null && hours > 0) {
-            const kwh = CHARGER_KW * hours;
-            const avgPrice = finalUpdates.avg_pence_per_kwh ?? session.avg_pence_per_kwh ?? 0;
-            finalUpdates.energy_added_kwh = parseFloat(kwh.toFixed(1));
-            finalUpdates.total_cost_gbp = parseFloat(((kwh * avgPrice) / 100).toFixed(2));
+            const chargerKw =
+              session.configured_charger_kw ?? CHARGER_KW;
+
+            const estimatedGridKwh =
+              chargerKw * hours;
+
+            const avgPrice =
+              finalUpdates.avg_pence_per_kwh ??
+              session.avg_pence_per_kwh ??
+              0;
+
+            finalUpdates.estimated_grid_energy_kwh =
+              parseFloat(estimatedGridKwh.toFixed(2));
+
+            finalUpdates.total_cost_gbp =
+              parseFloat(
+                (
+                  (estimatedGridKwh * avgPrice) /
+                  100
+                ).toFixed(2),
+              );
+
+            if (!session.energy_source) {
+              finalUpdates.energy_source =
+                "time_estimate";
+            }
             finalUpdates.num_slots = Math.ceil(hours * 2);
           }
         }

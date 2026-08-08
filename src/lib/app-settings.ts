@@ -14,6 +14,17 @@ import { readJSON, writeJSON } from "@/lib/safe-storage";
 export const CHARGER_MAX_AMPS = 30;
 export const CHARGER_MAX_KW = 6.9;
 
+export type HomeThemePreference =
+  | "automatic"
+  | "summer"
+  | "winter"
+  | "spring"
+  | "autumn"
+  | "easter"
+  | "christmas"
+  | "halloween"
+  | "classic";
+
 export interface AppSettings {
   /** Home charger */
   charger_amps: number;
@@ -31,6 +42,8 @@ export interface AppSettings {
   petrol_mpg: number;
   diesel_mpg: number;
   work_rate_pence_per_mile: number;
+  /** Home appearance. "automatic" follows real weather + UK time. */
+  home_theme: HomeThemePreference;
   /** Notifications */
   notify_cheap_slots: boolean;
   notify_charge_complete: boolean;
@@ -50,6 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   petrol_mpg: 45,
   diesel_mpg: 55,
   work_rate_pence_per_mile: 15,
+  home_theme: "automatic",
   notify_cheap_slots: false,
   notify_charge_complete: false,
   notify_price_alerts: false,
@@ -139,6 +153,11 @@ export async function loadSettingsFromCloud(): Promise<AppSettings> {
       petrol_mpg: Number(data.petrol_mpg),
       diesel_mpg: Number(data.diesel_mpg),
       work_rate_pence_per_mile: Number(data.work_rate_pence_per_mile),
+      home_theme: (
+        (data as Record<string, unknown>).home_theme ??
+        getSettings().home_theme ??
+        "automatic"
+      ) as HomeThemePreference,
       notify_cheap_slots: Boolean(data.notify_cheap_slots),
       notify_charge_complete: Boolean(data.notify_charge_complete),
       notify_price_alerts: Boolean(data.notify_price_alerts),

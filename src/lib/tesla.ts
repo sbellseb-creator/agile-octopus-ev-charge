@@ -14,6 +14,8 @@ export interface TeslaVehicle {
   exterior_color?: string | null;
   charge_port_latch?: string | null;
   charger_power_kw?: number | null;
+  /** Tesla-reported estimated hours remaining to the active charge target. */
+  time_to_full_charge?: number | null;
 }
 
 export interface TeslaListResult {

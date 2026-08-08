@@ -107,7 +107,6 @@ Deno.serve(async (req) => {
       let trimBadging: string | null = null;
       let exteriorColor: string | null = null;
       let chargerPowerKw: number | null = null;
-      let timeToFullChargeHours: number | null = null;
 
       try {
         const dRes = await fetch(
@@ -121,7 +120,6 @@ Deno.serve(async (req) => {
           chargingState = cs.charging_state ?? null;
           chargeLimit = cs.charge_limit_soc ?? null;
           chargerPowerKw = cs.charger_power ?? null;
-          timeToFullChargeHours = cs.time_to_full_charge ?? null;
           const cfg = d?.response?.vehicle_config ?? {};
           carType = cfg.car_type ?? null;
           trimBadging = cfg.trim_badging ?? null;
@@ -144,7 +142,6 @@ Deno.serve(async (req) => {
         trim_badging: trimBadging,
         exterior_color: exteriorColor,
         charger_power_kw: chargerPowerKw,
-        time_to_full_charge: timeToFullChargeHours,
       });
     }
 

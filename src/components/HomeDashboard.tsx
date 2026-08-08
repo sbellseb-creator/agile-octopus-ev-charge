@@ -496,6 +496,7 @@ export default function HomeDashboard({
           batteryLevel={live?.battery_level}
           chargeLimit={live?.charge_limit_soc}
           chargerPowerKw={live?.charger_power_kw}
+          timeToFullChargeHours={live?.time_to_full_charge}
           state={live?.state}
         />
 

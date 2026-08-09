@@ -39,3 +39,4 @@ cloud-sync-migrations.txt
 .env
 supabase/.temp/
 scripts/old-data-recovery/recover.html
+*.zip

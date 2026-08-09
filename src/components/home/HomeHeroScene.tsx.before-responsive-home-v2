@@ -86,11 +86,11 @@ export default function HomeHeroScene({
   const car = homeCarAsset();
 
   return (
-    <div className="relative aspect-[4/5] min-h-[320px] overflow-hidden rounded-[22px] bg-slate-950 sm:aspect-[16/10] sm:min-h-[380px] sm:rounded-[30px] md:aspect-[16/9] lg:aspect-[16/8] xl:min-h-[460px]">
+    <div className="relative aspect-[4/5] min-h-[320px] overflow-hidden rounded-[22px] bg-slate-950 sm:aspect-[16/10] sm:min-h-[390px] sm:rounded-[28px] lg:aspect-[16/8] lg:min-h-[430px] xl:min-h-[470px]">
 
       {/* Real/generated weather scene */}
       <div
-        className="absolute inset-0 bg-cover bg-[40%_center] transition-all duration-700 sm:bg-center"
+        className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
         style={{
           backgroundImage: `url("${background}")`,
         }}
@@ -104,7 +104,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-black/10" />
 
       {/* Top status */}
-      <div className="absolute left-3 top-3 z-30 max-w-[46%] rounded-xl sm:rounded-2xl border border-white/15 bg-black/45 px-3 py-2 sm:px-4 sm:py-3 shadow-2xl backdrop-blur-xl">
+      <div className="absolute left-[clamp(12px,2.2vw,24px)] top-[clamp(12px,2.2vw,24px)] z-30 max-w-[52%] rounded-2xl border border-white/15 bg-black/50 px-[clamp(12px,2vw,20px)] py-[clamp(10px,1.6vw,16px)] shadow-2xl backdrop-blur-xl sm:max-w-[38%]">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -114,7 +114,7 @@ export default function HomeHeroScene({
             }
           />
 
-          <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+          <span className="text-[clamp(1.75rem,5vw,3.4rem)] font-black leading-none tracking-tight text-white">
             {battery}
           </span>
         </div>
@@ -142,7 +142,7 @@ export default function HomeHeroScene({
       </div>
 
       {/* Weather badge */}
-      <div className="absolute right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-2 text-xs text-white/85 backdrop-blur-xl">
+      <div className="absolute right-[clamp(12px,2.2vw,24px)] top-[clamp(12px,2.2vw,24px)] z-30 flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-2 text-[11px] text-white/90 backdrop-blur-xl sm:text-xs">
         <WeatherIcon scene={scene} />
 
         <span className="capitalize">
@@ -167,7 +167,7 @@ export default function HomeHeroScene({
       <img
         src={car}
         alt="Quicksilver Model Y"
-        className="absolute bottom-[8%] left-[62%] z-20 w-[74%] max-w-[680px] -translate-x-1/2 object-contain drop-shadow-[0_20px_26px_rgba(0,0,0,.46)] sm:w-[64%] md:w-[60%] lg:left-[63%] lg:w-[55%] xl:w-[50%]"
+        className="absolute bottom-[10%] left-[61%] z-20 w-[72%] max-w-[720px] -translate-x-1/2 object-contain drop-shadow-[0_22px_28px_rgba(0,0,0,.48)] sm:bottom-[9%] sm:left-[62%] sm:w-[62%] lg:left-[63%] lg:w-[56%] xl:w-[52%]"
       />
 
       {/* Dynamic Tesla charger state */}

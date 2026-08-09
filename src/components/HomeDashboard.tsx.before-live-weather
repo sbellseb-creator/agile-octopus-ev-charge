@@ -36,9 +36,7 @@ import {
   listTeslaVehicles,
   type TeslaVehicle,
 } from "@/lib/tesla";
-import { getSettings, hasHomeLocation } from "@/lib/app-settings";
-import { resolveHomeScene } from "@/lib/home-scene";
-import { supabase } from "@/integrations/supabase/client";
+import { getSettings } from "@/lib/app-settings";
 
 import HomeHeroScene, {
   type HomeSceneTheme,
@@ -140,102 +138,44 @@ export default function HomeDashboard({
     };
   }, []);
 
-  // Home refreshes Tesla telemetry without waking the vehicle.
-  // Online vehicles refresh more frequently; asleep/offline vehicles back off.
+  // wake=false: opening Home must never wake the vehicle.
   useEffect(() => {
     let alive = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const refresh = async () => {
-      try {
-        const res = await listTeslaVehicles(false);
+    listTeslaVehicles(false)
+      .then(async (res) => {
+        if (!alive || res.vehicles.length === 0) return;
 
-        if (!alive) return;
+        setLiveVehicles(res.vehicles);
 
-        if (res.vehicles.length > 0) {
-          setLiveVehicles(res.vehicles);
-
-          try {
-            window.localStorage.setItem(
-              "ev-home-tesla-snapshot",
-              JSON.stringify(res.vehicles),
-            );
-          } catch {
-            // localStorage unavailable.
-          }
-
-          const changed = await linkTeslaVehicleIds(
-            vehicles,
-            res.vehicles,
+        // Home must never wake the car, but it should remember the last
+        // successful Tesla telemetry so an asleep car does not become "unknown".
+        try {
+          window.localStorage.setItem(
+            "ev-home-tesla-snapshot",
+            JSON.stringify(res.vehicles),
           );
-
-          if (changed) {
-            window.dispatchEvent(
-              new Event("vehicles:updated"),
-            );
-          }
+        } catch {
+          // localStorage unavailable — live state still works.
         }
 
-        const current =
-          res.vehicles.find(
-            (t) => t.id === vehicle?.tesla_vehicle_id,
-          ) ??
-          (res.vehicles.length === 1
-            ? res.vehicles[0]
-            : undefined);
-
-        const state =
-          current?.state?.toLowerCase() ?? "";
-
-        const chargeState =
-          current?.charging_state?.toLowerCase() ?? "";
-
-        const active =
-          state === "online" ||
-          chargeState === "charging" ||
-          chargeState === "starting";
-
-        timer = setTimeout(
-          refresh,
-          active ? 30_000 : 3 * 60_000,
+        const changed = await linkTeslaVehicleIds(
+          vehicles,
+          res.vehicles,
         );
-      } catch {
-        if (alive) {
-          timer = setTimeout(
-            refresh,
-            3 * 60_000,
-          );
+
+        if (changed) {
+          window.dispatchEvent(new Event("vehicles:updated"));
         }
-      }
-    };
-
-    refresh();
-
-    const handleVisible = () => {
-      if (document.visibilityState !== "visible") return;
-
-      if (timer) clearTimeout(timer);
-      refresh();
-    };
-
-    document.addEventListener(
-      "visibilitychange",
-      handleVisible,
-    );
+      })
+      .catch(() => undefined);
 
     return () => {
       alive = false;
-
-      if (timer) clearTimeout(timer);
-
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisible,
-      );
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicles.length, vehicle?.tesla_vehicle_id]);
+  }, [vehicles.length]);
 
   const live = useMemo(() => {
     if (!vehicle) return undefined;
@@ -250,78 +190,6 @@ export default function HomeDashboard({
         : undefined)
     );
   }, [liveVehicles, vehicle]);
-
-  const { data: homeWeather } = useQuery({
-    queryKey: [
-      "home-current-weather",
-      settings.home_latitude,
-      settings.home_longitude,
-    ],
-    enabled:
-      settings.home_theme === "automatic" &&
-      hasHomeLocation(settings),
-    staleTime: 15 * 60_000,
-    queryFn: async () => {
-      const lat = settings.home_latitude;
-      const lng = settings.home_longitude;
-
-      if (lat == null || lng == null) return null;
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const url =
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/weather-forecast` +
-        `?lat=${encodeURIComponent(lat)}` +
-        `&lng=${encodeURIComponent(lng)}`;
-
-      const response = await fetch(url, {
-        headers: {
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          ...(session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}),
-        },
-      });
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-
-      const hourly = data.hourly ?? {};
-      const times = hourly.time ?? [];
-      const codes = hourly.weather_code ?? [];
-      const temps = hourly.temperature_2m ?? [];
-
-      const now = Date.now();
-
-      let bestIndex = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-
-      times.forEach((time: string, index: number) => {
-        const ms = new Date(time).getTime();
-        const distance = Math.abs(ms - now);
-
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-
-      return {
-        weatherCode: Number(codes[bestIndex] ?? 3),
-        temperatureC:
-          temps[bestIndex] == null
-            ? undefined
-            : Number(temps[bestIndex]),
-        source:
-          data.source === "live"
-            ? ("live" as const)
-            : ("estimated" as const),
-      };
-    },
-  });
 
   const { data: rates = [] } = useQuery({
     queryKey: ["agile-home", settings.region],
@@ -421,52 +289,22 @@ export default function HomeDashboard({
     };
   }, [sessions]);
 
-  const vehicleState =
-    live?.state?.toLowerCase() ?? "";
-
   const chargingState =
     live?.charging_state?.toLowerCase() ?? "";
 
-  // A cached battery percentage is useful, but cached charging state
-  // must never make an asleep/offline Tesla appear live.
-  const vehicleIsLive =
-    vehicleState === "online";
-
   const isCharging =
-    vehicleIsLive &&
-    (
-      chargingState === "charging" ||
-      chargingState === "starting"
-    );
+    chargingState === "charging" ||
+    chargingState === "starting";
 
   const pluggedWaiting =
-    vehicleIsLive &&
     !isCharging &&
     ["stopped", "nopower", "complete"].includes(
       chargingState,
     );
 
-  const isPluggedIn =
-    vehicleIsLive &&
-    (isCharging || pluggedWaiting);
-
-  const heroState =
-    vehicleState === "offline" ||
-    vehicleState === "asleep"
-      ? "Asleep"
-      : vehicleIsLive
-        ? pluggedWaiting
-          ? "Plugged in"
-          : live?.state
-        : "Last known status";
-
-  const scene = resolveHomeScene({
-    preference: settings.home_theme ?? "automatic",
-    weatherCode: homeWeather?.weatherCode,
-    temperatureC: homeWeather?.temperatureC,
-    source: homeWeather?.source,
-  });
-
+  const hour = Number(formatUK(new Date(), "HH"));
+  const isNight = hour < 7 || hour >= 20;
+  const sceneTheme = getAutomaticTheme();
 
   const recommendation = (() => {
     if (isCharging) {
@@ -562,14 +400,13 @@ export default function HomeDashboard({
       {/* Vehicle scene */}
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-card shadow-2xl">
         <HomeHeroScene
-          scene={scene}
+          theme={sceneTheme}
+          isNight={isNight}
           charging={isCharging}
-          pluggedIn={isPluggedIn}
           batteryLevel={live?.battery_level}
           chargeLimit={live?.charge_limit_soc}
           chargerPowerKw={live?.charger_power_kw}
-          timeToFullChargeHours={live?.time_to_full_charge}
-          state={heroState}
+          state={live?.state}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">

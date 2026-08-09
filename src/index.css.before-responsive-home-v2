@@ -113,15 +113,3 @@
     filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.75));
   }
 }
-
-/* Home responsive foundation:
-   narrow phone -> folded Fold -> unfolded Fold -> laptop -> desktop */
-@media (max-width: 639px) {
-  html,
-  body,
-  #root {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-}

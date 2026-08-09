@@ -140,102 +140,44 @@ export default function HomeDashboard({
     };
   }, []);
 
-  // Home refreshes Tesla telemetry without waking the vehicle.
-  // Online vehicles refresh more frequently; asleep/offline vehicles back off.
+  // wake=false: opening Home must never wake the vehicle.
   useEffect(() => {
     let alive = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const refresh = async () => {
-      try {
-        const res = await listTeslaVehicles(false);
+    listTeslaVehicles(false)
+      .then(async (res) => {
+        if (!alive || res.vehicles.length === 0) return;
 
-        if (!alive) return;
+        setLiveVehicles(res.vehicles);
 
-        if (res.vehicles.length > 0) {
-          setLiveVehicles(res.vehicles);
-
-          try {
-            window.localStorage.setItem(
-              "ev-home-tesla-snapshot",
-              JSON.stringify(res.vehicles),
-            );
-          } catch {
-            // localStorage unavailable.
-          }
-
-          const changed = await linkTeslaVehicleIds(
-            vehicles,
-            res.vehicles,
+        // Home must never wake the car, but it should remember the last
+        // successful Tesla telemetry so an asleep car does not become "unknown".
+        try {
+          window.localStorage.setItem(
+            "ev-home-tesla-snapshot",
+            JSON.stringify(res.vehicles),
           );
-
-          if (changed) {
-            window.dispatchEvent(
-              new Event("vehicles:updated"),
-            );
-          }
+        } catch {
+          // localStorage unavailable — live state still works.
         }
 
-        const current =
-          res.vehicles.find(
-            (t) => t.id === vehicle?.tesla_vehicle_id,
-          ) ??
-          (res.vehicles.length === 1
-            ? res.vehicles[0]
-            : undefined);
-
-        const state =
-          current?.state?.toLowerCase() ?? "";
-
-        const chargeState =
-          current?.charging_state?.toLowerCase() ?? "";
-
-        const active =
-          state === "online" ||
-          chargeState === "charging" ||
-          chargeState === "starting";
-
-        timer = setTimeout(
-          refresh,
-          active ? 30_000 : 3 * 60_000,
+        const changed = await linkTeslaVehicleIds(
+          vehicles,
+          res.vehicles,
         );
-      } catch {
-        if (alive) {
-          timer = setTimeout(
-            refresh,
-            3 * 60_000,
-          );
+
+        if (changed) {
+          window.dispatchEvent(new Event("vehicles:updated"));
         }
-      }
-    };
-
-    refresh();
-
-    const handleVisible = () => {
-      if (document.visibilityState !== "visible") return;
-
-      if (timer) clearTimeout(timer);
-      refresh();
-    };
-
-    document.addEventListener(
-      "visibilitychange",
-      handleVisible,
-    );
+      })
+      .catch(() => undefined);
 
     return () => {
       alive = false;
-
-      if (timer) clearTimeout(timer);
-
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisible,
-      );
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicles.length, vehicle?.tesla_vehicle_id]);
+  }, [vehicles.length]);
 
   const live = useMemo(() => {
     if (!vehicle) return undefined;
@@ -427,10 +369,12 @@ export default function HomeDashboard({
   const chargingState =
     live?.charging_state?.toLowerCase() ?? "";
 
-  // A cached battery percentage is useful, but cached charging state
-  // must never make an asleep/offline Tesla appear live.
+  // Cached telemetry is useful for the last-known battery percentage,
+  // but an asleep/offline vehicle must never be presented as live charging.
   const vehicleIsLive =
-    vehicleState === "online";
+    vehicleState !== "offline" &&
+    vehicleState !== "asleep" &&
+    vehicleState !== "unknown";
 
   const isCharging =
     vehicleIsLive &&
@@ -448,17 +392,19 @@ export default function HomeDashboard({
 
   const isPluggedIn =
     vehicleIsLive &&
-    (isCharging || pluggedWaiting);
+    (
+      isCharging ||
+      pluggedWaiting
+    );
 
   const heroState =
-    vehicleState === "offline" ||
-    vehicleState === "asleep"
-      ? "Asleep"
-      : vehicleIsLive
-        ? pluggedWaiting
-          ? "Plugged in"
-          : live?.state
-        : "Last known status";
+    !vehicleIsLive
+      ? vehicleState === "offline"
+        ? "Asleep"
+        : "Last known status"
+      : pluggedWaiting
+        ? "Plugged in"
+        : live?.state;
 
   const scene = resolveHomeScene({
     preference: settings.home_theme ?? "automatic",

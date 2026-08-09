@@ -10,6 +10,7 @@ import { Car, Plug, Zap, PoundSterling, Fuel, Bell, ShieldCheck, Settings as Cog
 import { toast } from "sonner";
 import TeslaConnect from "@/components/TeslaConnect";
 import VehicleEditForm from "@/components/vehicles/VehicleEditForm";
+import DevelopmentStatus from "@/components/dev/DevelopmentStatus";
 import {
   CHARGER_MAX_AMPS,
   CHARGER_MAX_KW,
@@ -23,8 +24,8 @@ import { getSyncStatus, subscribeSync, type SyncStatus } from "@/lib/cloud-sync"
 import { getTeslaDiagnostics } from "@/lib/tesla";
 import { getDefaultRate, setDefaultRate } from "@/lib/work-data";
 import type { Vehicle } from "@/lib/vehicle-data";
+import { APP_VERSION } from "@/lib/app-meta";
 
-export const APP_VERSION = "2C.0";
 const SCHEMA_VERSION = "2026-07-28 (Phase 2B)";
 const FUEL_KEY = "fuel-compare-settings";
 
@@ -372,6 +373,19 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
               <Toggle label="Charge complete" checked={settings.notify_charge_complete} onChange={(c) => patch({ notify_charge_complete: c })} />
               <Toggle label="Price spike alerts" checked={settings.notify_price_alerts} onChange={(c) => patch({ notify_price_alerts: c })} />
               <p className="text-[11px] text-muted-foreground">Preferences are saved now; delivery arrives in a later phase.</p>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Internal development status */}
+          <AccordionItem value="development">
+            <AccordionTrigger className="gap-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <Cog className="h-4 w-4 shrink-0 text-primary" />
+                Development status
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <DevelopmentStatus />
             </AccordionContent>
           </AccordionItem>
 

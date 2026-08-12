@@ -28,6 +28,7 @@ import HomeDashboard from "@/components/HomeDashboard";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
+  const [sessionsCloudConfirmed, setSessionsCloudConfirmed] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [tab, setTab] = useState("home");
   const { signOut } = useAuth();
@@ -43,7 +44,10 @@ export default function Index() {
   useEffect(() => {
     // Cloud sync: migrate/merge local data, then keep devices in step.
     const stop = startAutoSync();
-    const onUpdated = () => setSessions(loadSessions());
+    const onUpdated = () => {
+      setSessions(loadSessions());
+      setSessionsCloudConfirmed(true);
+    };
     window.addEventListener("cloud-sync:updated", onUpdated);
     return () => {
       window.removeEventListener("cloud-sync:updated", onUpdated);
@@ -126,7 +130,11 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">
-            <HomeDashboard vehicles={vehicles} sessions={sessions} onManageSchedule={() => setTab("planner")} />
+            <HomeDashboard
+              vehicles={vehicles}
+              sessions={sessionsCloudConfirmed ? sessions : []}
+              onManageSchedule={() => setTab("planner")}
+            />
           </TabsContent>
 
           <TabsContent value="agile" className="space-y-6">
@@ -147,11 +155,15 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="charging" className="space-y-6">
-            <ChargeStats sessions={sessions} />
-            <FuelComparison sessions={sessions} vehicles={vehicles} />
-            <ChargeCharts sessions={sessions} />
+            <ChargeStats sessions={sessionsCloudConfirmed ? sessions : []} />
+            <FuelComparison sessions={sessionsCloudConfirmed ? sessions : []} vehicles={vehicles} />
+            <ChargeCharts sessions={sessionsCloudConfirmed ? sessions : []} />
             <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
-            <ChargeTable sessions={sessions} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} />
+            <ChargeTable
+              sessions={sessionsCloudConfirmed ? sessions : []}
+              onDelete={handleDeleteSession}
+              onUpdate={handleUpdateSession}
+            />
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">

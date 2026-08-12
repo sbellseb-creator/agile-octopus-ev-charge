@@ -135,13 +135,73 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   const { storageKey, table } = cfg;
   ensureBackup(storageKey);
 
-  // 1. Replicate local deletions.
+  // 1. Replicate local deletions to a persistent cloud tombstone table.
+  // Tombstones must survive beyond one browser/device; otherwise a stale
+  // device can see a missing cloud row and upload the deleted record again.
   const tombs = readTombstones(storageKey);
+
   if (tombs.length) {
+    const cloudTombs = tombs.map((t) => ({
+      user_id: userId,
+      table_name: table,
+      local_id: t.local_id,
+      deleted_at: t.deleted_at,
+    }));
+
+    const { error: tombErr } = await (supabase as any)
+      .from("sync_tombstones")
+      .upsert(cloudTombs, {
+        onConflict: "user_id,table_name,local_id",
+      });
+
+    if (tombErr) {
+      throw new SyncError(
+        `${table} tombstone: ${tombErr.message}`,
+        table,
+      );
+    }
+
     const ids = tombs.map((t) => t.local_id);
-    const { error } = await (supabase as any).from(table).delete().eq("user_id", userId).in("local_id", ids);
-    if (error) throw new SyncError(`${table} delete: ${error.message}`, table);
-    clearTombstones(storageKey, ids);
+
+    const { error } = await (supabase as any)
+      .from(table)
+      .delete()
+      .eq("user_id", userId)
+      .in("local_id", ids);
+
+    if (error) {
+      throw new SyncError(`${table} delete: ${error.message}`, table);
+    }
+  }
+
+  // Read every deletion known to any device.
+  const { data: cloudTombRows, error: cloudTombErr } =
+    await (supabase as any)
+      .from("sync_tombstones")
+      .select("local_id,deleted_at")
+      .eq("user_id", userId)
+      .eq("table_name", table);
+
+  if (cloudTombErr) {
+    throw new SyncError(
+      `${table} tombstone read: ${cloudTombErr.message}`,
+      table,
+    );
+  }
+
+  const deletedIds = new Set<string>(
+    (cloudTombRows ?? []).map(
+      (t: { local_id: string }) => t.local_id,
+    ),
+  );
+
+  // Local tombstones can now be cleared because their durable copies exist
+  // in Supabase and will be seen by every signed-in device.
+  if (tombs.length) {
+    clearTombstones(
+      storageKey,
+      tombs.map((t) => t.local_id),
+    );
   }
 
   // 2. Pull remote state.
@@ -155,7 +215,6 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   const local = readJSON<TLocal[]>(storageKey, [], Array.isArray).filter(
     (r): r is TLocal => !!r && typeof r === "object" && typeof (r as TLocal).id === "string",
   );
-  const deletedIds = new Set(readTombstones(storageKey).map((t) => t.local_id));
   const toPush = local.filter((l) => {
     if (deletedIds.has(l.id)) return false;
     const r = remoteByLocalId.get(l.id);
@@ -190,7 +249,11 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   // 4. Re-read the authoritative state and mirror it locally.
   const { data: finalRows, error: finalErr } = await (supabase as any).from(table).select("*").eq("user_id", userId);
   if (finalErr) throw new SyncError(`${table} read: ${finalErr.message}`, table);
-  const merged = ((finalRows ?? []) as unknown as TRow[]).map(cfg.toLocal).sort(cfg.sort);
+  const merged = ((finalRows ?? []) as unknown as TRow[])
+    .filter((row) => !row.local_id || !deletedIds.has(row.local_id))
+    .map(cfg.toLocal)
+    .sort(cfg.sort);
+
   writeJSON(storageKey, merged);
   return skipped;
 }

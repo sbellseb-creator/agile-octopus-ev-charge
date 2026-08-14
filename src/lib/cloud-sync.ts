@@ -215,11 +215,23 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   const local = readJSON<TLocal[]>(storageKey, [], Array.isArray).filter(
     (r): r is TLocal => !!r && typeof r === "object" && typeof (r as TLocal).id === "string",
   );
+  const lastCompletedAt = readString(LAST_SYNC_KEY);
+  const lastCompletedMs = lastCompletedAt ? new Date(lastCompletedAt).getTime() : 0;
+
   const toPush = local.filter((l) => {
     if (deletedIds.has(l.id)) return false;
+
     const r = remoteByLocalId.get(l.id);
-    if (!r) return true;
-    return new Date(l.updated_at ?? 0).getTime() > new Date(r.updated_at).getTime();
+
+    if (!r) {
+      if (!lastCompletedAt) return true;
+
+      const localUpdatedMs = new Date(l.updated_at ?? 0).getTime();
+      return Number.isFinite(localUpdatedMs) && localUpdatedMs > lastCompletedMs;
+    }
+
+    return new Date(l.updated_at ?? 0).getTime() >
+      new Date(r.updated_at).getTime();
   });
 
   let skipped = 0;
@@ -255,6 +267,7 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
     .sort(cfg.sort);
 
   writeJSON(storageKey, merged);
+
   return skipped;
 }
 

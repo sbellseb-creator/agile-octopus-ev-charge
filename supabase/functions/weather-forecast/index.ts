@@ -33,6 +33,8 @@ function generateFallbackForecast(lat: number, lng: number) {
     wind_speed_10m_max: [] as number[],
     sunshine_duration: [] as number[],
     weather_code: [] as number[],
+    sunrise: [] as string[],
+    sunset: [] as string[],
   }
 
   for (let day = 0; day < FORECAST_DAYS; day++) {
@@ -87,6 +89,15 @@ function generateFallbackForecast(lat: number, lng: number) {
     daily.wind_speed_10m_max.push(Math.round(dayWindMax * 10) / 10)
     daily.sunshine_duration.push(Math.round((sunHours + dayWeatherNoise) * 3600))
     daily.weather_code.push(dayWeatherCode)
+
+    const sunrise = new Date(dayDate)
+    sunrise.setHours(7, 30, 0, 0)
+
+    const sunset = new Date(dayDate)
+    sunset.setHours(17, 0, 0, 0)
+
+    daily.sunrise.push(sunrise.toISOString())
+    daily.sunset.push(sunset.toISOString())
   }
 
   return {
@@ -127,7 +138,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,wind_speed_10m,cloud_cover,weather_code&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,sunshine_duration,weather_code&forecast_days=${FORECAST_DAYS}&timezone=Europe%2FLondon`
+    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,wind_speed_10m,cloud_cover,weather_code&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,sunshine_duration,weather_code,sunrise,sunset&forecast_days=${FORECAST_DAYS}&timezone=Europe%2FLondon`
 
     try {
       const res = await fetchWithRetry(apiUrl)

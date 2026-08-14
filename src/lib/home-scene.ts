@@ -23,6 +23,8 @@ export interface HomeScene {
   weatherCode?: number;
   temperatureC?: number;
   source?: "live" | "estimated";
+  sunrise?: string;
+  sunset?: string;
 }
 
 export function weatherCodeToScene(code: number): WeatherScene {
@@ -62,7 +64,46 @@ export function weatherCodeToScene(code: number): WeatherScene {
   return "overcast";
 }
 
-export function getUKDayPhase(date = new Date()): DayPhase {
+export function getUKDayPhase(
+  date = new Date(),
+  sunrise?: string,
+  sunset?: string,
+): DayPhase {
+  const now = date.getTime();
+
+  if (sunrise && sunset) {
+    const sunriseMs = new Date(sunrise).getTime();
+    const sunsetMs = new Date(sunset).getTime();
+
+    if (Number.isFinite(sunriseMs) && Number.isFinite(sunsetMs)) {
+      const minute = 60_000;
+
+      if (
+        now >= sunriseMs - 45 * minute &&
+        now < sunriseMs + 30 * minute
+      ) {
+        return "dawn";
+      }
+
+      if (
+        now >= sunriseMs + 30 * minute &&
+        now < sunsetMs - 45 * minute
+      ) {
+        return "day";
+      }
+
+      if (
+        now >= sunsetMs - 45 * minute &&
+        now < sunsetMs + 30 * minute
+      ) {
+        return "sunset";
+      }
+
+      return "night";
+    }
+  }
+
+  // Safe fallback when solar data is unavailable.
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     hour: "2-digit",
@@ -83,10 +124,16 @@ export function resolveHomeScene(args: {
   preference: HomeThemePreference;
   weatherCode?: number;
   temperatureC?: number;
+  sunrise?: string;
+  sunset?: string;
   source?: "live" | "estimated";
   now?: Date;
 }): HomeScene {
-  const phase = getUKDayPhase(args.now);
+  const phase = getUKDayPhase(
+    args.now,
+    args.sunrise,
+    args.sunset,
+  );
 
   if (args.preference !== "automatic") {
     return {
@@ -100,6 +147,8 @@ export function resolveHomeScene(args: {
       phase,
       weatherCode: args.weatherCode,
       temperatureC: args.temperatureC,
+      sunrise: args.sunrise,
+      sunset: args.sunset,
       source: args.source,
     };
   }
@@ -111,6 +160,8 @@ export function resolveHomeScene(args: {
     phase,
     weatherCode: args.weatherCode,
     temperatureC: args.temperatureC,
+    sunrise: args.sunrise,
+    sunset: args.sunset,
     source: args.source,
   };
 }

@@ -86,7 +86,7 @@ export default function HomeHeroScene({
   const car = homeCarAsset();
 
   return (
-    <div className="relative aspect-[4/5] min-h-[320px] overflow-hidden rounded-[22px] bg-slate-950 sm:aspect-[16/10] sm:min-h-[380px] sm:rounded-[30px] md:aspect-[16/9] lg:aspect-[16/8] xl:min-h-[460px]">
+    <div className="relative aspect-[4/5] min-h-[320px] overflow-hidden rounded-[22px] bg-slate-950 sm:aspect-[16/10] sm:min-h-[360px] sm:rounded-[30px] md:aspect-[16/9] lg:aspect-[16/7] lg:max-h-[620px]">
 
       {/* Real/generated weather scene */}
       <div
@@ -147,7 +147,7 @@ export default function HomeHeroScene({
 
         <span className="capitalize">
           {scene.mode === "forced"
-            ? scene.theme
+            ? `${scene.theme} · ${scene.weather.replace("-", " ")}`
             : scene.weather.replace("-", " ")}
         </span>
 
@@ -167,21 +167,22 @@ export default function HomeHeroScene({
       <img
         src={car}
         alt="Quicksilver Model Y"
-        className="absolute bottom-[8%] left-[62%] z-20 w-[74%] max-w-[680px] -translate-x-1/2 object-contain drop-shadow-[0_20px_26px_rgba(0,0,0,.46)] sm:w-[64%] md:w-[60%] lg:left-[63%] lg:w-[55%] xl:w-[50%]"
+        className="absolute bottom-[7%] left-[64%] z-20 w-[70%] max-w-[620px] -translate-x-1/2 object-contain drop-shadow-[0_20px_26px_rgba(0,0,0,.46)] sm:w-[58%] md:w-[52%] lg:left-[67%] lg:w-[45%] xl:w-[42%]"
       />
 
       {/* Dynamic Tesla charger state */}
       <div
         className={[
-          "pointer-events-none absolute left-[25.2%] top-[47.2%] z-30 h-[12px] w-[3px] rounded-full transition-all duration-500",
+          "pointer-events-none absolute left-[25.2%] top-[47.2%] z-30 h-[6px] w-[2px] rounded-full transition-all duration-500",
           charging
             ? "bg-emerald-300 shadow-[0_0_6px_1px_rgba(52,211,153,.5)] animate-pulse"
-            : pluggedIn
-              ? "bg-blue-400 shadow-[0_0_5px_1px_rgba(96,165,250,.4)]"
-              : "bg-white/90 shadow-[0_0_4px_1px_rgba(255,255,255,.25)]",
+            : "bg-blue-400 shadow-[0_0_5px_1px_rgba(96,165,250,.4)]",
         ].join(" ")}
       />
 
+      {/* Dynamic lead overlay is only used when the vehicle is plugged in.
+          The photographic scene already contains the parked wall lead, so
+          drawing another unplugged cable here creates a fake blue squiggle. */}
       {(pluggedIn || charging) && (
         <svg
           viewBox="0 0 1000 500"
@@ -189,7 +190,7 @@ export default function HomeHeroScene({
           className="pointer-events-none absolute inset-0 z-[25] h-full w-full overflow-visible"
           aria-hidden="true"
         >
-          {/* Physical black charging lead */}
+          {/* Physical connected charging lead */}
           <path
             d="M 265 245
                C 260 310, 245 365, 300 410
@@ -202,20 +203,23 @@ export default function HomeHeroScene({
             strokeLinejoin="round"
           />
 
-          {/* Subtle state illumination on the real cable */}
+          {/* Blue while plugged/waiting; green while actively charging */}
           <path
             d="M 265 245
                C 260 310, 245 365, 300 410
                C 370 465, 500 448, 560 385
                C 586 357, 590 322, 606 292"
             fill="none"
-            stroke={charging ? "rgba(52,211,153,.68)" : "rgba(96,165,250,.58)"}
-            strokeWidth="1.5"
+            stroke={
+              charging
+                ? "rgba(52,211,153,.55)"
+                : "rgba(96,165,250,.58)"
+            }
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* Travelling energy pulse only while actively charging */}
           {charging && (
             <path
               d="M 265 245
@@ -224,7 +228,7 @@ export default function HomeHeroScene({
                  C 586 357, 590 322, 606 292"
               fill="none"
               stroke="rgba(110,255,190,.98)"
-              strokeWidth="2.5"
+              strokeWidth="2.7"
               strokeLinecap="round"
               strokeDasharray="22 105"
               className="ev-charge-flow"
@@ -233,17 +237,8 @@ export default function HomeHeroScene({
         </svg>
       )}
 
-      {/* Tesla rear-left charge-port state */}
-      {(pluggedIn || charging) && (
-        <div
-          className={[
-            "pointer-events-none absolute left-[59.5%] top-[55%] z-30 h-4 w-4 rounded-full transition-all duration-500",
-            charging
-              ? "bg-emerald-300 shadow-[0_0_7px_3px_rgba(52,211,153,.5)] animate-pulse"
-              : "bg-blue-400 shadow-[0_0_6px_2px_rgba(96,165,250,.4)]",
-          ].join(" ")}
-        />
-      )}
+
+
 
       {charging && (
         <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-emerald-300/30 bg-emerald-950/75 px-3 py-1.5 text-[10px] sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs font-black tracking-[0.12em] sm:tracking-[0.13em] text-emerald-100 shadow-[0_0_22px_rgba(52,211,153,.28)] backdrop-blur-xl">

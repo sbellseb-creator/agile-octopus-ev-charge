@@ -307,7 +307,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
 
                   <SelectContent>
                     <SelectItem value="automatic">
-                      Automatic — real weather & time
+                      Current weather (recommended)
                     </SelectItem>
 
                     <SelectItem value="summer">
@@ -346,9 +346,9 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
               </div>
 
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Automatic follows the real weather at your saved home charging
+                Current weather follows the real weather at your saved home charging
                 location and changes with the time of day. A forced theme stays
-                active until you change it back to Automatic.
+                active until you change it back to Current weather.
               </p>
             </AccordionContent>
           </AccordionItem>

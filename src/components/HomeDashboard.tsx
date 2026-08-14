@@ -40,9 +40,7 @@ import { getSettings, hasHomeLocation } from "@/lib/app-settings";
 import { resolveHomeScene } from "@/lib/home-scene";
 import { supabase } from "@/integrations/supabase/client";
 
-import HomeHeroScene, {
-  type HomeSceneTheme,
-} from "@/components/home/HomeHeroScene";
+import HomeHeroScene from "@/components/home/HomeHeroScene";
 
 interface Props {
   vehicles: Vehicle[];
@@ -62,33 +60,6 @@ function dayLabel(planDate: string): string {
   if (planDate === tomorrow) return "Tomorrow";
 
   return formatUK(`${planDate}T12:00:00Z`, "EEE");
-}
-
-function getAutomaticTheme(): HomeSceneTheme {
-  if (typeof window !== "undefined") {
-    const forced = window.localStorage.getItem("ev-home-theme");
-
-    const allowed: HomeSceneTheme[] = [
-      "summer",
-      "winter",
-      "spring",
-      "autumn",
-      "easter",
-      "christmas",
-      "classic",
-    ];
-
-    if (forced && allowed.includes(forced as HomeSceneTheme)) {
-      return forced as HomeSceneTheme;
-    }
-  }
-
-  const month = Number(formatUK(new Date(), "M"));
-
-  if (month === 12 || month <= 2) return "winter";
-  if (month >= 3 && month <= 5) return "spring";
-  if (month >= 6 && month <= 8) return "summer";
-  return "autumn";
 }
 
 function priceColour(price: number): string {
@@ -257,9 +228,9 @@ export default function HomeDashboard({
       settings.home_latitude,
       settings.home_longitude,
     ],
-    enabled:
-      settings.home_theme === "automatic" &&
-      hasHomeLocation(settings),
+    // Home weather is useful in every appearance mode.
+    // Forced themes change the artwork, not the real home conditions.
+    enabled: hasHomeLocation(settings),
     staleTime: 15 * 60_000,
     queryFn: async () => {
       const lat = settings.home_latitude;
@@ -294,6 +265,11 @@ export default function HomeDashboard({
       const codes = hourly.weather_code ?? [];
       const temps = hourly.temperature_2m ?? [];
 
+      const daily = data.daily ?? {};
+      const dailyTimes = daily.time ?? [];
+      const sunrises = daily.sunrise ?? [];
+      const sunsets = daily.sunset ?? [];
+
       const now = Date.now();
 
       let bestIndex = 0;
@@ -309,12 +285,31 @@ export default function HomeDashboard({
         }
       });
 
+      const todayLondon = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/London",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+
+      const todayIndex = dailyTimes.findIndex(
+        (day: string) => day === todayLondon,
+      );
+
       return {
         weatherCode: Number(codes[bestIndex] ?? 3),
         temperatureC:
           temps[bestIndex] == null
             ? undefined
             : Number(temps[bestIndex]),
+        sunrise:
+          todayIndex >= 0
+            ? sunrises[todayIndex]
+            : undefined,
+        sunset:
+          todayIndex >= 0
+            ? sunsets[todayIndex]
+            : undefined,
         source:
           data.source === "live"
             ? ("live" as const)
@@ -464,6 +459,8 @@ export default function HomeDashboard({
     preference: settings.home_theme ?? "automatic",
     weatherCode: homeWeather?.weatherCode,
     temperatureC: homeWeather?.temperatureC,
+    sunrise: homeWeather?.sunrise,
+    sunset: homeWeather?.sunset,
     source: homeWeather?.source,
   });
 

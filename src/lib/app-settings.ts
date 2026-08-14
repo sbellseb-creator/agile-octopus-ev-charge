@@ -53,9 +53,9 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   charger_amps: CHARGER_MAX_AMPS,
   charger_kw: CHARGER_MAX_KW,
-  charging_location: "Home",
-  home_latitude: null,
-  home_longitude: null,
+  charging_location: "Home · NE34 0HN",
+  home_latitude: 54.971197,
+  home_longitude: -1.422019,
   region: "F",
   tariff: "agile",
   petrol_price_ppl: 134.9,
@@ -100,6 +100,18 @@ function clampCharger(s: AppSettings): AppSettings {
 
 export function getSettings(): AppSettings {
   const stored = readJSON<Partial<AppSettings>>(KEY, {}, (v) => !!v && typeof v === "object");
+
+  const migrationKey = "home-theme-current-weather-v1";
+
+  if (
+    typeof window !== "undefined" &&
+    !window.localStorage.getItem(migrationKey) &&
+    stored.home_theme === "summer"
+  ) {
+    stored.home_theme = "automatic";
+    window.localStorage.setItem(migrationKey, "1");
+  }
+
   return clampCharger({ ...DEFAULT_SETTINGS, ...stored });
 }
 
@@ -154,9 +166,13 @@ export async function loadSettingsFromCloud(): Promise<AppSettings> {
       diesel_mpg: Number(data.diesel_mpg),
       work_rate_pence_per_mile: Number(data.work_rate_pence_per_mile),
       home_theme: (
-        (data as Record<string, unknown>).home_theme ??
-        getSettings().home_theme ??
-        "automatic"
+        (data as Record<string, unknown>).home_theme === "summer"
+          ? "automatic"
+          : (
+              (data as Record<string, unknown>).home_theme ??
+              getSettings().home_theme ??
+              "automatic"
+            )
       ) as HomeThemePreference,
       notify_cheap_slots: Boolean(data.notify_cheap_slots),
       notify_charge_complete: Boolean(data.notify_charge_complete),

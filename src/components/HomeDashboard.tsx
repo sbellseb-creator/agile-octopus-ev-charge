@@ -556,65 +556,66 @@ export default function HomeDashboard({
 
   return (
     <div className="space-y-4">
-      {/* Vehicle scene */}
-      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-card shadow-2xl">
-        <HomeHeroScene
-          scene={scene}
-          charging={isCharging}
-          pluggedIn={isPluggedIn}
-          batteryLevel={live?.battery_level}
-          chargeLimit={live?.charge_limit_soc}
-          chargerPowerKw={live?.charger_power_kw}
-          timeToFullChargeHours={live?.time_to_full_charge}
-          state={heroState}
-        />
+      <div className="relative grid gap-3 md:grid-cols-2 lg:block">
+        {/* Vehicle scene */}
+        <section className="overflow-hidden rounded-[24px] border border-white/10 bg-card shadow-2xl md:col-span-2 sm:rounded-[30px]">
+          <HomeHeroScene
+            scene={scene}
+            charging={isCharging}
+            pluggedIn={isPluggedIn}
+            batteryLevel={live?.battery_level}
+            chargeLimit={live?.charge_limit_soc}
+            chargerPowerKw={live?.charger_power_kw}
+            timeToFullChargeHours={live?.time_to_full_charge}
+            state={heroState}
+          />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Car className="h-4 w-4 text-primary" />
+          <div className="flex min-h-[66px] flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-slate-950/90 px-4 py-3 backdrop-blur-xl">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
 
-              <p className="font-mono text-base font-black uppercase tracking-wider">
-                {formatRegistration(
-                  vehicle?.registration ?? "",
-                ) ||
-                  vehicle?.name ||
-                  "No vehicle"}
+                <p className="font-mono text-base font-black uppercase tracking-wider">
+                  {formatRegistration(
+                    vehicle?.registration ?? "",
+                  ) ||
+                    vehicle?.name ||
+                    "No vehicle"}
+                </p>
+
+                {live?.state && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] capitalize"
+                  >
+                    {live.state}
+                  </Badge>
+                )}
+              </div>
+
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {vehicle
+                  ? vehicleModelLine(vehicle)
+                  : "Add a vehicle to get started"}
               </p>
-
-              {live?.state && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] capitalize"
-                >
-                  {live.state}
-                </Badge>
-              )}
             </div>
 
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {vehicle
-                ? vehicleModelLine(vehicle)
-                : "Add a vehicle to get started"}
-            </p>
+            {live?.charge_limit_soc !== null &&
+              live?.charge_limit_soc !== undefined && (
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Charge limit
+                  </p>
+                  <p className="text-lg font-black text-primary">
+                    {live.charge_limit_soc}%
+                  </p>
+                </div>
+              )}
           </div>
+        </section>
 
-          {live?.charge_limit_soc !== null &&
-            live?.charge_limit_soc !== undefined && (
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Charge limit
-                </p>
-                <p className="text-lg font-black text-primary">
-                  {live.charge_limit_soc}%
-                </p>
-              </div>
-            )}
-        </div>
-      </section>
-
-      {/* Charge intelligence */}
-      <section className="overflow-hidden rounded-[26px] border border-border bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-lg">
+        {/* Charge intelligence */}
+        <section className="overflow-hidden rounded-[22px] border border-white/10 bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-xl lg:absolute lg:bottom-[82px] lg:left-4 lg:z-40 lg:w-[min(34%,390px)] lg:border-white/15 lg:bg-slate-950/85 lg:backdrop-blur-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p
@@ -697,10 +698,10 @@ export default function HomeDashboard({
             </div>
           </div>
         )}
-      </section>
+        </section>
 
-      {/* Next charge */}
-      <section className="rounded-[26px] border border-border bg-card p-4 shadow-lg">
+        {/* Next charge */}
+        <section className="rounded-[22px] border border-white/10 bg-card p-4 shadow-xl lg:absolute lg:bottom-[82px] lg:right-4 lg:z-40 lg:w-[min(39%,450px)] lg:border-white/15 lg:bg-slate-950/85 lg:backdrop-blur-xl">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div className="rounded-2xl bg-violet-500/10 p-2.5">
@@ -778,7 +779,7 @@ export default function HomeDashboard({
         </div>
 
         {nextPlan && (
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-2 min-[430px]:grid-cols-4">
             <div className="rounded-xl bg-muted/35 p-2.5">
               <p className="text-[10px] text-muted-foreground">
                 Energy
@@ -839,7 +840,8 @@ export default function HomeDashboard({
 
           <ChevronRight className="h-4 w-4" />
         </Button>
-      </section>
+        </section>
+      </div>
 
       {/* This month */}
       <section className="rounded-[26px] border border-border bg-card px-4 py-3 shadow-lg">

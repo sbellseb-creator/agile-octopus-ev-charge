@@ -4,16 +4,12 @@ import {
   CloudSnow,
   CloudSun,
   Moon,
-  PlugZap,
   Sparkles,
   Sun,
 } from "lucide-react";
 
 import type { HomeScene } from "@/lib/home-scene";
-import {
-  homeCarAsset,
-  homeSceneBackground,
-} from "@/lib/home-scene-assets";
+import { homeSceneBackground } from "@/lib/home-scene-assets";
 
 interface Props {
   scene: HomeScene;
@@ -82,15 +78,17 @@ export default function HomeHeroScene({
         })()
       : null;
 
-  const background = homeSceneBackground(scene);
-  const car = homeCarAsset();
+  const background = homeSceneBackground(scene, {
+    charging,
+    pluggedIn,
+  });
 
   return (
-    <div className="relative aspect-[4/5] min-h-[320px] overflow-hidden rounded-[22px] bg-slate-950 sm:aspect-[16/10] sm:min-h-[360px] sm:rounded-[30px] md:aspect-[16/9] lg:aspect-[16/7] lg:max-h-[620px]">
+    <div className="relative aspect-[4/3] min-h-[300px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/11] sm:aspect-[16/9] sm:min-h-[380px] sm:rounded-[30px] lg:aspect-[16/7] lg:min-h-[500px] lg:max-h-[560px]">
 
       {/* Real/generated weather scene */}
       <div
-        className="absolute inset-0 bg-cover bg-[40%_center] transition-all duration-700 sm:bg-center"
+        className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
         style={{
           backgroundImage: `url("${background}")`,
         }}
@@ -100,11 +98,11 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />
 
       {/* Premium cinematic grading */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-black/10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
       {/* Top status */}
-      <div className="absolute left-3 top-3 z-30 max-w-[46%] rounded-xl sm:rounded-2xl border border-white/15 bg-black/45 px-3 py-2 sm:px-4 sm:py-3 shadow-2xl backdrop-blur-xl">
+      <div className="absolute left-3 top-3 z-30 max-w-[52%] rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 shadow-2xl backdrop-blur-xl sm:left-4 sm:top-4 sm:max-w-[42%] sm:rounded-2xl sm:px-4 sm:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -114,7 +112,7 @@ export default function HomeHeroScene({
             }
           />
 
-          <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+          <span className="text-2xl font-black tracking-tight text-white sm:text-3xl">
             {battery}
           </span>
         </div>
@@ -128,11 +126,11 @@ export default function HomeHeroScene({
             : state || "Last known status"}
         </div>
 
-    {charging && remaining && (
-      <div className="mt-1 text-[11px] font-semibold text-emerald-200">
-        {remaining}
-      </div>
-    )}
+        {charging && remaining && (
+          <div className="mt-1 text-[11px] font-semibold text-emerald-200">
+            {remaining}
+          </div>
+        )}
 
         {chargeLimit != null && (
           <div className="mt-1 text-[10px] text-white/65">
@@ -142,7 +140,7 @@ export default function HomeHeroScene({
       </div>
 
       {/* Weather badge */}
-      <div className="absolute right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-2 text-xs text-white/85 backdrop-blur-xl">
+      <div className="absolute right-3 top-3 z-30 flex max-w-[45%] items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2.5 py-2 text-[11px] text-white/85 shadow-xl backdrop-blur-xl sm:right-4 sm:top-4 sm:gap-2 sm:px-3 sm:text-xs">
         <WeatherIcon scene={scene} />
 
         <span className="capitalize">
@@ -163,86 +161,15 @@ export default function HomeHeroScene({
         <div className="pointer-events-none absolute left-[23.2%] top-[22%] z-10 h-[110px] w-[85px] rounded-full bg-amber-200/12 blur-2xl" />
       )}
 
-      {/* Quicksilver vehicle layer */}
-      <img
-        src={car}
-        alt="Quicksilver Model Y"
-        className="absolute bottom-[7%] left-[64%] z-20 w-[70%] max-w-[620px] -translate-x-1/2 object-contain drop-shadow-[0_20px_26px_rgba(0,0,0,.46)] sm:w-[58%] md:w-[52%] lg:left-[67%] lg:w-[45%] xl:w-[42%]"
-      />
-
-      {/* Dynamic Tesla charger state */}
-      <div
-        className={[
-          "pointer-events-none absolute left-[25.2%] top-[47.2%] z-30 h-[6px] w-[2px] rounded-full transition-all duration-500",
-          charging
-            ? "bg-emerald-300 shadow-[0_0_6px_1px_rgba(52,211,153,.5)] animate-pulse"
-            : "bg-blue-400 shadow-[0_0_5px_1px_rgba(96,165,250,.4)]",
-        ].join(" ")}
-      />
-
-      {/* Dynamic lead overlay is only used when the vehicle is plugged in.
-          The photographic scene already contains the parked wall lead, so
-          drawing another unplugged cable here creates a fake blue squiggle. */}
-      {(pluggedIn || charging) && (
-        <svg
-          viewBox="0 0 1000 500"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-0 z-[25] h-full w-full overflow-visible"
-          aria-hidden="true"
-        >
-          {/* Physical connected charging lead */}
-          <path
-            d="M 265 245
-               C 260 310, 245 365, 300 410
-               C 370 465, 500 448, 560 385
-               C 586 357, 590 322, 606 292"
-            fill="none"
-            stroke="rgba(10,12,16,.98)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Blue while plugged/waiting; green while actively charging */}
-          <path
-            d="M 265 245
-               C 260 310, 245 365, 300 410
-               C 370 465, 500 448, 560 385
-               C 586 357, 590 322, 606 292"
-            fill="none"
-            stroke={
-              charging
-                ? "rgba(52,211,153,.55)"
-                : "rgba(96,165,250,.58)"
-            }
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {charging && (
-            <path
-              d="M 265 245
-                 C 260 310, 245 365, 300 410
-                 C 370 465, 500 448, 560 385
-                 C 586 357, 590 322, 606 292"
-              fill="none"
-              stroke="rgba(110,255,190,.98)"
-              strokeWidth="2.7"
-              strokeLinecap="round"
-              strokeDasharray="22 105"
-              className="ev-charge-flow"
-            />
-          )}
-        </svg>
+      {charging && (
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-emerald-300/30 bg-emerald-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-emerald-100 shadow-[0_0_22px_rgba(52,211,153,.28)] backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs sm:tracking-[0.13em] lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+          ⚡ LIVE CHARGING
+        </div>
       )}
 
-
-
-
-      {charging && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-emerald-300/30 bg-emerald-950/75 px-3 py-1.5 text-[10px] sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs font-black tracking-[0.12em] sm:tracking-[0.13em] text-emerald-100 shadow-[0_0_22px_rgba(52,211,153,.28)] backdrop-blur-xl">
-          ⚡ LIVE CHARGING
+      {!charging && pluggedIn && (
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+          PLUGGED IN · WAITING
         </div>
       )}
 

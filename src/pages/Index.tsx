@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog, MoreHorizontal } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
 import { loadVehicles, addVehicle, updateVehicle, deleteVehicle } from "@/lib/vehicle-data";
 import type { Vehicle } from "@/lib/vehicle-data";
@@ -98,35 +99,42 @@ export default function Index() {
 
       <VehicleIdentityBar vehicles={vehicles} />
 
-      <main className="container py-6">
+      <main className="container py-4 pb-24 sm:py-6 lg:pb-6">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full h-auto p-1 gap-1">
+          <TabsList className="fixed inset-x-2 bottom-2 z-50 grid h-auto grid-cols-6 gap-1 border border-white/10 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl lg:static lg:w-full lg:bg-card/90 lg:p-1">
             <TabsTrigger value="home" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <HomeIcon className="h-4 w-4 shrink-0" /> Home
             </TabsTrigger>
-            <TabsTrigger value="agile" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <TrendingDown className="h-4 w-4 shrink-0" /> Agile
+            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
+              <Zap className="h-4 w-4 shrink-0" /> Charge
             </TabsTrigger>
             <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <Gauge className="h-4 w-4 shrink-0" /> Tracker
             </TabsTrigger>
-            <TabsTrigger value="forecast" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <CloudSun className="h-4 w-4 shrink-0" /> Forecast
-            </TabsTrigger>
-          </TabsList>
-          <TabsList className="grid grid-cols-4 w-full h-auto p-1 gap-1">
             <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <CalendarClock className="h-4 w-4 shrink-0" /> Planner
-            </TabsTrigger>
-            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Zap className="h-4 w-4 shrink-0" /> Sessions
-            </TabsTrigger>
-            <TabsTrigger value="work" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Briefcase className="h-4 w-4 shrink-0" /> Work
             </TabsTrigger>
             <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
               <Car className="h-4 w-4 shrink-0" /> Vehicles
             </TabsTrigger>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-full min-w-0 flex-col gap-0.5 px-1 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground sm:text-sm sm:flex-row sm:gap-1.5">
+                  <MoreHorizontal className="h-4 w-4 shrink-0" /> More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-48 lg:side-bottom">
+                <DropdownMenuItem onSelect={() => setTab("agile")}>
+                  <TrendingDown className="mr-2 h-4 w-4" /> Agile prices
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTab("forecast")}>
+                  <CloudSun className="mr-2 h-4 w-4" /> Forecast
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTab("work")}>
+                  <Briefcase className="mr-2 h-4 w-4" /> Work
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">

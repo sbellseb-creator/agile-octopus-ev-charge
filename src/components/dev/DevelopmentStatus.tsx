@@ -20,6 +20,10 @@ export default function DevelopmentStatus() {
         <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">App build</div>
         <div className="mt-1 text-lg font-semibold">EV Charge Tracker {APP_VERSION}</div>
         <div className="text-sm text-muted-foreground">Build date {APP_BUILD_DATE}</div>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          This is a manually maintained development roadmap, not a live fault report.
+          “Todo” and “In progress” describe planned product work and do not mean the current build failed.
+        </p>
       </div>
 
       <div className="space-y-3">

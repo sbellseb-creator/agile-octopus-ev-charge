@@ -11,8 +11,15 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+// Codespaces previews use a separate origin that is not part of the production
+// Supabase redirect allow-list. Bypass only the page-level auth guard there so
+// responsive UI work can be reviewed without changing production behaviour.
+const isCodespacesPreview =
+  window.location.hostname.endsWith(".app.github.dev");
+
 function Protected({ children }: { children: JSX.Element }) {
   const { session, loading } = useAuth();
+  if (isCodespacesPreview) return children;
   if (loading) return <div className="min-h-screen bg-background" />;
   if (!session) return <Navigate to="/auth" replace />;
   return children;

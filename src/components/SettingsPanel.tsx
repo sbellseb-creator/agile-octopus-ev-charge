@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Car, Plug, Zap, PoundSterling, Fuel, Bell, ShieldCheck, Settings as Cog } from "lucide-react";
-import { toast } from "sonner";
 import TeslaConnect from "@/components/TeslaConnect";
 import VehicleEditForm from "@/components/vehicles/VehicleEditForm";
 import DevelopmentStatus from "@/components/dev/DevelopmentStatus";
@@ -74,25 +73,6 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
   }, []);
 
   const patch = (p: Partial<AppSettings>) => void saveSettings(p);
-
-  /** Device location is only ever read from this explicit button press. */
-  const useCurrentLocation = () => {
-    if (!("geolocation" in navigator)) {
-      toast.error("This device cannot provide a location. Enter the coordinates manually.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        patch({
-          home_latitude: Number(pos.coords.latitude.toFixed(6)),
-          home_longitude: Number(pos.coords.longitude.toFixed(6)),
-        });
-        toast.success("Home charging location saved.");
-      },
-      () => toast.error("Location permission was declined. Enter the coordinates manually."),
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
-  };
 
   const saveFuel = (p: Partial<FuelSettings>) => {
     const next = { ...fuel, ...p };
@@ -176,7 +156,7 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
                   inputMode="decimal"
                   placeholder="e.g. 51.507351"
                   value={settings.home_latitude ?? ""}
-                  onChange={(e) => patch({ home_latitude: e.target.value === "" ? null : Number(e.target.value) })}
+                  disabled
                   className="w-full"
                 />
               </div>
@@ -188,16 +168,16 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
                   inputMode="decimal"
                   placeholder="e.g. -0.127758"
                   value={settings.home_longitude ?? ""}
-                  onChange={(e) => patch({ home_longitude: e.target.value === "" ? null : Number(e.target.value) })}
+                  disabled
                   className="w-full"
                 />
               </div>
               <div className="min-w-0 sm:col-span-2">
-                <Button type="button" variant="outline" size="sm" className="w-full" onClick={useCurrentLocation}>
-                  Use my current location
+                <Button type="button" variant="outline" size="sm" className="w-full" disabled title="Disabled to protect the saved home charging location">
+                  Use my current location · locked
                 </Button>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Tesla charge schedules are tied to a location. Your device location is only read when you press this button.
+                  Temporarily disabled so another device cannot accidentally replace the saved South Shields home location.
                 </p>
               </div>
               <p className="text-[11px] text-muted-foreground sm:col-span-2">
@@ -369,10 +349,10 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
               <span className="flex min-w-0 items-center gap-2"><Bell className="h-4 w-4 shrink-0 text-primary" />Notifications</span>
             </AccordionTrigger>
             <AccordionContent className="space-y-3">
-              <Toggle label="Cheap slot alerts" checked={settings.notify_cheap_slots} onChange={(c) => patch({ notify_cheap_slots: c })} />
-              <Toggle label="Charge complete" checked={settings.notify_charge_complete} onChange={(c) => patch({ notify_charge_complete: c })} />
-              <Toggle label="Price spike alerts" checked={settings.notify_price_alerts} onChange={(c) => patch({ notify_price_alerts: c })} />
-              <p className="text-[11px] text-muted-foreground">Preferences are saved now; delivery arrives in a later phase.</p>
+              <Toggle disabled label="Cheap slot alerts" checked={settings.notify_cheap_slots} onChange={(c) => patch({ notify_cheap_slots: c })} />
+              <Toggle disabled label="Charge complete" checked={settings.notify_charge_complete} onChange={(c) => patch({ notify_charge_complete: c })} />
+              <Toggle disabled label="Price spike alerts" checked={settings.notify_price_alerts} onChange={(c) => patch({ notify_price_alerts: c })} />
+              <p className="text-[11px] text-muted-foreground">Controls are disabled until notification delivery is implemented and tested.</p>
             </AccordionContent>
           </AccordionItem>
 
@@ -407,9 +387,12 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
               <p className="pt-2 text-[11px] text-muted-foreground">
                 Tokens, OAuth secrets and full VIN are never shown here and never leave the server.
               </p>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => void loadSettingsFromCloud()}>
-                Reload settings from cloud
+              <Button variant="outline" size="sm" className="w-full" disabled title="Disabled until cloud/local comparison and confirmation are available">
+                Reload settings from cloud · locked
               </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Automatic startup sync remains active. Manual replacement is disabled to prevent an older cloud copy overwriting this device.
+              </p>
             </AccordionContent>
           </AccordionItem>
         </Accordion>
@@ -418,11 +401,11 @@ export default function SettingsPanel({ vehicles, onUpdateVehicle }: Props) {
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (c: boolean) => void }) {
+function Toggle({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (c: boolean) => void; disabled?: boolean }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3">
+    <div className={`flex min-w-0 items-center justify-between gap-3 ${disabled ? "opacity-45" : ""}`}>
       <Label className="min-w-0 break-words text-xs">{label}</Label>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
 }

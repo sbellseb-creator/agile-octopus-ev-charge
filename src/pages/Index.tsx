@@ -99,31 +99,31 @@ export default function Index() {
 
       <VehicleIdentityBar vehicles={vehicles} />
 
-      <main className="container py-4 pb-24 sm:py-6 lg:pb-6">
-        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="fixed inset-x-2 bottom-2 z-50 grid h-auto grid-cols-6 gap-1 border border-white/10 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl lg:static lg:w-full lg:bg-card/90 lg:p-1">
-            <TabsTrigger value="home" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <HomeIcon className="h-4 w-4 shrink-0" /> Home
+      <main className="container py-3 sm:py-4">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+          <TabsList className="sticky top-2 z-50 grid h-11 w-full grid-cols-6 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
+            <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
+              <HomeIcon className="h-3.5 w-3.5 shrink-0" /> Home
             </TabsTrigger>
-            <TabsTrigger value="charging" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Zap className="h-4 w-4 shrink-0" /> Charge
+            <TabsTrigger value="charging" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
+              <Zap className="h-3.5 w-3.5 shrink-0" /> Charge
             </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Gauge className="h-4 w-4 shrink-0" /> Tracker
+            <TabsTrigger value="tracker" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
+              <Gauge className="h-3.5 w-3.5 shrink-0" /> Tracker
             </TabsTrigger>
-            <TabsTrigger value="planner" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <CalendarClock className="h-4 w-4 shrink-0" /> Planner
+            <TabsTrigger value="planner" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
+              <CalendarClock className="h-3.5 w-3.5 shrink-0" /> Planner
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] sm:text-sm sm:flex-row sm:gap-1.5">
-              <Car className="h-4 w-4 shrink-0" /> Vehicles
+            <TabsTrigger value="vehicles" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
+              <Car className="h-3.5 w-3.5 shrink-0" /> Vehicles
             </TabsTrigger>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-full min-w-0 flex-col gap-0.5 px-1 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground sm:text-sm sm:flex-row sm:gap-1.5">
-                  <MoreHorizontal className="h-4 w-4 shrink-0" /> More
+                <Button variant="ghost" className="h-9 min-w-0 flex-col gap-0 px-0.5 py-1 text-[9px] font-medium text-muted-foreground hover:text-foreground sm:flex-row sm:gap-1 sm:text-xs">
+                  <MoreHorizontal className="h-3.5 w-3.5 shrink-0" /> More
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" className="w-48 lg:side-bottom">
+              <DropdownMenuContent align="end" side="bottom" className="w-48">
                 <DropdownMenuItem onSelect={() => setTab("agile")}>
                   <TrendingDown className="mr-2 h-4 w-4" /> Agile prices
                 </DropdownMenuItem>
@@ -141,7 +141,9 @@ export default function Index() {
             <HomeDashboard
               vehicles={vehicles}
               sessions={sessionsCloudConfirmed ? sessions : []}
+              onSessionsChanged={() => setSessions(loadSessions())}
               onManageSchedule={() => setTab("planner")}
+              onReviewCharges={() => setTab("charging")}
             />
           </TabsContent>
 

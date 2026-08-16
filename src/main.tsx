@@ -22,11 +22,22 @@ if (teslaReturn && window.opener && window.opener !== window) {
 }
 
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+// One-time migration from the early preview PWA. That worker cached whole
+// Home bundles and could keep showing the legacy double-car scene long after a
+// successful deployment. Clear it before future releases introduce a properly
+// versioned offline worker.
+if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .catch((error) => console.warn("Service worker registration failed:", error));
+    const migrationKey = "ev-cache-migrated-20260816-v2";
+    if (window.localStorage.getItem(migrationKey) === "1") return;
+    void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      if ("caches" in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map((name) => caches.delete(name)));
+      }
+      window.localStorage.setItem(migrationKey, "1");
+      window.location.reload();
+    });
   });
 }
-

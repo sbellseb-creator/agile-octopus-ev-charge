@@ -80,7 +80,8 @@ function positiveNumber(
  *
  * Cost energy priority:
  *   1. measured_grid_energy_kwh
- *   2. time-based estimated grid energy
+ *   2. explicit estimated_grid_energy_kwh (for example SoC/efficiency)
+ *   3. time-based estimated grid energy
  *
  * battery_energy_kwh is deliberately not treated as grid consumption.
  */
@@ -214,6 +215,11 @@ export async function recalcSessionCost(
       merged.measured_grid_energy_kwh,
     );
 
+  const explicitEstimatedGridEnergy =
+    positiveNumber(
+      merged.estimated_grid_energy_kwh,
+    );
+
   /*
    * Allocate the energy used for costing proportionally across the
    * session duration.
@@ -223,6 +229,7 @@ export async function recalcSessionCost(
    */
   const costEnergy =
     measuredGridEnergy ??
+    explicitEstimatedGridEnergy ??
     timeEstimatedGridEnergy;
 
   const slotEnergy = slotHours.map(
@@ -256,7 +263,7 @@ export async function recalcSessionCost(
     num_slots: effectiveSlots,
     slot_prices: resolved,
     estimated_grid_energy_kwh: Number(
-      timeEstimatedGridEnergy.toFixed(2),
+      costEnergy.toFixed(2),
     ),
   };
 }

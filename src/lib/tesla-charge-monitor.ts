@@ -53,7 +53,7 @@ export interface ChargeMonitorResult {
   closedSession?: AutomaticChargeSessionDraft;
 }
 
-export const CHARGE_PAUSE_GRACE_MS = 60 * 60 * 1000;
+export const CHARGE_PAUSE_GRACE_MS = 10 * 60 * 1000;
 
 export const initialChargeMonitorState = (): ChargeMonitorState => ({
   phase: "idle",
@@ -63,19 +63,21 @@ export const initialChargeMonitorState = (): ChargeMonitorState => ({
 });
 
 function isCharging(state: string | null): boolean {
-  return state === "Charging" || state === "Starting";
+  const normal = state?.toLowerCase();
+  return normal === "charging" || normal === "starting";
 }
 
 function isPluggedButNotCharging(state: string | null): boolean {
+  const normal = state?.toLowerCase();
   return (
-    state === "Stopped" ||
-    state === "NoPower" ||
-    state === "Complete"
+    normal === "stopped" ||
+    normal === "nopower" ||
+    normal === "complete"
   );
 }
 
 function isDisconnected(state: string | null): boolean {
-  return state === "Disconnected";
+  return state?.toLowerCase() === "disconnected";
 }
 
 function ukDateFromIso(iso: string): string {
@@ -171,7 +173,13 @@ export function advanceChargeMonitor(
             ...(current.session ?? {}),
             sessionDate: ukDateFromIso(observation.observedAt),
             actualStart: observation.observedAt,
-            startSoc: battery,
+            // If Home observed the car waiting after plug-in, retain that SoC.
+            // Replacing it with the first later charging observation can create
+            // an impossible short SoC range paired with a much larger energy value.
+            startSoc:
+              current.session?.startSoc ??
+              current.session?.endSoc ??
+              battery,
             endSoc: battery,
             observedChargerKw: chargerPower,
             actualEnergyKwh: energy,
@@ -202,7 +210,7 @@ export function advanceChargeMonitor(
       return {
         state: {
           phase:
-            chargingState === "Complete"
+            chargingState.toLowerCase() === "complete"
               ? "completed"
               : "plugged_waiting",
           lastObservedAt: observation.observedAt,
@@ -237,7 +245,7 @@ export function advanceChargeMonitor(
         observedMs - new Date(current.pauseStartedAt).getTime();
 
       if (
-        chargingState === "Complete" ||
+        chargingState.toLowerCase() === "complete" ||
         pauseMs >= pauseGraceMs
       ) {
         const closedSession = {

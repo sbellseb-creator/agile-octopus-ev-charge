@@ -14,8 +14,16 @@ export interface TeslaVehicle {
   exterior_color?: string | null;
   charge_port_latch?: string | null;
   charger_power_kw?: number | null;
+  /** Tesla-reported current flowing now, distinct from the configured limit. */
+  charger_actual_current?: number | null;
+  /** Compatibility field used by some Fleet API response versions. */
+  charge_amps?: number | null;
   /** Tesla-reported estimated hours remaining to the active charge target. */
   time_to_full_charge?: number | null;
+  /** Tesla session energy counter when supplied by Fleet telemetry. */
+  charge_energy_added_kwh?: number | null;
+  /** Native Tesla charge-state field used by some proxy versions. */
+  charge_energy_added?: number | null;
 }
 
 export interface TeslaListResult {

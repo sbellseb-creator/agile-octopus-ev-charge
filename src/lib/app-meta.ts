@@ -1,5 +1,5 @@
-export const APP_VERSION = "0.9.1-dev";
-export const APP_BUILD_DATE = "2026-08-09";
+export const APP_VERSION = "0.10.0-dev";
+export const APP_BUILD_DATE = "2026-08-16";
 
 export type DevStatus = "todo" | "in-progress" | "done" | "bug";
 

@@ -2,7 +2,9 @@ import type { HomeThemePreference } from "@/lib/app-settings";
 
 export type WeatherScene =
   | "clear"
+  | "fair"
   | "partly-cloudy"
+  | "mostly-cloudy"
   | "overcast"
   | "fog"
   | "rain"
@@ -22,15 +24,24 @@ export interface HomeScene {
   phase: DayPhase;
   weatherCode?: number;
   temperatureC?: number;
+  cloudCover?: number;
   source?: "live" | "estimated";
   sunrise?: string;
   sunset?: string;
 }
 
-export function weatherCodeToScene(code: number): WeatherScene {
+export function weatherCodeToScene(
+  code: number,
+  cloudCover?: number,
+): WeatherScene {
   if (code === 0) return "clear";
 
-  if (code === 1 || code === 2) {
+  if (code === 1) return "fair";
+
+  if (code === 2) {
+    if (cloudCover != null && cloudCover >= 70) {
+      return "mostly-cloudy";
+    }
     return "partly-cloudy";
   }
 
@@ -124,6 +135,7 @@ export function resolveHomeScene(args: {
   preference: HomeThemePreference;
   weatherCode?: number;
   temperatureC?: number;
+  cloudCover?: number;
   sunrise?: string;
   sunset?: string;
   source?: "live" | "estimated";
@@ -147,6 +159,7 @@ export function resolveHomeScene(args: {
       phase,
       weatherCode: args.weatherCode,
       temperatureC: args.temperatureC,
+      cloudCover: args.cloudCover,
       sunrise: args.sunrise,
       sunset: args.sunset,
       source: args.source,
@@ -156,10 +169,14 @@ export function resolveHomeScene(args: {
   return {
     mode: "weather",
     theme: "automatic",
-    weather: weatherCodeToScene(args.weatherCode ?? 3),
+    weather: weatherCodeToScene(
+      args.weatherCode ?? 3,
+      args.cloudCover,
+    ),
     phase,
     weatherCode: args.weatherCode,
     temperatureC: args.temperatureC,
+    cloudCover: args.cloudCover,
     sunrise: args.sunrise,
     sunset: args.sunset,
     source: args.source,

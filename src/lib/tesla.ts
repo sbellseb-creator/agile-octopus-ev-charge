@@ -24,6 +24,9 @@ export interface TeslaVehicle {
   charge_energy_added_kwh?: number | null;
   /** Native Tesla charge-state field used by some proxy versions. */
   charge_energy_added?: number | null;
+  scheduled_charging_pending?: boolean | null;
+  /** Unix timestamp supplied by legacy Tesla charge_state responses. */
+  scheduled_charging_start_time?: number | null;
 }
 
 export interface TeslaListResult {

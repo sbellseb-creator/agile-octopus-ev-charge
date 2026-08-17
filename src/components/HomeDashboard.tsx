@@ -30,6 +30,7 @@ import {
 import {
   addSession,
   deleteSession,
+  loadSessions,
   updateSession,
   type ChargeSession,
 } from "@/lib/charge-data";
@@ -98,6 +99,9 @@ function sessionQuality(session: ChargeSession, batteryKwh = 75): {
 } {
   if (session.raw_observations?.quality_override === true) {
     return { trusted: true };
+  }
+  if (Number(session.confidence_score ?? 1) < 0.8) {
+    return { trusted: false, reason: "Tesla observation timing needs review" };
   }
   const energy = sessionEnergyKwh(session);
   const socDelta = Number(session.end_soc) - Number(session.start_soc);
@@ -478,6 +482,11 @@ export default function HomeDashboard({
     const teslaEnergyConsistent =
       teslaEnergy != null && energyRatio >= 0.7 && energyRatio <= 1.45;
     const batteryEnergy = teslaEnergyConsistent ? teslaEnergy! : socEnergy;
+    const startGapMinutes = closed.startObservationGapMinutes;
+    const finishGapMinutes = closed.finishObservationGapMinutes;
+    const timingObservedClosely =
+      startGapMinutes !== undefined && startGapMinutes <= 5 &&
+      finishGapMinutes !== undefined && finishGapMinutes <= 5;
     const estimatedGridEnergy = batteryEnergy > 0
       ? batteryEnergy / 0.9
       : 0;
@@ -523,17 +532,43 @@ export default function HomeDashboard({
       configured_charger_kw: settings.charger_kw,
       observed_charger_kw: closed.observedChargerKw,
       actual_energy_kwh: batteryEnergy,
-      confidence_score: teslaEnergyConsistent ? 0.9 : 0.65,
+      confidence_score:
+        teslaEnergyConsistent && timingObservedClosely ? 0.95 :
+          teslaEnergyConsistent ? 0.72 : 0.55,
       raw_observations: {
-        tesla_charge_energy_added_kwh: teslaEnergy,
+        tesla_charge_energy_baseline_kwh: closed.energyBaselineKwh ?? null,
+        tesla_charge_energy_latest_kwh: closed.energyLatestKwh ?? null,
+        tesla_charge_energy_delta_kwh: teslaEnergy,
         soc_estimated_battery_kwh: socEnergy,
         energy_consistent: teslaEnergyConsistent,
         energy_fallback: teslaEnergyConsistent ? "tesla" : "soc_delta",
+        first_charging_observed_at: closed.firstChargingObservedAt ?? null,
+        last_charging_observed_at: closed.lastChargingObservedAt ?? null,
+        start_observation_gap_minutes: startGapMinutes ?? null,
+        finish_observation_gap_minutes: finishGapMinutes ?? null,
+        observation_count: closed.observationCount ?? 0,
+        timing_observed_closely: timingObservedClosely,
       },
+    };
+
+    const isDuplicate = () => {
+      const startMs = new Date(closed.actualStart!).getTime();
+      const finishMs = new Date(closed.actualFinish!).getTime();
+      return loadSessions().some((existing) => {
+        if (existing.source !== "tesla" || existing.vehicle_id !== vehicle.id) return false;
+        const existingStart = new Date(existing.actual_start ?? existing.started_at ?? "").getTime();
+        const existingFinish = new Date(existing.actual_finish ?? existing.ended_at ?? "").getTime();
+        if (!Number.isFinite(existingStart) || !Number.isFinite(existingFinish)) return false;
+        const overlap = Math.max(0, Math.min(finishMs, existingFinish) - Math.max(startMs, existingStart));
+        const shortest = Math.max(1, Math.min(finishMs - startMs, existingFinish - existingStart));
+        return overlap / shortest >= 0.8 ||
+          (Math.abs(existingStart - startMs) <= 5 * 60_000 && Math.abs(existingFinish - finishMs) <= 5 * 60_000);
+      });
     };
 
     void recalcSessionCost({ ...draft, id: "automatic-draft" }, {})
       .then((cost) => {
+        if (isDuplicate()) return;
         addSession({
           ...draft,
           measured_grid_energy_kwh: undefined,
@@ -551,6 +586,7 @@ export default function HomeDashboard({
       })
       .catch((error) => {
         console.warn("Automatic Tesla session costing failed", error);
+        if (isDuplicate()) return;
         addSession(draft);
         onSessionsChanged?.();
       });

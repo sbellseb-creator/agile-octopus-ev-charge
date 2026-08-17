@@ -44,7 +44,7 @@ describe("Tesla charging monitor", () => {
     expect(charging.state.session?.actualStart).toBe(
       "2026-08-07T01:00:00Z",
     );
-    expect(charging.state.session?.startSoc).toBe(31);
+    expect(charging.state.session?.startSoc).toBe(30);
   });
 
   it("continues the same session after a short pause", () => {
@@ -79,7 +79,7 @@ describe("Tesla charging monitor", () => {
     );
   });
 
-  it("keeps a stopped-but-plugged session open for less than 60 minutes", () => {
+  it("keeps a stopped-but-plugged session open during the 10-minute grace period", () => {
     const started = advanceChargeMonitor(
       initialChargeMonitorState(),
       {
@@ -98,7 +98,7 @@ describe("Tesla charging monitor", () => {
     });
 
     const stillPaused = advanceChargeMonitor(paused.state, {
-      observedAt: "2026-08-07T03:30:00Z",
+      observedAt: "2026-08-07T03:05:00Z",
       chargingState: "Stopped",
       batteryLevel: 80,
       chargerPowerKw: 0,
@@ -109,7 +109,7 @@ describe("Tesla charging monitor", () => {
     expect(stillPaused.closedSession).toBeUndefined();
   });
 
-  it("closes a stopped-but-plugged session after 60 minutes", () => {
+  it("closes a stopped-but-plugged session after the 10-minute grace period", () => {
     const started = advanceChargeMonitor(
       initialChargeMonitorState(),
       {
@@ -128,7 +128,7 @@ describe("Tesla charging monitor", () => {
     });
 
     const completed = advanceChargeMonitor(paused.state, {
-      observedAt: "2026-08-07T04:01:00Z",
+      observedAt: "2026-08-07T03:11:00Z",
       chargingState: "Stopped",
       batteryLevel: 80,
       chargerPowerKw: 0,
@@ -149,6 +149,7 @@ describe("Tesla charging monitor", () => {
         chargingState: "Charging",
         batteryLevel: 31,
         chargerPowerKw: 6.9,
+        chargeEnergyAddedKwh: 4.2,
       },
     );
 
@@ -168,6 +169,50 @@ describe("Tesla charging monitor", () => {
     });
 
     expect(completed.event).toBe("charge_completed");
-    expect(completed.closedSession?.actualEnergyKwh).toBe(36.2);
+    expect(completed.closedSession?.actualEnergyKwh).toBe(32);
+  });
+
+  it("subtracts Tesla's initial cumulative energy baseline", () => {
+    const waiting = advanceChargeMonitor(initialChargeMonitorState(), {
+      observedAt: "2026-08-07T12:55:00Z",
+      chargingState: "Stopped",
+      batteryLevel: 47,
+      chargerPowerKw: 0,
+      chargeEnergyAddedKwh: 12.7,
+    });
+    const started = advanceChargeMonitor(waiting.state, {
+      observedAt: "2026-08-07T13:00:00Z",
+      chargingState: "Charging",
+      batteryLevel: 47,
+      chargerPowerKw: 6.9,
+      chargeEnergyAddedKwh: 12.7,
+    });
+    const charging = advanceChargeMonitor(started.state, {
+      observedAt: "2026-08-07T13:30:00Z",
+      chargingState: "Charging",
+      batteryLevel: 51,
+      chargerPowerKw: 6.9,
+      chargeEnergyAddedKwh: 16.1,
+    });
+
+    expect(charging.state.session?.actualEnergyKwh).toBeCloseTo(3.4);
+    expect(charging.state.session?.energyBaselineKwh).toBe(12.7);
+  });
+
+  it("records observation gaps so late browser polling is not presented as exact", () => {
+    const waiting = advanceChargeMonitor(initialChargeMonitorState(), {
+      observedAt: "2026-08-07T12:00:00Z",
+      chargingState: "Stopped",
+      batteryLevel: 47,
+      chargerPowerKw: 0,
+    });
+    const lateStart = advanceChargeMonitor(waiting.state, {
+      observedAt: "2026-08-07T13:34:00Z",
+      chargingState: "Charging",
+      batteryLevel: 52,
+      chargerPowerKw: 6.9,
+    });
+
+    expect(lateStart.state.session?.startObservationGapMinutes).toBe(94);
   });
 });

@@ -108,6 +108,11 @@ Deno.serve(async (req) => {
       let exteriorColor: string | null = null;
       let chargerPowerKw: number | null = null;
       let timeToFullChargeHours: number | null = null;
+      let chargerActualCurrent: number | null = null;
+      let chargeEnergyAddedKwh: number | null = null;
+      let chargePortLatch: string | null = null;
+      let scheduledChargingPending: boolean | null = null;
+      let scheduledChargingStartTime: number | null = null;
 
       try {
         const dRes = await fetch(
@@ -122,6 +127,11 @@ Deno.serve(async (req) => {
           chargeLimit = cs.charge_limit_soc ?? null;
           chargerPowerKw = cs.charger_power ?? null;
           timeToFullChargeHours = cs.time_to_full_charge ?? null;
+          chargerActualCurrent = cs.charger_actual_current ?? cs.charge_amps ?? null;
+          chargeEnergyAddedKwh = cs.charge_energy_added ?? null;
+          chargePortLatch = cs.charge_port_latch ?? null;
+          scheduledChargingPending = cs.scheduled_charging_pending ?? null;
+          scheduledChargingStartTime = cs.scheduled_charging_start_time ?? null;
           const cfg = d?.response?.vehicle_config ?? {};
           carType = cfg.car_type ?? null;
           trimBadging = cfg.trim_badging ?? null;
@@ -145,6 +155,11 @@ Deno.serve(async (req) => {
         exterior_color: exteriorColor,
         charger_power_kw: chargerPowerKw,
         time_to_full_charge: timeToFullChargeHours,
+        charger_actual_current: chargerActualCurrent,
+        charge_energy_added_kwh: chargeEnergyAddedKwh,
+        charge_port_latch: chargePortLatch,
+        scheduled_charging_pending: scheduledChargingPending,
+        scheduled_charging_start_time: scheduledChargingStartTime,
       });
     }
 

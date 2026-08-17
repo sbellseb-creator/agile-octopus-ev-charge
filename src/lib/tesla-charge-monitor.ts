@@ -31,6 +31,14 @@ export interface AutomaticChargeSessionDraft {
   endSoc?: number;
   observedChargerKw?: number;
   actualEnergyKwh?: number;
+  /** Tesla's cumulative counter when this app first observed the session. */
+  energyBaselineKwh?: number;
+  energyLatestKwh?: number;
+  firstChargingObservedAt?: string;
+  lastChargingObservedAt?: string;
+  startObservationGapMinutes?: number;
+  finishObservationGapMinutes?: number;
+  observationCount?: number;
 }
 
 export interface ChargeMonitorState {
@@ -102,6 +110,12 @@ function updateSessionFromObservation(
   const chargerPower = finiteNumber(observation.chargerPowerKw);
   const energy = finiteNumber(observation.chargeEnergyAddedKwh);
   const battery = finiteNumber(observation.batteryLevel);
+  const baseline = finiteNumber(session.energyBaselineKwh);
+  const sessionEnergy = energy === undefined
+    ? session.actualEnergyKwh
+    : baseline === undefined
+      ? session.actualEnergyKwh
+      : Math.max(0, energy >= baseline ? energy - baseline : energy);
 
   return {
     ...session,
@@ -110,7 +124,13 @@ function updateSessionFromObservation(
       chargerPower !== undefined && chargerPower > 0
         ? Math.max(session.observedChargerKw ?? 0, chargerPower)
         : session.observedChargerKw,
-    actualEnergyKwh: energy ?? session.actualEnergyKwh,
+    // Older persisted monitor states did not store a baseline. The first
+    // counter seen after upgrading becomes the baseline instead of being
+    // misreported as energy delivered by this session.
+    energyBaselineKwh: baseline ?? energy,
+    energyLatestKwh: energy ?? session.energyLatestKwh,
+    actualEnergyKwh: sessionEnergy,
+    observationCount: (session.observationCount ?? 0) + 1,
   };
 }
 
@@ -164,6 +184,13 @@ export function advanceChargeMonitor(
       current.phase === "plugged_waiting" ||
       current.phase === "completed"
     ) {
+      const previousObservedMs = current.lastObservedAt
+        ? new Date(current.lastObservedAt).getTime()
+        : Number.NaN;
+      const startGapMinutes = Number.isFinite(previousObservedMs)
+        ? Math.max(0, (observedMs - previousObservedMs) / 60_000)
+        : undefined;
+      const baseline = finiteNumber(current.session?.energyBaselineKwh) ?? energy;
       return {
         state: {
           phase: "charging",
@@ -182,7 +209,16 @@ export function advanceChargeMonitor(
               battery,
             endSoc: battery,
             observedChargerKw: chargerPower,
-            actualEnergyKwh: energy,
+            energyBaselineKwh: baseline,
+            energyLatestKwh: energy,
+            actualEnergyKwh:
+              energy !== undefined && baseline !== undefined
+                ? Math.max(0, energy >= baseline ? energy - baseline : energy)
+                : undefined,
+            firstChargingObservedAt: observation.observedAt,
+            lastChargingObservedAt: observation.observedAt,
+            startObservationGapMinutes: startGapMinutes,
+            observationCount: 1,
           },
         },
         event: "charge_started",
@@ -196,10 +232,10 @@ export function advanceChargeMonitor(
         ...baseState,
         phase: "charging",
         pauseStartedAt: null,
-        session: updateSessionFromObservation(
-          current.session,
-          observation,
-        ),
+        session: {
+          ...updateSessionFromObservation(current.session, observation),
+          lastChargingObservedAt: observation.observedAt,
+        },
       },
       event: resumed ? "charge_resumed" : "none",
     };
@@ -219,6 +255,9 @@ export function advanceChargeMonitor(
             sessionDate: ukDateFromIso(observation.observedAt),
             pluggedInAt: observation.observedAt,
             endSoc: finiteNumber(observation.batteryLevel),
+            energyBaselineKwh: finiteNumber(observation.chargeEnergyAddedKwh),
+            energyLatestKwh: finiteNumber(observation.chargeEnergyAddedKwh),
+            observationCount: 1,
           },
         },
         event: "plugged_in",
@@ -226,15 +265,20 @@ export function advanceChargeMonitor(
     }
 
     if (current.phase === "charging") {
+      const lastChargingMs = current.session.lastChargingObservedAt
+        ? new Date(current.session.lastChargingObservedAt).getTime()
+        : Number.NaN;
       return {
         state: {
           ...baseState,
           phase: "paused",
           pauseStartedAt: observation.observedAt,
-          session: updateSessionFromObservation(
-            current.session,
-            observation,
-          ),
+          session: {
+            ...updateSessionFromObservation(current.session, observation),
+            finishObservationGapMinutes: Number.isFinite(lastChargingMs)
+              ? Math.max(0, (observedMs - lastChargingMs) / 60_000)
+              : undefined,
+          },
         },
         event: "charge_paused",
       };

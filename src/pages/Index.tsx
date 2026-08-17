@@ -101,9 +101,12 @@ export default function Index() {
 
       <main className="container py-3 sm:py-4">
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList className="sticky top-2 z-50 grid h-11 w-full grid-cols-6 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
+          <TabsList className="sticky top-2 z-50 grid h-11 w-full grid-cols-7 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
             <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
               <HomeIcon className="h-3.5 w-3.5 shrink-0" /> Home
+            </TabsTrigger>
+            <TabsTrigger value="agile" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[8px] sm:flex-row sm:gap-1 sm:text-xs">
+              <TrendingDown className="h-3.5 w-3.5 shrink-0" /> Agile
             </TabsTrigger>
             <TabsTrigger value="charging" className="flex h-9 flex-col items-center gap-0 px-0.5 py-1 text-[9px] sm:flex-row sm:gap-1 sm:text-xs">
               <Zap className="h-3.5 w-3.5 shrink-0" /> Charge

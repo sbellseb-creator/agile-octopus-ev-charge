@@ -122,6 +122,14 @@ export default function HomeHeroScene({
 
   const teamMark = footballTeam === "Sunderland"
     ? "SAFC"
+    : footballTeam === "Apple"
+      ? "🍎"
+      : footballTeam === "Lemon"
+        ? "🍋"
+        : footballTeam === "Paw"
+          ? "🐾"
+          : footballTeam === "None"
+            ? ""
     : footballTeam
         .split(" ")
         .map((word) => word[0])
@@ -148,6 +156,16 @@ export default function HomeHeroScene({
             height="941"
             preserveAspectRatio="xMidYMid slice"
           />
+          {/* A playful selectable mirror air freshener, kept separate from the
+              information display so the HMI remains readable. */}
+          {footballTeam !== "None" && <>
+          <line x1="836" y1="0" x2="836" y2="190" stroke="rgba(15,23,42,.85)" strokeWidth="4" />
+          <g transform="translate(786 176)">
+            <path d="M50 0 C75 0 94 19 94 44 C94 71 75 96 50 112 C25 96 6 71 6 44 C6 19 25 0 50 0Z" fill={footballTeam === "Sunderland" ? "#dc2626" : "#0f766e"} stroke="white" strokeWidth="4" />
+            <text x="50" y="52" textAnchor="middle" fill="white" fontSize="22" fontWeight="900">{teamMark}</text>
+            <text x="50" y="75" textAnchor="middle" fill="white" fontSize="10" fontWeight="700">AIR FRESHENER</text>
+          </g>
+          </>}
           <foreignObject x="686" y="326" width="378" height="246">
             <div className="flex h-full w-full flex-col overflow-hidden rounded-[13px] border border-emerald-300/20 bg-[#071018] px-4 py-3 text-white shadow-[inset_0_0_28px_rgba(16,185,129,.08)]">
               <div className="flex items-start justify-between gap-3">
@@ -161,9 +179,7 @@ export default function HomeHeroScene({
                     {compactStatus}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-[repeating-linear-gradient(90deg,#dc2626_0_7px,#fff_7px_14px)] text-[9px] font-black text-slate-950 shadow-lg" title={footballTeam}>
-                  <span className="rounded bg-white/90 px-1 py-0.5">{teamMark}</span>
-                </div>
+                <div className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[8px] font-bold text-emerald-200">READ ONLY</div>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 text-[9px]">

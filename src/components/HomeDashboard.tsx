@@ -106,8 +106,35 @@ function sessionQuality(session: ChargeSession, batteryKwh = 75): {
   const energy = sessionEnergyKwh(session);
   const socDelta = Number(session.end_soc) - Number(session.start_soc);
 
+  const start = session.started_at ?? session.actual_start;
+  const finish = session.ended_at ?? session.actual_finish;
+  const durationHours = start && finish
+    ? Math.max(0, (new Date(finish).getTime() - new Date(start).getTime()) / 3_600_000)
+    : 0;
+  const observedPower = Math.max(
+    0.1,
+    Number(session.observed_charger_kw) ||
+      Number(session.configured_charger_kw) ||
+      6.9,
+  );
+  const expectedHours = energy > 0 ? energy / observedPower : 0;
+
   if (energy < 0.25 || socDelta <= 0) {
     return { trusted: false, reason: "No meaningful completed charge detected" };
+  }
+
+  // A stale browser observation must never turn plugged-in waiting time into
+  // charging time.  Allow a generous margin for pauses and missed polls, but
+  // quarantine records whose elapsed duration is impossible for their energy.
+  if (
+    durationHours > 2 &&
+    expectedHours > 0 &&
+    durationHours > Math.max(4, expectedHours * 3 + 1)
+  ) {
+    return {
+      trusted: false,
+      reason: "Elapsed time includes a long Tesla observation gap",
+    };
   }
 
   const socEnergy = batteryKwh * socDelta / 100;
@@ -845,6 +872,13 @@ export default function HomeDashboard({
     batteryCapacityKwh,
   ]);
 
+  const cheapestSlot = useMemo(() => {
+    if (!ribbon.length) return null;
+    return ribbon.reduce((best, rate) =>
+      rate.value_inc_vat < best.value_inc_vat ? rate : best,
+    );
+  }, [ribbon]);
+
   const summary = useMemo(() => {
     const today = new Date();
     const todayKey = formatUK(today, "yyyy-MM-dd");
@@ -1152,7 +1186,7 @@ export default function HomeDashboard({
   };
 
   const cockpitCheapestWindow = bestWindow
-    ? `${formatUK(bestWindow.from, "HH:mm")}–${formatUK(bestWindow.to, "HH:mm")} · ${bestWindow.avg.toFixed(1)}p/kWh`
+    ? `Best ${bestWindow.hours}h block ${formatUK(bestWindow.from, "HH:mm")}–${formatUK(bestWindow.to, "HH:mm")} · ${bestWindow.avg.toFixed(1)}p/kWh`
     : null;
 
   const acceptEstimatedSession = (session: ChargeSession) => {
@@ -1207,6 +1241,10 @@ export default function HomeDashboard({
                 <option>Manchester United</option>
                 <option>Newcastle United</option>
                 <option>Tottenham Hotspur</option>
+                <option>Apple</option>
+                <option>Lemon</option>
+                <option>Paw</option>
+                <option>None</option>
               </select>
             </label>
           )}
@@ -1331,12 +1369,15 @@ export default function HomeDashboard({
               <p className="text-[10px] font-black text-emerald-200">
                 {scheduleLabel
                   ? `Tesla schedule · ${scheduleLabel}`
-                  : `Cheapest route · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
+                  : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
               </p>
               {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
             </div>
             <p className="mt-0.5 text-[8px] text-muted-foreground">
-              {scheduleLabel ? "Review, change or cancel in Planner" : `${bestWindow!.avg.toFixed(1)}p/kWh average`}
+              {scheduleLabel ? "Review, change or cancel in Planner" : `${bestWindow!.avg.toFixed(1)}p/kWh average for the complete charge`}
+              {!scheduleLabel && cheapestSlot
+                ? ` · lowest slot ${formatUK(cheapestSlot.valid_from, "HH:mm")} at ${cheapestSlot.value_inc_vat.toFixed(1)}p`
+                : ""}
               {!scheduleLabel && bestWindow?.resultingSoc != null
                 ? ` · reaches ≈${Math.round(bestWindow.resultingSoc)}%`
                 : ""}
@@ -1589,23 +1630,22 @@ export default function HomeDashboard({
                         ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
                         : quality.reason}
                     </p>
-                    {!quality.trusted && (
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
                         <button
                           type="button"
                           onClick={onReviewCharges}
                           disabled={!onReviewCharges}
                           className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
                         >
-                          Amend in Charge history
+                          Review / amend
                         </button>
-                        <button
+                        {!quality.trusted && <button
                           type="button"
                           onClick={() => acceptEstimatedSession(session)}
                           className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
                         >
                           Accept estimate
-                        </button>
+                        </button>}
                         <button
                           type="button"
                           onClick={() => removeReviewedSession(session)}
@@ -1614,7 +1654,6 @@ export default function HomeDashboard({
                           Delete
                         </button>
                       </div>
-                    )}
                   </div>
                   <span className="font-mono font-bold text-emerald-200">
                     {energy.toFixed(1)} kWh

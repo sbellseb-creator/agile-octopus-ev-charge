@@ -28,7 +28,10 @@ if (teslaReturn && window.opener && window.opener !== window) {
 // versioned offline worker.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    const migrationKey = "ev-cache-migrated-20260816-v2";
+    // Version the migration for every release that changes the Home bundle.
+    // v2 had already been recorded on Stephen's Fold, so it could not clear
+    // the stale worker/cache after Patch 030 was deployed.
+    const migrationKey = "ev-cache-migrated-20260818-v3";
     if (window.localStorage.getItem(migrationKey) === "1") return;
     void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
       await Promise.all(registrations.map((registration) => registration.unregister()));

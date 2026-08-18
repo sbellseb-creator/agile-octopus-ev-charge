@@ -156,14 +156,17 @@ export default function HomeHeroScene({
             height="941"
             preserveAspectRatio="xMidYMid slice"
           />
-          {/* A playful selectable mirror air freshener, kept separate from the
-              information display so the HMI remains readable. */}
+          {/* Rear-view mirror and a genuinely hanging selectable air
+              freshener.  It is separate from the information screen. */}
           {footballTeam !== "None" && <>
-          <line x1="836" y1="0" x2="836" y2="190" stroke="rgba(15,23,42,.85)" strokeWidth="4" />
-          <g transform="translate(786 176)">
-            <path d="M50 0 C75 0 94 19 94 44 C94 71 75 96 50 112 C25 96 6 71 6 44 C6 19 25 0 50 0Z" fill={footballTeam === "Sunderland" ? "#dc2626" : "#0f766e"} stroke="white" strokeWidth="4" />
-            <text x="50" y="52" textAnchor="middle" fill="white" fontSize="22" fontWeight="900">{teamMark}</text>
-            <text x="50" y="75" textAnchor="middle" fill="white" fontSize="10" fontWeight="700">AIR FRESHENER</text>
+          <g filter="drop-shadow(0 7px 8px rgba(0,0,0,.65))">
+            <rect x="760" y="74" width="152" height="46" rx="18" fill="#111827" stroke="#475569" strokeWidth="4" />
+            <rect x="775" y="84" width="122" height="22" rx="10" fill="#020617" />
+          </g>
+          <line x1="836" y1="120" x2="836" y2="194" stroke="#111827" strokeWidth="4" />
+          <g transform="translate(796 188)" filter="drop-shadow(0 7px 7px rgba(0,0,0,.55))">
+            <path d="M40 0 L55 23 L70 24 L61 42 L76 67 L57 64 L50 91 L40 80 L30 91 L23 64 L4 67 L19 42 L10 24 L25 23 Z" fill={footballTeam === "Sunderland" ? "#dc2626" : "#0f766e"} stroke="white" strokeWidth="3" />
+            <text x="40" y="51" textAnchor="middle" fill="white" fontSize="17" fontWeight="900">{teamMark}</text>
           </g>
           </>}
           <foreignObject x="686" y="326" width="378" height="246">
@@ -281,7 +284,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
       {/* Top status */}
-      <div className="absolute left-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+      <div className="absolute right-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -325,7 +328,7 @@ export default function HomeHeroScene({
       </div>
 
       {/* Weather badge */}
-      <div className="absolute right-2 top-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
+      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
         <WeatherIcon scene={scene} />
 
         <span className="hidden capitalize min-[430px]:inline">
@@ -341,10 +344,8 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Exterior wall light: only visible when scene is dark */}
-      {(scene.phase === "night" || scene.phase === "sunset") && (
-        <div className="pointer-events-none absolute left-[23.2%] top-[22%] z-10 h-[110px] w-[85px] rounded-full bg-amber-200/12 blur-2xl" />
-      )}
+      {/* The installed sunset/night photographs contain the illuminated wall
+          lamp and its real light spill. No synthetic glow is needed. */}
 
       {!charging && pluggedIn && (
         <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">

@@ -10,7 +10,31 @@ export function homeSceneBackground(
   const connected = Boolean(state.pluggedIn || state.charging);
 
   if (scene.mode === "forced") {
-    return `/home-scenes/theme-${scene.theme}-${scene.phase}.webp`;
+    // Forced themes use the installed photographic catalogue.  Earlier
+    // releases pointed at theme files which did not exist, leaving a blank
+    // gradient.  Keep every selector functional until bespoke seasonal
+    // photographs are added.
+    if (scene.phase === "night") {
+      return "/home-scenes/dashboard-reference-night-light-on.png";
+    }
+
+    if (scene.phase === "dawn" || scene.phase === "sunset") {
+      return "/home-scenes/dashboard-reference-sunset-charging.png";
+    }
+
+    if (scene.theme === "winter" || scene.theme === "classic") {
+      return connected
+        ? "/home-scenes/dashboard-reference-overcast-day-charging.png"
+        : "/home-scenes/dashboard-reference-overcast-day.png";
+    }
+
+    if (scene.theme === "autumn" || scene.theme === "halloween") {
+      return "/home-scenes/dashboard-reference-sunset-charging.png";
+    }
+
+    return connected
+      ? "/home-scenes/dashboard-reference-partly-cloudy-day-charging.png"
+      : "/home-scenes/dashboard-reference-partly-cloudy-day.png";
   }
 
   // Every supported daytime weather state stays in the same modern driveway
@@ -39,24 +63,19 @@ export function homeSceneBackground(
       : "/home-scenes/dashboard-reference-partly-cloudy-day.png";
   }
 
-  if (
-    scene.phase === "sunset" &&
-    (scene.weather === "clear" ||
-      scene.weather === "fair" ||
-      scene.weather === "partly-cloudy") &&
-    connected
-  ) {
+  if (scene.phase === "night") {
+    // This is a genuine night photograph with the exterior wall light on,
+    // not a daytime image darkened with CSS.
+    return "/home-scenes/dashboard-reference-night-light-on.png";
+  }
+
+  if (scene.phase === "dawn" || scene.phase === "sunset") {
     return "/home-scenes/dashboard-reference-sunset-charging.png";
   }
 
-  const assetWeather =
-    scene.weather === "fair"
-      ? "partly-cloudy"
-      : scene.weather === "mostly-cloudy"
-        ? "overcast"
-        : scene.weather;
-
-  return `/home-scenes/weather-${assetWeather}-${scene.phase}.webp`;
+  return connected
+    ? "/home-scenes/dashboard-reference-overcast-day-charging.png"
+    : "/home-scenes/dashboard-reference-overcast-day.png";
 }
 
 export function homeCarAsset(): string {

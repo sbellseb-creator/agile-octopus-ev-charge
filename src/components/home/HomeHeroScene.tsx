@@ -10,6 +10,7 @@ import {
 
 import type { HomeScene } from "@/lib/home-scene";
 import { homeSceneBackground } from "@/lib/home-scene-assets";
+import { calculateChargeFromPower } from "@/lib/tesla-charge-calc";
 
 interface Props {
   scene: HomeScene;
@@ -28,6 +29,7 @@ interface Props {
   cheapestWindowLabel?: string | null;
   scheduleLabel?: string | null;
   footballTeam?: string;
+  batteryCapacityKwh?: number | null;
 }
 
 function WeatherIcon({ scene }: { scene: HomeScene }) {
@@ -70,6 +72,7 @@ export default function HomeHeroScene({
   cheapestWindowLabel,
   scheduleLabel,
   footballTeam = "Sunderland",
+  batteryCapacityKwh = 75,
 }: Props) {
   const battery =
     batteryLevel != null
@@ -78,14 +81,24 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
+  // Calculate realistic charge time from observed power instead of Tesla's estimate
   const remaining =
-    timeToFullChargeHours != null &&
-    Number.isFinite(timeToFullChargeHours) &&
-    timeToFullChargeHours > 0
+    charging && 
+    batteryLevel != null && 
+    chargeLimit != null && 
+    chargerPowerKw != null &&
+    batteryCapacityKwh != null
       ? (() => {
+          const calc = calculateChargeFromPower(
+            batteryLevel,
+            chargeLimit,
+            batteryCapacityKwh,
+            chargerPowerKw,
+          );
+          
           const totalMinutes = Math.max(
             1,
-            Math.round(timeToFullChargeHours * 60),
+            Math.round(calc.estimatedHours * 60),
           );
           const hours = Math.floor(totalMinutes / 60);
           const minutes = totalMinutes % 60;
@@ -94,7 +107,23 @@ export default function HomeHeroScene({
           if (minutes === 0) return `${hours} hr remaining`;
           return `${hours} hr ${minutes} min remaining`;
         })()
-      : null;
+      : // Fallback: use Tesla's estimate if available
+      timeToFullChargeHours != null &&
+        Number.isFinite(timeToFullChargeHours) &&
+        timeToFullChargeHours > 0
+        ? (() => {
+            const totalMinutes = Math.max(
+              1,
+              Math.round(timeToFullChargeHours * 60),
+            );
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            if (hours === 0) return `${minutes} min remaining`;
+            if (minutes === 0) return `${hours} hr remaining`;
+            return `${hours} hr ${minutes} min remaining (Tesla estimate)`;
+          })()
+        : null;
 
   const background = homeSceneBackground(scene, {
     charging,
@@ -142,7 +171,7 @@ export default function HomeHeroScene({
 
   if (viewMode === "cockpit") {
     return (
-      <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
+      <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px]">
         <svg
           viewBox="0 0 1672 941"
           preserveAspectRatio="xMidYMid slice"
@@ -220,7 +249,7 @@ export default function HomeHeroScene({
   }
 
   return (
-    <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
+    <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px]">
 
       {/* Real/generated weather scene */}
       {usesAlignedConnectedScene ? (
@@ -284,7 +313,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
       {/* Top status */}
-      <div className="absolute right-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+      <div className="absolute right-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:max-w-none min-[430px]:max-w-[320px] sm:max-w-[380px]">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -328,7 +357,7 @@ export default function HomeHeroScene({
       </div>
 
       {/* Weather badge */}
-      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
+      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl">
         <WeatherIcon scene={scene} />
 
         <span className="hidden capitalize min-[430px]:inline">
@@ -348,7 +377,7 @@ export default function HomeHeroScene({
           lamp and its real light spill. No synthetic glow is needed. */}
 
       {!charging && pluggedIn && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-300">
           PLUGGED IN · WAITING
         </div>
       )}

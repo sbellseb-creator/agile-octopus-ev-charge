@@ -10,19 +10,11 @@ export function homeSceneBackground(
   const connected = Boolean(state.pluggedIn || state.charging);
 
   if (scene.mode === "forced") {
-    // Seasonal themes have their own dedicated day/night artwork. Fall back
-    // to the photographic catalogue for themes without bespoke seasonal
-    // artwork so every selector stays functional.
+    // Seasonal themes (winter/easter/halloween/christmas) reuse the same
+    // photographic driveway catalogue as every other forced theme. Their
+    // "seasonal feel" comes from the <SeasonalOverlay> CSS/SVG effects
+    // layered on top in HomeHeroScene, not from bespoke image assets.
     const isNight = scene.phase === "night";
-
-    if (
-      scene.theme === "winter" ||
-      scene.theme === "easter" ||
-      scene.theme === "halloween" ||
-      scene.theme === "christmas"
-    ) {
-      return `/home-scenes/dashboard-${scene.theme}-${isNight ? "night" : "day"}.webp`;
-    }
 
     if (isNight) {
       return "/home-scenes/dashboard-reference-night-light-on.png";

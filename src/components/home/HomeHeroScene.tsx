@@ -10,6 +10,7 @@ import {
 
 import type { HomeScene } from "@/lib/home-scene";
 import { homeSceneBackground } from "@/lib/home-scene-assets";
+import { calculateChargeFromPower } from "@/lib/tesla-charge-calc";
 
 interface Props {
   scene: HomeScene;
@@ -17,6 +18,7 @@ interface Props {
   pluggedIn?: boolean;
   batteryLevel?: number | null;
   batteryIsLastKnown?: boolean;
+  batteryCapacityKwh?: number | null;
   chargeLimit?: number | null;
   chargerPowerKw?: number | null;
   chargerAmps?: number | null;
@@ -59,6 +61,7 @@ export default function HomeHeroScene({
   pluggedIn = false,
   batteryLevel,
   batteryIsLastKnown = false,
+  batteryCapacityKwh,
   chargeLimit,
   chargerPowerKw,
   chargerAmps,
@@ -78,14 +81,30 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
+  const observedRemainingHours =
+    charging &&
+    batteryLevel != null &&
+    chargeLimit != null &&
+    batteryCapacityKwh != null &&
+    chargerPowerKw != null &&
+    Number.isFinite(chargerPowerKw) &&
+    chargerPowerKw > 0
+      ? calculateChargeFromPower(
+          batteryLevel,
+          chargeLimit,
+          batteryCapacityKwh,
+          chargerPowerKw,
+        ).estimatedHours
+      : timeToFullChargeHours;
+
   const remaining =
-    timeToFullChargeHours != null &&
-    Number.isFinite(timeToFullChargeHours) &&
-    timeToFullChargeHours > 0
+    observedRemainingHours != null &&
+    Number.isFinite(observedRemainingHours) &&
+    observedRemainingHours > 0
       ? (() => {
           const totalMinutes = Math.max(
             1,
-            Math.round(timeToFullChargeHours * 60),
+            Math.round(observedRemainingHours * 60),
           );
           const hours = Math.floor(totalMinutes / 60);
           const minutes = totalMinutes % 60;

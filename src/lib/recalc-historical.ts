@@ -2,6 +2,7 @@ import type { ChargeSession } from "@/lib/charge-data";
 
 const CHARGER_EFFICIENCY = 0.9;
 const MINIMUM_IMPROVEMENT = 0.05;
+const SOC_ESTIMATE_CONFIDENCE_SCORE = 0.68;
 
 export interface HistoricalChargeCorrection {
   id: string;
@@ -48,7 +49,7 @@ export function recalculateHistoricalSessions(
         energy_source: "soc_estimate",
         total_cost_gbp: totalCost,
         actual_cost_gbp: totalCost,
-        confidence_score: 0.68,
+        confidence_score: SOC_ESTIMATE_CONFIDENCE_SCORE,
         raw_observations: {
           ...(session.raw_observations ?? {}),
           historical_tesla_energy_kwh: teslaEnergy,

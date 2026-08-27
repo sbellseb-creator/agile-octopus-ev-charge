@@ -58,7 +58,7 @@ export default function Index() {
 
     corrections.forEach(({ id, updates }) => updateSession(id, updates));
     setSessions(loadSessions());
-  }, [sessions, sessionsCloudConfirmed, vehicles]);
+  }, [sessionsCloudConfirmed, vehicles]);
 
   useEffect(() => {
     // Cloud sync: migrate/merge local data, then keep devices in step.

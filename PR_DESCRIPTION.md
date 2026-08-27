@@ -60,21 +60,6 @@ This PR fixes two major issues:
 - Only updates sessions where accuracy improves by >5%
 - Runs once on first load, then skips unchanged sessions
 
-### How to Trigger Manual Recalculation
-```typescript
-import { recalculateHistoricalCharges } from '@/lib/recalc-historical';
-
-const result = await recalculateHistoricalCharges((vehicleId) => {
-  // Return battery capacity for vehicle
-  return 75; // Your Model Y/3 battery kWh
-});
-
-console.log(`Updated ${result.updatedCount} of ${result.totalSessions} charges`);
-result.details.forEach(d => {
-  console.log(`${d.date}: £${d.oldCost.toFixed(2)} → £${d.newCost.toFixed(2)}`);
-});
-```
-
 ---
 
 ## Problem 3: Missing Seasonal Backgrounds
@@ -94,18 +79,6 @@ Updated `home-scene-assets.ts` to support:
 - **Classic theme**: Current reference images
 - **Automatic/weather mode**: Detects snow weather and uses winter backgrounds
 
-**Image paths now include:**
-- `/home-scenes/dashboard-winter-day.png` (and charging variant)
-- `/home-scenes/dashboard-winter-night.png`
-- `/home-scenes/dashboard-winter-sunset.png`
-- `/home-scenes/dashboard-easter-day.png`
-- `/home-scenes/dashboard-halloween-day.png`
-- `/home-scenes/dashboard-halloween-night-light-on.png`
-- `/home-scenes/dashboard-christmas-day.png`
-- ...and more variants
-
-**Note:** Images don't exist yet — app will show gradient fallback. Once you add images to `/public/home-scenes/`, they'll automatically display.
-
 ---
 
 ## Files Changed
@@ -120,7 +93,7 @@ Updated `home-scene-assets.ts` to support:
 
 ---
 
-## How to Test
+## How to Test on Your Phone
 
 ### 1. Real-time Charge Time (Home Screen)
 Start charging your car:
@@ -130,43 +103,25 @@ Start charging your car:
 
 ### 2. Historical Charge Recalculation
 On first app load after this update:
-- Check browser console: `console.log()` will show which charges were updated
+- Check browser console to see which charges were updated
 - Check your Charge History section
-- Look for updates to costs (e.g., Saturday's charge should now be accurate)
+- Look for updates to costs
 
 ### 3. Seasonal Themes
 Go to Settings → Home Theme:
 - Select "Winter" or "Easter" or "Halloween" or "Christmas"
-- Home screen should show gradient (images are placeholders)
-- Once you add actual images, they'll replace the gradient
+- Home screen will show gradient fallback (add images later)
 
 ---
 
-## Deployment Notes
+## Deployment
 
 ✅ **Safe to merge** - All changes are backward compatible
-✅ **No breaking changes** - Falls back gracefully if historical data is incomplete
-✅ **Performance** - Recalculation is non-blocking and only runs once
+✅ **No breaking changes** - Falls back gracefully
+✅ **Non-blocking** - Recalculation runs in background
 
-### On Your Phone
-1. Merge this PR
-2. Your build system deploys to your web app
-3. Refresh your Samsung Fold 7 (or reload the page)
+### To Deploy to Your Samsung Fold 7:
+1. Merge this PR on GitHub
+2. Your build system deploys
+3. Refresh your app
 4. Changes take effect immediately
-
----
-
-## Future Improvements
-1. Add actual seasonal background images to `/public/home-scenes/`
-2. Integrate Learning Engine with `raw_observations` data for better estimates
-3. Add option to manually recalculate specific charge session
-4. Track charger efficiency per session for better predictions
-
----
-
-## Revert Instructions
-If something breaks:
-```bash
-git revert <commit-hash>
-```
-Or just close this PR without merging.

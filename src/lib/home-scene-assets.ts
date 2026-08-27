@@ -10,11 +10,21 @@ export function homeSceneBackground(
   const connected = Boolean(state.pluggedIn || state.charging);
 
   if (scene.mode === "forced") {
-    // Forced themes use the installed photographic catalogue.  Earlier
-    // releases pointed at theme files which did not exist, leaving a blank
-    // gradient.  Keep every selector functional until bespoke seasonal
-    // photographs are added.
-    if (scene.phase === "night") {
+    // Seasonal themes have their own dedicated day/night artwork. Fall back
+    // to the photographic catalogue for themes without bespoke seasonal
+    // artwork so every selector stays functional.
+    const isNight = scene.phase === "night";
+
+    if (
+      scene.theme === "winter" ||
+      scene.theme === "easter" ||
+      scene.theme === "halloween" ||
+      scene.theme === "christmas"
+    ) {
+      return `/home-scenes/dashboard-${scene.theme}-${isNight ? "night" : "day"}.webp`;
+    }
+
+    if (isNight) {
       return "/home-scenes/dashboard-reference-night-light-on.png";
     }
 
@@ -22,13 +32,13 @@ export function homeSceneBackground(
       return "/home-scenes/dashboard-reference-sunset-charging.png";
     }
 
-    if (scene.theme === "winter" || scene.theme === "classic") {
+    if (scene.theme === "classic") {
       return connected
         ? "/home-scenes/dashboard-reference-overcast-day-charging.png"
         : "/home-scenes/dashboard-reference-overcast-day.png";
     }
 
-    if (scene.theme === "autumn" || scene.theme === "halloween") {
+    if (scene.theme === "autumn") {
       return "/home-scenes/dashboard-reference-sunset-charging.png";
     }
 

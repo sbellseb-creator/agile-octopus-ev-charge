@@ -161,7 +161,7 @@ export default function HomeHeroScene({
 
   if (viewMode === "cockpit") {
     return (
-      <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
+      <div className="relative aspect-[16/9] min-h-[190px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
         <svg
           viewBox="0 0 1672 941"
           preserveAspectRatio="xMidYMid slice"
@@ -239,7 +239,7 @@ export default function HomeHeroScene({
   }
 
   return (
-    <div className="relative aspect-[4/3] min-h-[250px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
+    <div className="relative aspect-[16/9] min-h-[190px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
 
       {/* Real/generated weather scene */}
       {usesAlignedConnectedScene ? (

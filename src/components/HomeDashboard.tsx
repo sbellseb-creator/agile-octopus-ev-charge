@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 import { fetchAgileRates } from "@/lib/octopus-api";
-import { formatUK } from "@/lib/timezone";
+import { formatUK, isoToUkClock } from "@/lib/timezone";
 
 import {
   formatRegistration,
@@ -970,8 +970,13 @@ export default function HomeDashboard({
           : formatUK(`${lastCharge.session_date}T12:00:00Z`, "dd MMM");
     const energy = sessionEnergyKwh(lastCharge);
     const cost = sessionCostGbp(lastCharge);
+    const finishTime = isoToUkClock(
+      lastCharge.actual_finish ?? lastCharge.ended_at ?? lastCharge.end_time,
+    );
 
-    return `${day} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
+    const dayLabel = finishTime ? `${day} ${finishTime}` : day;
+
+    return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
   }, [lastCharge]);
 
   const vehicleState =

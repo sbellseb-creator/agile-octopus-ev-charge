@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog, MoreHorizontal } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ export default function Index() {
   const [sessionsCloudConfirmed, setSessionsCloudConfirmed] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [tab, setTab] = useState("home");
+  const historicalSessionsRecalculated = useRef(false);
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -44,7 +45,13 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    if (!sessionsCloudConfirmed || vehicles.length === 0) return;
+    if (
+      !sessionsCloudConfirmed ||
+      vehicles.length === 0 ||
+      historicalSessionsRecalculated.current
+    ) {
+      return;
+    }
 
     const capacityByVehicle = new Map(
       vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
@@ -56,9 +63,10 @@ export default function Index() {
 
     if (corrections.length === 0) return;
 
+    historicalSessionsRecalculated.current = true;
     corrections.forEach(({ id, updates }) => updateSession(id, updates));
     setSessions(loadSessions());
-  }, [sessionsCloudConfirmed, vehicles]);
+  }, [sessions, sessionsCloudConfirmed, vehicles]);
 
   useEffect(() => {
     // Cloud sync: migrate/merge local data, then keep devices in step.

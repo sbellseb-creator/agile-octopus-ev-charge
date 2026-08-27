@@ -41,6 +41,21 @@ describe("homeSceneBackground seasonal themes", () => {
     );
   });
 
+  it("shows the charging driveway photo for each seasonal theme when connected", () => {
+    expect(
+      homeSceneBackground(baseScene({ theme: "winter", phase: "day" }), { pluggedIn: true }),
+    ).toBe("/home-scenes/dashboard-reference-partly-cloudy-day-charging.png");
+    expect(
+      homeSceneBackground(baseScene({ theme: "easter", phase: "day" }), { charging: true }),
+    ).toBe("/home-scenes/dashboard-reference-partly-cloudy-day-charging.png");
+    expect(
+      homeSceneBackground(baseScene({ theme: "halloween", phase: "day" }), { pluggedIn: true }),
+    ).toBe("/home-scenes/dashboard-reference-partly-cloudy-day-charging.png");
+    expect(
+      homeSceneBackground(baseScene({ theme: "christmas", phase: "day" }), { charging: true }),
+    ).toBe("/home-scenes/dashboard-reference-partly-cloudy-day-charging.png");
+  });
+
   it("still falls back to the photographic catalogue for other forced themes", () => {
     expect(homeSceneBackground(baseScene({ theme: "classic", phase: "day" }))).toBe(
       "/home-scenes/dashboard-reference-overcast-day.png",

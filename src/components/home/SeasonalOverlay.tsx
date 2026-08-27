@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from "react";
+import type { ReactNode } from "react";
 
 import type { HomeThemePreference } from "@/lib/app-settings";
 import type { DayPhase } from "@/lib/home-scene";
@@ -78,10 +78,10 @@ function WinterEffects({ isNight }: { isNight: boolean }) {
               animationDuration: flake.duration,
               opacity: isNight ? 0.55 : 0.85,
               filter: "blur(0.3px)",
-              // Custom drift via translateX handled by keyframes; per-flake
-              // variation comes from staggered delay/duration only to keep
-              // the animation lightweight.
-              transform: `translateX(${flake.drift}px)`,
+              // Read by the `seasonal-snow-fall` keyframe (see
+              // seasonal-themes.css) so each flake drifts sideways by a
+              // different amount instead of a fixed value.
+              ["--seasonal-flake-drift" as string]: `${flake.drift}px`,
             }}
           />
         ))}
@@ -156,7 +156,7 @@ function ChristmasEffects({ isNight }: { isNight: boolean }) {
               animationDuration: flake.duration,
               opacity: isNight ? 0.5 : 0.8,
               filter: "blur(0.3px)",
-              transform: `translateX(${flake.drift}px)`,
+              ["--seasonal-flake-drift" as string]: `${flake.drift}px`,
             }}
           />
         ))}
@@ -191,16 +191,12 @@ export default function SeasonalOverlay({
   phase,
   children,
 }: SeasonalOverlayProps) {
-  const isNight = phase === "night";
-
-  const filterClass = useMemo(() => {
-    if (!isSeasonalTheme(theme)) return "";
-    return `seasonal-filter-${theme}${isNight ? " seasonal-filter-night" : ""}`;
-  }, [theme, isNight]);
-
   if (!isSeasonalTheme(theme)) {
     return <>{children}</>;
   }
+
+  const isNight = phase === "night";
+  const filterClass = `seasonal-filter-${theme}${isNight ? " seasonal-filter-night" : ""}`;
 
   return (
     <div className={`absolute inset-0 h-full w-full ${filterClass}`}>

@@ -116,7 +116,7 @@
     opacity: 1;
   }
   100% {
-    transform: translateY(115%) translateX(12px);
+    transform: translateY(115%) translateX(var(--seasonal-flake-drift, 0px));
     opacity: 0;
   }
 }

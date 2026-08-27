@@ -86,6 +86,7 @@ export default function HomeHeroScene({
     batteryLevel != null &&
     chargeLimit != null &&
     batteryCapacityKwh != null &&
+    batteryCapacityKwh > 0 &&
     chargerPowerKw != null &&
     Number.isFinite(chargerPowerKw) &&
     chargerPowerKw > 0

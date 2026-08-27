@@ -34,6 +34,8 @@ export default function Index() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [tab, setTab] = useState("home");
   const historicalSessionsRecalculated = useRef(false);
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function Index() {
       vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
     );
     const corrections = recalculateHistoricalSessions(
-      sessions,
+      sessionsRef.current,
       (session) => capacityByVehicle.get(session.vehicle_id),
     );
 
@@ -66,7 +68,7 @@ export default function Index() {
 
     corrections.forEach(({ id, updates }) => updateSession(id, updates));
     setSessions(loadSessions());
-  }, [sessions, sessionsCloudConfirmed, vehicles]);
+  }, [sessionsCloudConfirmed, vehicles]);
 
   useEffect(() => {
     // Cloud sync: migrate/merge local data, then keep devices in step.

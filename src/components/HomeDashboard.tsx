@@ -1260,7 +1260,10 @@ export default function HomeDashboard({
             batteryIsLastKnown={batteryIsLastKnown}
             batteryCapacityKwh={vehicle?.battery_kwh}
             chargeLimit={live?.charge_limit_soc}
-            chargerPowerKw={live?.charger_power_kw ?? settings.charger_kw}
+            chargerPowerKw={Math.min(
+              live?.charger_power_kw ?? settings.charger_kw,
+              settings.charger_kw,
+            )}
             chargerAmps={
               live?.charger_actual_current ??
               live?.charge_amps ??

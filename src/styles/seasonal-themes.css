@@ -1,0 +1,208 @@
+/**
+ * Seasonal home-screen overlays.
+ *
+ * These effects are layered on top of the SAME reference driveway
+ * photograph — no bespoke seasonal image assets are required. Each theme
+ * gets a CSS colour-grade filter (applied to the photo layer only) plus an
+ * animated SVG/gradient overlay for particles and glow.
+ *
+ * Layering (z-index), low to high:
+ *   0   photo + colour filter
+ *   10  seasonal particle/gradient overlay (this file)
+ *   20  cinematic vignette grading (HomeHeroScene)
+ *   30  status badges / UI (HomeHeroScene)
+ */
+
+/* ---------- Colour grading filters (applied to the photo layer) ---------- */
+
+.seasonal-filter-winter {
+  filter: hue-rotate(208deg) saturate(0.82) brightness(1.03) contrast(1.03);
+}
+
+.seasonal-filter-easter {
+  filter: saturate(1.3) brightness(1.1) contrast(0.95) sepia(0.08);
+}
+
+.seasonal-filter-halloween {
+  filter: hue-rotate(26deg) saturate(1.35) brightness(0.9) contrast(1.1);
+}
+
+.seasonal-filter-christmas {
+  filter: hue-rotate(-8deg) saturate(1.28) brightness(1.02) contrast(1.06);
+}
+
+/* Night mode gets subtler grading than day, per design constraints. */
+.seasonal-filter-winter.seasonal-filter-night {
+  filter: hue-rotate(210deg) saturate(0.78) brightness(0.92) contrast(1.02);
+}
+
+.seasonal-filter-easter.seasonal-filter-night {
+  filter: saturate(1.12) brightness(0.95) contrast(0.97) sepia(0.05);
+}
+
+.seasonal-filter-halloween.seasonal-filter-night {
+  filter: hue-rotate(24deg) saturate(1.2) brightness(0.78) contrast(1.12);
+}
+
+.seasonal-filter-christmas.seasonal-filter-night {
+  filter: hue-rotate(-6deg) saturate(1.15) brightness(0.88) contrast(1.05);
+}
+
+/* ---------- Shared overlay container ---------- */
+
+.seasonal-effects {
+  z-index: 10;
+}
+
+.seasonal-effects-night {
+  opacity: 0.65;
+}
+
+/* ---------- Gradient tints ---------- */
+
+.seasonal-gradient-winter {
+  background: linear-gradient(160deg, rgba(147, 197, 253, 0.22), transparent 55%);
+}
+
+.seasonal-gradient-easter {
+  background: linear-gradient(
+    135deg,
+    rgba(190, 242, 200, 0.22),
+    rgba(251, 207, 232, 0.18) 60%,
+    transparent 90%
+  );
+}
+
+.seasonal-gradient-halloween {
+  background:
+    radial-gradient(120% 90% at 50% 100%, transparent 45%, rgba(0, 0, 0, 0.45) 100%),
+    linear-gradient(160deg, rgba(249, 115, 22, 0.16), rgba(88, 28, 135, 0.18) 70%);
+}
+
+.seasonal-gradient-christmas {
+  background: linear-gradient(150deg, rgba(248, 113, 113, 0.16), rgba(74, 222, 128, 0.14) 65%);
+}
+
+/* ---------- Glow layers ---------- */
+
+.seasonal-glow-frost {
+  box-shadow: inset 0 0 90px rgba(191, 219, 254, 0.35);
+}
+
+.seasonal-glow-spring {
+  box-shadow: inset 0 0 80px rgba(253, 224, 71, 0.18);
+}
+
+.seasonal-glow-spooky {
+  box-shadow: inset 0 0 110px rgba(249, 115, 22, 0.28);
+  animation: seasonal-glow-pulse 3.6s ease-in-out infinite;
+}
+
+.seasonal-glow-festive {
+  box-shadow: inset 0 0 90px rgba(74, 222, 128, 0.22);
+}
+
+/* ---------- Keyframes ---------- */
+
+@keyframes seasonal-snow-fall {
+  0% {
+    transform: translateY(-10%) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(115%) translateX(12px);
+    opacity: 0;
+  }
+}
+
+.seasonal-snowflake {
+  animation: seasonal-snow-fall linear infinite;
+}
+
+@keyframes seasonal-flutter {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(4deg);
+  }
+}
+
+.seasonal-flutter {
+  animation: seasonal-flutter 4.5s ease-in-out infinite;
+}
+
+@keyframes seasonal-bat-fly {
+  0% {
+    transform: translate(-15%, 20%) scale(0.7);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(55%, -10%) scale(1);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(125%, -25%) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.seasonal-bat {
+  animation: seasonal-bat-fly linear infinite;
+}
+
+@keyframes seasonal-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes seasonal-shimmer {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.seasonal-shimmer {
+  animation: seasonal-shimmer ease-in-out infinite;
+}
+
+/* ---------- Performance / accessibility guards ---------- */
+
+/* Disable animated particle overlays on very small screens; the colour
+   filter and static gradient tint remain (cheap, no layout/paint cost). */
+@media (max-width: 380px) {
+  .seasonal-effects[data-seasonal-particles="true"] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seasonal-snowflake,
+  .seasonal-bat,
+  .seasonal-flutter,
+  .seasonal-shimmer,
+  .seasonal-glow-spooky {
+    animation: none !important;
+  }
+}

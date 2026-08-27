@@ -11,33 +11,33 @@ const baseScene = (overrides: Partial<HomeScene>): HomeScene => ({
 });
 
 describe("homeSceneBackground seasonal themes", () => {
-  it("resolves dedicated day artwork for each seasonal theme", () => {
+  it("reuses the photographic daytime driveway for each seasonal theme (overlay adds the seasonal effect)", () => {
     expect(homeSceneBackground(baseScene({ theme: "winter", phase: "day" }))).toBe(
-      "/home-scenes/dashboard-winter-day.webp",
+      "/home-scenes/dashboard-reference-partly-cloudy-day.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "easter", phase: "day" }))).toBe(
-      "/home-scenes/dashboard-easter-day.webp",
+      "/home-scenes/dashboard-reference-partly-cloudy-day.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "halloween", phase: "day" }))).toBe(
-      "/home-scenes/dashboard-halloween-day.webp",
+      "/home-scenes/dashboard-reference-partly-cloudy-day.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "christmas", phase: "day" }))).toBe(
-      "/home-scenes/dashboard-christmas-day.webp",
+      "/home-scenes/dashboard-reference-partly-cloudy-day.png",
     );
   });
 
-  it("resolves dedicated night artwork for each seasonal theme", () => {
+  it("reuses the photographic night driveway for each seasonal theme (overlay adds the seasonal effect)", () => {
     expect(homeSceneBackground(baseScene({ theme: "winter", phase: "night" }))).toBe(
-      "/home-scenes/dashboard-winter-night.webp",
+      "/home-scenes/dashboard-reference-night-light-on.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "easter", phase: "night" }))).toBe(
-      "/home-scenes/dashboard-easter-night.webp",
+      "/home-scenes/dashboard-reference-night-light-on.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "halloween", phase: "night" }))).toBe(
-      "/home-scenes/dashboard-halloween-night.webp",
+      "/home-scenes/dashboard-reference-night-light-on.png",
     );
     expect(homeSceneBackground(baseScene({ theme: "christmas", phase: "night" }))).toBe(
-      "/home-scenes/dashboard-christmas-night.webp",
+      "/home-scenes/dashboard-reference-night-light-on.png",
     );
   });
 

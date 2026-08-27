@@ -25,6 +25,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import VehicleIdentityBar from "@/components/vehicles/VehicleIdentityBar";
 import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
+import { recalculateHistoricalSessions } from "@/lib/recalc-historical";
 import HomeDashboard from "@/components/HomeDashboard";
 
 export default function Index() {
@@ -41,6 +42,23 @@ export default function Index() {
     window.addEventListener("vehicles:updated", reload);
     return () => window.removeEventListener("vehicles:updated", reload);
   }, []);
+
+  useEffect(() => {
+    if (!sessionsCloudConfirmed || vehicles.length === 0) return;
+
+    const capacityByVehicle = new Map(
+      vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
+    );
+    const corrections = recalculateHistoricalSessions(
+      sessions,
+      (session) => capacityByVehicle.get(session.vehicle_id),
+    );
+
+    if (corrections.length === 0) return;
+
+    corrections.forEach(({ id, updates }) => updateSession(id, updates));
+    setSessions(loadSessions());
+  }, [sessions, sessionsCloudConfirmed, vehicles]);
 
   useEffect(() => {
     // Cloud sync: migrate/merge local data, then keep devices in step.

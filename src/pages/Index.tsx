@@ -53,6 +53,7 @@ export default function Index() {
       return;
     }
 
+    historicalSessionsRecalculated.current = true;
     const capacityByVehicle = new Map(
       vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
     );
@@ -63,7 +64,6 @@ export default function Index() {
 
     if (corrections.length === 0) return;
 
-    historicalSessionsRecalculated.current = true;
     corrections.forEach(({ id, updates }) => updateSession(id, updates));
     setSessions(loadSessions());
   }, [sessions, sessionsCloudConfirmed, vehicles]);

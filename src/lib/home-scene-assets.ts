@@ -34,6 +34,19 @@ export function homeSceneBackground(
       return "/home-scenes/dashboard-reference-sunset-charging.png";
     }
 
+    if (
+      scene.theme === "winter" ||
+      scene.theme === "easter" ||
+      scene.theme === "halloween" ||
+      scene.theme === "christmas"
+    ) {
+      // Partly-cloudy day is the neutral photographic base for every seasonal
+      // theme; the seasonal "feel" comes entirely from <SeasonalOverlay>.
+      return connected
+        ? "/home-scenes/dashboard-reference-partly-cloudy-day-charging.png"
+        : "/home-scenes/dashboard-reference-partly-cloudy-day.png";
+    }
+
     return connected
       ? "/home-scenes/dashboard-reference-partly-cloudy-day-charging.png"
       : "/home-scenes/dashboard-reference-partly-cloudy-day.png";

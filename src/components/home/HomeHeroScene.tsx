@@ -121,6 +121,15 @@ export default function HomeHeroScene({
     pluggedIn,
   });
 
+  if (import.meta.env.DEV) {
+    // Temporary debug instrumentation: trace the forced-theme background
+    // pipeline so we can see exactly where an empty/invalid path would come
+    // from (scene.mode/theme -> homeSceneBackground() -> the inline style).
+    console.log("[HomeHeroScene] scene:", scene);
+    console.log("[HomeHeroScene] homeSceneBackground() ->", background);
+    console.log("[HomeHeroScene] background style ->", `url("${background}")`);
+  }
+
   const usesAlignedConnectedScene =
     (charging || pluggedIn) &&
     scene.mode === "weather" &&
@@ -293,6 +302,14 @@ export default function HomeHeroScene({
           </svg>
         ) : (
           <div
+            ref={(node) => {
+              if (import.meta.env.DEV && node) {
+                console.log(
+                  "[HomeHeroScene] rendered backgroundImage style ->",
+                  node.style.backgroundImage,
+                );
+              }
+            }}
             className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
             style={{
               backgroundImage: `url("${background}")`,

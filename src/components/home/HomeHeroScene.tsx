@@ -125,11 +125,7 @@ export default function HomeHeroScene({
   const backgroundLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
-
-    // Temporary debug instrumentation: trace the forced-theme background
-    // pipeline so we can see exactly where an empty/invalid path would come
-    // from (scene.mode/theme -> homeSceneBackground() -> the inline style).
+    // Temporary debug: remove the DEV gate so logs appear in production
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
     console.log("[HomeHeroScene] background style ->", `url("${background}")`);

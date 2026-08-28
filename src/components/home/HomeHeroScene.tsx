@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   BatteryCharging,
   CloudRain,
@@ -120,6 +121,23 @@ export default function HomeHeroScene({
     charging,
     pluggedIn,
   });
+
+  const backgroundLayerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    // Temporary debug instrumentation: trace the forced-theme background
+    // pipeline so we can see exactly where an empty/invalid path would come
+    // from (scene.mode/theme -> homeSceneBackground() -> the inline style).
+    console.log("[HomeHeroScene] scene:", scene);
+    console.log("[HomeHeroScene] homeSceneBackground() ->", background);
+    console.log("[HomeHeroScene] background style ->", `url("${background}")`);
+    console.log(
+      "[HomeHeroScene] rendered backgroundImage style ->",
+      backgroundLayerRef.current?.style.backgroundImage,
+    );
+  }, [scene, background]);
 
   const usesAlignedConnectedScene =
     (charging || pluggedIn) &&
@@ -293,6 +311,7 @@ export default function HomeHeroScene({
           </svg>
         ) : (
           <div
+            ref={backgroundLayerRef}
             className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
             style={{
               backgroundImage: `url("${background}")`,

@@ -129,7 +129,7 @@ export default function Index() {
 
       <main className="container py-3 sm:py-4">
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl auto-rows-max">
+          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 grid-rows-2 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
             <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <HomeIcon className="h-4 w-4 shrink-0" /> Home
             </TabsTrigger>

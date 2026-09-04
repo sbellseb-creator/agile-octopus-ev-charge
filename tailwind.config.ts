@@ -10,6 +10,8 @@ export default {
   safelist: [
     "grid-rows-2",
     "grid-cols-4",
+    "grid-cols-2",
+    "grid-cols-3",
   ],
   theme: {
     container: {
@@ -22,6 +24,8 @@ export default {
     extend: {
       gridTemplateRows: {
         "2": "repeat(2, minmax(0, 1fr))",
+        "3": "repeat(3, minmax(0, 1fr))",
+        "4": "repeat(4, minmax(0, 1fr))",
       },
       colors: {
         border: "hsl(var(--border))",

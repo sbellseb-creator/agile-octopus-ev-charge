@@ -20,6 +20,9 @@ export default {
       },
     },
     extend: {
+      gridTemplateRows: {
+        "2": "repeat(2, minmax(0, 1fr))",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -297,7 +297,7 @@ export default function HomeHeroScene({
               strokeLinecap="round"
               strokeLinejoin="round"
               filter="url(#live-cable-line-glow)"
-              opacity={charging ? ".22" : ".88"}
+              opacity={charging ? ".22" : "1"}
             >
               {charging && (
                 <animate
@@ -334,7 +334,9 @@ export default function HomeHeroScene({
             className={
               charging
                 ? "h-4 w-4 text-emerald-300 sm:h-5 sm:w-5"
-                : "h-4 w-4 text-white/80 sm:h-5 sm:w-5"
+                : pluggedIn
+                  ? "h-4 w-4 text-cyan-300 sm:h-5 sm:w-5"
+                  : "h-4 w-4 text-white/80 sm:h-5 sm:w-5"
             }
           />
 
@@ -392,7 +394,7 @@ export default function HomeHeroScene({
           lamp and its real light spill. No synthetic glow is needed. */}
 
       {!charging && pluggedIn && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+        <div className="absolute bottom-3 left-2 z-40 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl min-[430px]:left-1/2 min-[430px]:-translate-x-1/2 sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
           PLUGGED IN · WAITING
         </div>
       )}

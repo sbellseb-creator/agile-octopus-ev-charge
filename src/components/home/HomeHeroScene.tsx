@@ -382,7 +382,7 @@ export default function HomeHeroScene({
       <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
         <WeatherIcon scene={scene} />
 
-        <span className="capitalize">
+        <span className="hidden capitalize min-[430px]:inline">
           {scene.mode === "forced"
             ? `${scene.theme} · ${scene.weather.split("-").join(" ")}`
             : scene.weather.split("-").join(" ")}

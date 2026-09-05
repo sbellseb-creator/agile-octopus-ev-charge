@@ -141,14 +141,8 @@ export default function HomeHeroScene({
 
   const usesAlignedConnectedScene =
     (charging || pluggedIn) &&
-    scene.mode === "weather" &&
     scene.phase === "day" &&
-    (scene.weather === "fair" ||
-      scene.weather === "partly-cloudy" ||
-      scene.weather === "mostly-cloudy" ||
-      scene.weather === "overcast" ||
-      scene.weather === "rain" ||
-      scene.weather === "storm");
+    (scene.mode !== "forced" || scene.theme !== "autumn");
 
   const compactStatus = charging
     ? "Charging"
@@ -289,15 +283,28 @@ export default function HomeHeroScene({
               height="941"
               preserveAspectRatio="xMidYMid slice"
             />
+            {/* Charger LED: in waiting-plugged state, charger LED is BLUE */}
+            {!charging && pluggedIn && (
+              <line
+                x1="527.5"
+                y1="321"
+                x2="527.5"
+                y2="351"
+                stroke="rgb(55 170 255)"
+                strokeWidth="3.6"
+                strokeLinecap="round"
+                filter="url(#live-cable-line-glow)"
+              />
+            )}
             <path
               d="M526 382 C526 445 525 520 526 568 C527 615 563 638 626 649 C720 666 844 680 934 678 C981 677 1010 655 1024 623 C1040 588 1045 530 1052 487 C1058 456 1065 446 1078 445"
               fill="none"
               stroke={charging ? "rgb(68 255 164)" : "rgb(55 170 255)"}
-              strokeWidth={charging ? "2.4" : "2.7"}
+              strokeWidth={charging ? "2.4" : "2.8"}
               strokeLinecap="round"
               strokeLinejoin="round"
               filter="url(#live-cable-line-glow)"
-              opacity={charging ? ".22" : ".88"}
+              opacity={charging ? ".22" : "1"}
             >
               {charging && (
                 <animate
@@ -375,7 +382,7 @@ export default function HomeHeroScene({
       <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
         <WeatherIcon scene={scene} />
 
-        <span className="hidden capitalize min-[430px]:inline">
+        <span className="capitalize">
           {scene.mode === "forced"
             ? `${scene.theme} · ${scene.weather.split("-").join(" ")}`
             : scene.weather.split("-").join(" ")}
@@ -392,7 +399,7 @@ export default function HomeHeroScene({
           lamp and its real light spill. No synthetic glow is needed. */}
 
       {!charging && pluggedIn && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+        <div className="absolute bottom-2 left-2 z-40 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-1/2 min-[430px]:-translate-x-1/2 sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
           PLUGGED IN · WAITING
         </div>
       )}

@@ -130,69 +130,52 @@
    Galaxy Z Fold 7 Outer Display Aspect Ratio Optimization
    ========================================================================== */
 
+/* ==========================================================================
+   Galaxy Z Fold 7 Outer Display Aspect Ratio Optimization
+   ========================================================================== */
+
 @media screen and (max-width: 430px) {
-  /* 1. Prevent the weather condition text (e.g., "Overcast") from hiding */
+  /* 1. RESTORE FULL TEXT VISIBILITY FOR THE "OVERCAST" WEATHER LABEL */
   .weather-label-hiding, 
   [class*="weather-label-hiding"],
-  .hidden.md\:inline {
+  .hidden.md\:inline,
+  div:has([class*="CloudSun"]) p.hidden,
+  div:has([class*="WeatherForecast"]) span.hidden {
     display: inline-block !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
 
-  /* 2. Re-order the dashboard layout stream:
-     Forces charging stats to stack at the TOP LEFT above the car asset graphic */
+  /* 2. RE-ORDER THE DASHBOARD STREAM:
+     Forces the layout content blocks into a vertical column, and shifts the 
+     EV Charging Panel to the absolute bottom underneath the car display graphics */
   div.grid.grid-cols-1,
   main.container > div,
-  div[class*="space-y-"] {
+  div[class*="space-y-6"] {
     display: flex !important;
     flex-direction: column !important;
   }
 
-  /* Target the EV charging stat panel block to position it first */
-  div:has(h3:aria-label), 
-  div:has([class*="Zap"]),
-  div:has(span:contains("SoC")) {
-    order: -2 !important; 
+  /* Target the Car Visual container to stay up top center */
+  div:has([class*="Car"]),
+  div:has(canvas),
+  div:has([class*="VehicleIdentityBar"]) + div {
+    order: 1 !important;
   }
 
-  /* Target the weather container widget block to position it second */
+  /* Target the Weather container widget block to drop below the car */
   div:has([class*="CloudSun"]),
   div:has([class*="WeatherForecast"]) {
-    order: -1 !important;
+    order: 2 !important;
   }
 
-  /* 3. Navigation fix: Forces tabs into 2 horizontal rows x 4 uniform columns */
-  div[role="tablist"],
-  [class*="inline-flex"][class*="grid-cols-4"] {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(2, minmax(0, auto)) !important;
-    flex-direction: row !important;
-    gap: 3px !important;
-    height: auto !important;
+  /* Target the EV Charging panel block to move to the bottom left profile position */
+  div:has(h3:aria-label), 
+  div:has([class*="Zap"]),
+  div:has(span:contains("SoC")),
+  div:has([class*="ChargeStats"]) {
+    order: 3 !important; 
+    align-self: flex-start !important; /* Locks it to the left side edge layout bounds */
     width: 100% !important;
-    padding: 3px !important;
-  }
-
-  /* Compact button styling to make text and icons fit the 2x4 grid */
-  div[role="tablist"] button[role="tab"],
-  [class*="inline-flex"] button {
-    flex-direction: column !important;
-    justify-content: center !important;
-    align-items: center !important;
-    gap: 1px !important;
-    height: 40px !important;
-    font-size: 9px !important;
-    padding: 2px !important;
-    width: 100% !important;
-  }
-
-  /* Scale down tracking icons inside the tight grid blocks */
-  div[role="tablist"] button svg,
-  [class*="inline-flex"] button svg {
-    width: 13px !important;
-    height: 13px !important;
-    margin: 0 auto !important;
   }
 }

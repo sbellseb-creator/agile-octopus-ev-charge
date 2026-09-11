@@ -125,3 +125,58 @@
     overflow-x: hidden;
   }
 }
+/* ==========================================================================
+   Galaxy Z Fold 7 Outer Display Aspect Ratio Optimization
+   ========================================================================== */
+
+@media screen and (max-width: 430px) {
+  /* 1. Prevent the weather condition text (e.g., "Overcast") from hiding */
+  .weather-label-hiding, 
+  [class*="weather-label-hiding"],
+  .hidden.md\:inline {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* 2. Re-order the dashboard layout stream:
+     Forces charging stats to stack at the TOP LEFT above the car asset graphic */
+  div.grid.grid-cols-1,
+  main.container > div,
+  div[class*="space-y-"] {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Target the EV charging stat panel block to position it first */
+  div:has(h3:aria-label), 
+  div:has([class*="Zap"]),
+  div:has(span:contains("SoC")) {
+    order: -2 !important; 
+  }
+
+  /* Target the weather container widget block to position it second */
+  div:has([class*="CloudSun"]),
+  div:has([class*="WeatherForecast"]) {
+    order: -1 !important;
+  }
+
+  /* 3. Fluid navigation fix for the narrow 21:9 aspect display viewport 
+     Allows the multi-button tabs list layout grid to wrap smoothly */
+  div[role="tablist"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: auto !important;
+    gap: 4px !important;
+    height: auto !important;
+    padding: 6px !important;
+  }
+
+  div[role="tablist"] button[role="tab"] {
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    height: 38px !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+}

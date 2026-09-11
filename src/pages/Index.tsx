@@ -125,34 +125,41 @@ export default function Index() {
         </div>
       </header>
 
-      <VehicleIdentityBar vehicles={vehicles} />
+      
 
       <main className="container py-3 sm:py-4">
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 grid-rows-2 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
-            <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <HomeIcon className="h-4 w-4 shrink-0" /> Home
+          
+          {/* 
+            FIXED NAVIGATION MATRIX: 
+            Changed from a locked grid-cols-4 grid-rows-2 to a smart mobile-first fluid format.
+            - Spreads seamlessly on Fold 7 cover screens without compressed overflow.
+            - Snaps to a uniform single-row dashboard grid interface on desktop screens.
+          */}
+          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:flex lg:flex-row gap-1 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl transition-all">
+            <TabsTrigger value="home" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <HomeIcon className="h-4 w-4 shrink-0 text-sky-400" /> <span className="truncate">Home</span>
             </TabsTrigger>
-            <TabsTrigger value="agile" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <TrendingDown className="h-4 w-4 shrink-0" /> Agile
+            <TabsTrigger value="agile" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <TrendingDown className="h-4 w-4 shrink-0 text-emerald-400" /> <span className="truncate">Agile</span>
             </TabsTrigger>
-            <TabsTrigger value="charging" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Zap className="h-4 w-4 shrink-0" /> Charge
+            <TabsTrigger value="charging" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <Zap className="h-4 w-4 shrink-0 text-amber-400" /> <span className="truncate">Charge</span>
             </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Gauge className="h-4 w-4 shrink-0" /> Tracker
+            <TabsTrigger value="tracker" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <Gauge className="h-4 w-4 shrink-0 text-teal-400" /> <span className="truncate">Tracker</span>
             </TabsTrigger>
-            <TabsTrigger value="planner" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <CalendarClock className="h-4 w-4 shrink-0" /> Planner
+            <TabsTrigger value="planner" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <CalendarClock className="h-4 w-4 shrink-0 text-indigo-400" /> <span className="truncate">Planner</span>
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Car className="h-4 w-4 shrink-0" /> Vehicles
+            <TabsTrigger value="vehicles" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <Car className="h-4 w-4 shrink-0 text-purple-400" /> <span className="truncate">Vehicles</span>
             </TabsTrigger>
-            <TabsTrigger value="forecast" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <CloudSun className="h-4 w-4 shrink-0" /> Forecast
+            <TabsTrigger value="forecast" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <CloudSun className="h-4 w-4 shrink-0 text-yellow-400" /> <span className="truncate">Forecast</span>
             </TabsTrigger>
-            <TabsTrigger value="work" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Briefcase className="h-4 w-4 shrink-0" /> Work
+            <TabsTrigger value="work" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
+              <Briefcase className="h-4 w-4 shrink-0 text-pink-400" /> <span className="truncate">Work</span>
             </TabsTrigger>
           </TabsList>
 
@@ -175,40 +182,20 @@ export default function Index() {
             <TrackerRates />
           </TabsContent>
 
+          <TabsContent value="planner" className="space-y-6">
+            <ChargePlanner vehicles={vehicles} />
+          </TabsContent>
+
+          <TabsContent value="vehicles" className="space-y-6">
+            <VehicleManager
+              vehicles={vehicles}
+              onAddVehicle={handleAddVehicle}
+              onUpdateVehicle={handleUpdateVehicle}
+              onDeleteVehicle={handleDeleteVehicle}
+            />
+          </TabsContent>
+
           <TabsContent value="forecast" className="space-y-6">
             <WeatherForecast />
           </TabsContent>
 
-          <TabsContent value="planner" className="space-y-6">
-            <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
-          </TabsContent>
-
-          <TabsContent value="charging" className="space-y-6">
-            <ChargeStats sessions={sessionsCloudConfirmed ? sessions : []} />
-            <FuelComparison sessions={sessionsCloudConfirmed ? sessions : []} vehicles={vehicles} />
-            <ChargeCharts sessions={sessionsCloudConfirmed ? sessions : []} />
-            <ChargeForm onAdd={handleAddSession} vehicles={vehicles} />
-            <ChargeTable
-              sessions={sessionsCloudConfirmed ? sessions : []}
-              onDelete={handleDeleteSession}
-              onUpdate={handleUpdateSession}
-            />
-          </TabsContent>
-
-          <TabsContent value="work" className="space-y-6">
-            <WorkMileageCard vehicles={vehicles} />
-            <WorkCosts sessions={sessions} vehicles={vehicles} />
-          </TabsContent>
-
-          <TabsContent value="vehicles" className="space-y-6">
-            <VehicleManager vehicles={vehicles} onAdd={handleAddVehicle} onDelete={handleDeleteVehicle} />
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6">
-            <SettingsPanel vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
-  );
-}

@@ -114,8 +114,6 @@
   }
 }
 
-/* Home responsive foundation:
-   narrow phone -> folded Fold -> unfolded Fold -> laptop -> desktop */
 @media (max-width: 639px) {
   html,
   body,
@@ -127,76 +125,25 @@
 }
 
 /* ==========================================================================
-   Galaxy Z Fold 7 Outer Display Aspect Ratio Optimization
-   ========================================================================== */
-
-/* ==========================================================================
-   Galaxy Z Fold 7 Outer Display Aspect Ratio Optimization
+   Galaxy Z Fold 7 Outer Display Overlay Positioning Adjustments
    ========================================================================== */
 
 @media screen and (max-width: 430px) {
-  /* 1. RESTORE FULL TEXT VISIBILITY FOR THE "OVERCAST" WEATHER LABEL */
+  /* 1. RESTORE FULL VISIBILITY FOR THE "OVERCAST" WEATHER CONDITION LABEL */
   .weather-label-hiding, 
   [class*="weather-label-hiding"],
   .hidden.md\:inline,
-  div:has([class*="CloudSun"]) p.hidden,
-  div:has([class*="WeatherForecast"]) span.hidden {
-    display: inline-block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  /* 2. RE-ORDER THE DASHBOARD STREAM:
-     Forces the layout content blocks into a vertical column, and shifts the 
-     EV Charging Panel to the absolute bottom underneath the car display graphics */
-  div.grid.grid-cols-1,
-  main.container > div,
-  div[class*="space-y-6"] {
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
-  /* Target the Car Visual container to stay up top center */
-  div:has([class*="Car"]),
-  div:has(canvas),
-  div:has([class*="VehicleIdentityBar"]) + div {
-    order: 1 !important;
-  }
-
-  /* Target the Weather container widget block to drop below the car */
-  div:has([class*="CloudSun"]),
-  div:has([class*="WeatherForecast"]) {
-    order: 2 !important;
-  }
-
-  /* Target the EV Charging panel block to move to the bottom left profile position */
-  div:has(h3:aria-label), 
-  div:has([class*="Zap"]),
-  div:has(span:contains("SoC")),
-  div:has([class*="ChargeStats"]) {
-    order: 3 !important; 
-    align-self: flex-start !important; /* Locks it to the left side edge layout bounds */
-    width: 100% !important;
-  }
-}
-/* ==========================================================================
-   Galaxy Z Fold 7 Live Dashboard Badge Layout Overrides
-   ========================================================================== */
-
-@media screen and (max-width: 430px) {
-  /* 1. FORCE THE "OVERCAST" TEXT DESCRIPTION TO REMAIN FULLY VISIBLE */
-  div[class*="absolute"]:has([class*="Sun"]), 
-  div[class*="absolute"]:has([class*="Cloud"]), 
-  div[class*="absolute"]:has(span:contains("°")) span,
-  .weather-label-hiding,
-  .hidden.md\:inline {
+  div[class*="absolute"]:has([class*="Sun"]) span,
+  div[class*="absolute"]:has([class*="Cloud"]) span,
+  div[class*="absolute"]:has(span:contains("°")) span {
     display: inline-flex !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
 
-  /* 2. POSITION THE ACTIVE VEHICLE CHARGING PILL PILL TO THE BOTTOM-LEFT */
+  /* 2. FORCE THE ACTIVE VEHIBLE CHARGING PILL (39%) TO THE BOTTOM LEFT CORNER */
   div[class*="absolute"]:has([class*="Zap"]), 
+  div[class*="absolute"]:has([class*="BatteryCharging"]),
   div[class*="absolute"]:has(span:contains("%")) {
     top: auto !important;
     right: auto !important;
@@ -204,8 +151,10 @@
     left: 1rem !important;
   }
 
-  /* 3. SHIFT THE ACTIVE WEATHER PILL SO IT DOES NOT OVERLAP THE NEW CHARGE POSITION */
+  /* 3. PIN THE WEATHER BADGE SAFELY TO THE OPPOSITE BOTTOM RIGHT CORNER */
   div[class*="absolute"]:has([class*="CloudSun"]), 
+  div[class*="absolute"]:has([class*="Sun"]), 
+  div[class*="absolute"]:has([class*="Cloud"]), 
   div[class*="absolute"]:has(span:contains("°")) {
     top: auto !important;
     left: auto !important;

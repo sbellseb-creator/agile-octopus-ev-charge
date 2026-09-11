@@ -127,6 +127,9 @@ export default function HomeHeroScene({
   useEffect(() => {
     if (!import.meta.env.DEV) return;
 
+    // Temporary debug instrumentation: trace the forced-theme background
+    // pipeline so we can see exactly where an empty/invalid path would come
+    // from (scene.mode/theme -> homeSceneBackground() -> the inline style).
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
     console.log("[HomeHeroScene] background style ->", `url("${background}")`);
@@ -185,6 +188,8 @@ export default function HomeHeroScene({
             height="941"
             preserveAspectRatio="xMidYMid slice"
           />
+          {/* Rear-view mirror and a genuinely hanging selectable air
+              freshener.  It is separate from the information screen. */}
           {footballTeam !== "None" && <>
           <g filter="drop-shadow(0 7px 8px rgba(0,0,0,.65))">
             <rect x="760" y="74" width="152" height="46" rx="18" fill="#111827" stroke="#475569" strokeWidth="4" />
@@ -217,43 +222,192 @@ export default function HomeHeroScene({
                   <p className="uppercase tracking-wider text-slate-400">Agile now</p>
                   <p className="mt-0.5 text-[15px] font-black text-white">{agilePricePence != null ? `${agilePricePence.toFixed(2)}p` : "Loading"}</p>
                 </div>
+                <div className="rounded-lg bg-white/[.06] p-2">
+                  <p className="uppercase tracking-wider text-slate-400">Schedule</p>
+                  <p className="mt-0.5 truncate text-[13px] font-black text-white">{scheduleLabel || (pluggedIn ? "Ready when cheap" : "Not scheduled")}</p>
+                </div>
+              </div>
+
+              <div className="mt-2 flex min-h-0 flex-1 items-center justify-between gap-2 rounded-lg border border-emerald-300/15 bg-emerald-400/[.06] px-2.5">
+                <div className="min-w-0">
+                  <p className="text-[8px] uppercase tracking-wider text-emerald-300">Best charging opportunity</p>
+                  <p className="truncate text-[11px] font-bold">{cheapestWindowLabel || "Waiting for Agile prices"}</p>
+                </div>
+                {remaining && <p className="shrink-0 text-[9px] font-bold text-emerald-200">{remaining.replace(" remaining", "")}</p>}
+              </div>
+              <div className="mt-1.5 overflow-hidden whitespace-nowrap border-t border-white/10 pt-1 text-[7px] font-black tracking-[0.16em] text-red-300">
+                <span className="inline-block animate-pulse">{clubTicker}</span>
+                <span className="mx-3 text-slate-600">•</span>
+                <span className="text-slate-400">Live club news source coming later</span>
               </div>
             </div>
           </foreignObject>
         </svg>
+
+        <div className="absolute bottom-2 left-2 z-30 rounded-full border border-white/15 bg-slate-950/65 px-2.5 py-1 text-[9px] text-slate-300 backdrop-blur-xl sm:bottom-3 sm:left-3 sm:text-[10px]">
+          Cockpit · read only · never wakes the car
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative aspect-[16/10] min-h-[190px] overflow-hidden rounded-[22px] bg-slate-950 border border-white/5 min-[430px]:aspect-[16/10] min-[430px]:min-h-[260px] sm:aspect-[16/9] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px] shadow-2xl transition-all duration-500">
-      <div
-        ref={backgroundLayerRef}
-        style={{ backgroundImage: `url("${background}")` }}
-        className="absolute inset-0 h-full w-full bg-cover bg-center transition-all duration-700 brightness-[0.88]"
-      />
+    <div className="relative aspect-[16/9] min-h-[190px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
 
-      <SeasonalOverlay scene={scene} opacity={0.65} />
+      {/* Real/generated weather scene, with seasonal filters + overlays */}
+      <SeasonalOverlay
+        theme={scene.mode === "forced" ? scene.theme : "automatic"}
+        phase={scene.phase}
+      >
+        {usesAlignedConnectedScene ? (
+          <svg
+            viewBox="0 0 1672 941"
+            preserveAspectRatio="xMaxYMid slice"
+            className="absolute inset-0 h-full w-full transition-all duration-700"
+            aria-hidden="true"
+          >
+            <defs>
+              <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation=".55" result="cableGlow" />
+                <feMerge>
+                  <feMergeNode in="cableGlow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <image
+              href={background}
+              x="0"
+              y="0"
+              width="1672"
+              height="941"
+              preserveAspectRatio="xMidYMid slice"
+            />
+            {/* Charger LED: in waiting-plugged state, charger LED is BLUE */}
+            {!charging && pluggedIn && (
+              <line
+                x1="527.5"
+                y1="321"
+                x2="527.5"
+                y2="351"
+                stroke="rgb(55 170 255)"
+                strokeWidth="3.6"
+                strokeLinecap="round"
+                filter="url(#live-cable-line-glow)"
+              />
+            )}
+            <path
+              d="M526 382 C526 445 525 520 526 568 C527 615 563 638 626 649 C720 666 844 680 934 678 C981 677 1010 655 1024 623 C1040 588 1045 530 1052 487 C1058 456 1065 446 1078 445"
+              fill="none"
+              stroke={charging ? "rgb(68 255 164)" : "rgb(55 170 255)"}
+              strokeWidth={charging ? "2.4" : "2.8"}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#live-cable-line-glow)"
+              opacity={charging ? ".22" : "1"}
+            >
+              {charging && (
+                <animate
+                  attributeName="opacity"
+                  values=".22;.82;.22"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                />
+              )}
+            </path>
+          </svg>
+        ) : (
+          <div
+            ref={backgroundLayerRef}
+            className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
+            style={{
+              backgroundImage: `url("${background}")`,
+            }}
+          />
+        )}
 
-      {footballTeam !== "None" && (
-        <div className="absolute top-3 left-3 z-10 hidden items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 backdrop-blur-md transition-all duration-300 sm:flex max-w-[210px] overflow-hidden">
-          <Sparkles className={`h-3 w-3 shrink-0 ${footballTeam === "Sunderland" ? "text-red-400 animate-pulse" : "text-teal-400"}`} />
-          <div className="w-[180px] overflow-hidden whitespace-nowrap text-[9px] font-black tracking-widest text-white/90">
-            <div className="inline-block animate-[marquee_14s_linear_infinite] pl-[100%] font-mono">
-              {clubTicker}
-            </div>
+        {/* Fallback atmosphere while an image is unavailable */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />
+      </SeasonalOverlay>
+
+      {/* Premium cinematic grading */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
+
+      {/* Top status */}
+      <div className="absolute right-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+        <div className="flex items-center gap-2">
+          <BatteryCharging
+            className={
+              charging
+                ? "h-4 w-4 text-emerald-300 sm:h-5 sm:w-5"
+                : "h-4 w-4 text-white/80 sm:h-5 sm:w-5"
+            }
+          />
+
+          <span className="text-lg font-black tracking-tight text-white min-[430px]:text-xl md:text-2xl">
+            {battery}
+          </span>
+        </div>
+
+        <div className="mt-1 text-[11px] font-semibold text-white/85 min-[430px]:text-xs">
+          {charging
+            ? `${chargerPowerKw != null
+                ? `${chargerPowerKw.toFixed(1)} kW${
+                    chargerAmps != null
+                      ? ` · ${Math.round(chargerAmps)} A ${
+                          chargerAmpsLive ? "live" : "max"
+                        }`
+                      : ""
+                  } · `
+                : ""
+              }Charging`
+            : `${state || "Vehicle status"}${batteryIsLastKnown && !state?.toLowerCase().includes("last known") ? " · Last known" : ""}`}
+        </div>
+
+        {charging && remaining && (
+          <div className="mt-1 text-[11px] font-semibold text-emerald-200">
+            {remaining}
           </div>
+        )}
+
+        {!charging && chargeLimit != null && (
+          <div className="mt-1 text-[10px] text-white/65">
+            Target {Math.round(chargeLimit)}%
+          </div>
+        )}
+      </div>
+
+      {/* Weather badge */}
+      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:right-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:right-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
+        <WeatherIcon scene={scene} />
+
+        <span className="hidden capitalize min-[430px]:inline">
+          {scene.mode === "forced"
+            ? `${scene.theme} · ${scene.weather.split("-").join(" ")}`
+            : scene.weather.split("-").join(" ")}
+        </span>
+
+        {scene.temperatureC != null && (
+          <span className="font-bold">
+            {Math.round(scene.temperatureC)}°
+          </span>
+        )}
+      </div>
+
+      {/* The installed sunset/night photographs contain the illuminated wall
+          lamp and its real light spill. No synthetic glow is needed. */}
+
+      {!charging && pluggedIn && (
+        <div className="absolute bottom-2 left-2 z-40 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-1/2 min-[430px]:-translate-x-1/2 sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+          PLUGGED IN · WAITING
         </div>
       )}
 
-      {/* 
-        ⚡ FIXED CHARGING STATS PILL:
-        Moved layout positioning classes from top right to 'bottom-3 left-3 sm:bottom-4 sm:left-4'
-        so it sits perfectly at the bottom left.
-      */}
-      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10 backdrop-blur-md bg-slate-950/70 border border-white/10 rounded-[14px] p-2 sm:rounded-[18px] sm:p-3 min-w-[125px] sm:min-w-[145px] shadow-xl transition-all duration-300">
-        <div className="flex items-baseline gap-1">
-          <span className="text-xl sm:text-2xl font-black tracking-tight text-white leading-none">
-            {battery}
-          </span>
-          {charging && (
+      {/* Forced theme sparkle */}
+      {scene.mode === "forced" && (
+        <Sparkles className="absolute bottom-5 left-5 z-30 h-5 w-5 text-white/70" />
+      )}
+    </div>
+  );
+}

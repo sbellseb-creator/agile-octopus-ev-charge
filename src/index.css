@@ -164,3 +164,56 @@
     padding: 0.375rem 0.75rem !important;
   }
 }
+/* ==========================================================================
+   Galaxy Z Fold 7 Outer Display Layout Fixes
+   ========================================================================== */
+
+@media screen and (max-width: 430px) {
+  
+  /* 1. MOVE THE CHARGING STATS BADGE PILL (39%) FROM TOP-RIGHT TO BOTTOM-LEFT */
+  /* Targets the active absolute container block on your driveway view canvas overlay track */
+  div.relative.aspect-\[16\/10\] > div.absolute.top-3.right-3,
+  div.relative.aspect-\[16\/10\] > div.absolute.top-4.right-4,
+  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Zap"]),
+  div.relative:has([style*="background-image"]) > div.absolute:has([class*="BatteryCharging"]) {
+    top: auto !important;
+    right: auto !important;
+    bottom: 0.75rem !important;
+    left: 0.75rem !important;
+    margin: 0 !important;
+  }
+
+  /* 2. FORCE THE WEATHER CONDITION TEXT DESCRIPTION LABEL ("OVERCAST") TO ALWAYS SHOW */
+  /* Reverses the mobile structural utility hiding passes, keeping labels visible on narrow views */
+  div.relative.aspect-\[16\/10\] > div.absolute.bottom-3.right-3 span.hidden,
+  div.relative.aspect-\[16\/10\] > div.absolute.bottom-4.right-4 span.hidden,
+  div.relative:has([style*="background-image"]) div.absolute:has([class*="Rain"]) span.hidden,
+  div.relative:has([style*="background-image"]) div.absolute:has([class*="Sun"]) span.hidden,
+  div.relative:has([style*="background-image"]) div.absolute:has([class*="Cloud"]) span.hidden,
+  .weather-label-hiding {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 6px !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    color: #cbd5e1 !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+    padding-left: 6px !important;
+    text-transform: capitalize !important;
+  }
+
+  /* 3. ENSURE THE LIVE WEATHER BADGE STAYS ANCHORED STABLE IN THE BOTTOM-RIGHT */
+  /* Keeps the weather components layered natively opposite your new charge pill location */
+  div.relative.aspect-\[16\/10\] > div.absolute.bottom-3.right-3,
+  div.relative.aspect-\[16\/10\] > div.absolute.bottom-4.right-4,
+  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Sun"]),
+  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Cloud"]) {
+    top: auto !important;
+    left: auto !important;
+    bottom: 0.75rem !important;
+    right: 0.75rem !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}

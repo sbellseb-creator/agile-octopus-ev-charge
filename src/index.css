@@ -165,50 +165,48 @@
   }
 }
 /* ==========================================================================
-   Galaxy Z Fold 7 Outer Display Layout Fixes
+   Galaxy Z Fold 7 Cover Display Layout Fixes
    ========================================================================== */
 
 @media screen and (max-width: 430px) {
   
-  /* 1. MOVE THE CHARGING STATS BADGE PILL (39%) FROM TOP-RIGHT TO BOTTOM-LEFT */
-  /* Targets the active absolute container block on your driveway view canvas overlay track */
-  div.relative.aspect-\[16\/10\] > div.absolute.top-3.right-3,
-  div.relative.aspect-\[16\/10\] > div.absolute.top-4.right-4,
-  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Zap"]),
-  div.relative:has([style*="background-image"]) > div.absolute:has([class*="BatteryCharging"]) {
+  /* 1. MOVE THE CHARGING METRICS PILL FROM TOP-RIGHT TO BOTTOM-LEFT */
+  /* Targets any absolute layout badges containing live charge percentage arrays or Zap icons */
+  .relative.overflow-hidden div.absolute.top-3.right-3,
+  .relative.overflow-hidden div.absolute.top-4.right-4,
+  div[class*="relative"] > div[class*="absolute"]:has([class*="Zap"]),
+  div[class*="relative"] > div[class*="absolute"]:has([class*="BatteryCharging"]) {
     top: auto !important;
     right: auto !important;
     bottom: 0.75rem !important;
     left: 0.75rem !important;
-    margin: 0 !important;
+    transform: none !important;
   }
 
-  /* 2. FORCE THE WEATHER CONDITION TEXT DESCRIPTION LABEL ("OVERCAST") TO ALWAYS SHOW */
-  /* Reverses the mobile structural utility hiding passes, keeping labels visible on narrow views */
-  div.relative.aspect-\[16\/10\] > div.absolute.bottom-3.right-3 span.hidden,
-  div.relative.aspect-\[16\/10\] > div.absolute.bottom-4.right-4 span.hidden,
-  div.relative:has([style*="background-image"]) div.absolute:has([class*="Rain"]) span.hidden,
-  div.relative:has([style*="background-image"]) div.absolute:has([class*="Sun"]) span.hidden,
-  div.relative:has([style*="background-image"]) div.absolute:has([class*="Cloud"]) span.hidden,
-  .weather-label-hiding {
+  /* 2. FORCE THE WEATHER CONDITION TEXT ("OVERCAST") TO ALWAYS REMAIN VISIBLE */
+  /* Targets text utility nodes that auto-hide descriptions inside your weather widget block */
+  .relative.overflow-hidden div.absolute.bottom-3.right-3 span.hidden,
+  .relative.overflow-hidden div.absolute.bottom-4.right-4 span.hidden,
+  div[class*="absolute"]:has([class*="Sun"]) span.hidden,
+  div[class*="absolute"]:has([class*="Cloud"]) span.hidden,
+  .weather-label-hiding,
+  .hidden.min-\[380px\]\:inline,
+  .hidden.md\:inline {
     display: inline-block !important;
     visibility: visible !important;
     opacity: 1 !important;
     margin-left: 6px !important;
     font-size: 10px !important;
-    font-weight: bold !important;
-    color: #cbd5e1 !important;
-    border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
-    padding-left: 6px !important;
-    text-transform: capitalize !important;
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
   }
 
   /* 3. ENSURE THE LIVE WEATHER BADGE STAYS ANCHORED STABLE IN THE BOTTOM-RIGHT */
-  /* Keeps the weather components layered natively opposite your new charge pill location */
-  div.relative.aspect-\[16\/10\] > div.absolute.bottom-3.right-3,
-  div.relative.aspect-\[16\/10\] > div.absolute.bottom-4.right-4,
-  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Sun"]),
-  div.relative:has([style*="background-image"]) > div.absolute:has([class*="Cloud"]) {
+  /* Adjusts the weather badges to layer natively opposite your new charging pill location */
+  .relative.overflow-hidden div.absolute.bottom-3.right-3,
+  .relative.overflow-hidden div.absolute.bottom-4.right-4,
+  div[class*="absolute"]:has([class*="Sun"]),
+  div[class*="absolute"]:has([class*="Cloud"]) {
     top: auto !important;
     left: auto !important;
     bottom: 0.75rem !important;

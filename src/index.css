@@ -179,3 +179,39 @@
     width: 100% !important;
   }
 }
+/* ==========================================================================
+   Galaxy Z Fold 7 Live Dashboard Badge Layout Overrides
+   ========================================================================== */
+
+@media screen and (max-width: 430px) {
+  /* 1. FORCE THE "OVERCAST" TEXT DESCRIPTION TO REMAIN FULLY VISIBLE */
+  div[class*="absolute"]:has([class*="Sun"]), 
+  div[class*="absolute"]:has([class*="Cloud"]), 
+  div[class*="absolute"]:has(span:contains("°")) span,
+  .weather-label-hiding,
+  .hidden.md\:inline {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* 2. POSITION THE ACTIVE VEHICLE CHARGING PILL PILL TO THE BOTTOM-LEFT */
+  div[class*="absolute"]:has([class*="Zap"]), 
+  div[class*="absolute"]:has(span:contains("%")) {
+    top: auto !important;
+    right: auto !important;
+    bottom: 1rem !important;
+    left: 1rem !important;
+  }
+
+  /* 3. SHIFT THE ACTIVE WEATHER PILL SO IT DOES NOT OVERLAP THE NEW CHARGE POSITION */
+  div[class*="absolute"]:has([class*="CloudSun"]), 
+  div[class*="absolute"]:has(span:contains("°")) {
+    top: auto !important;
+    left: auto !important;
+    bottom: 1rem !important;
+    right: 1rem !important;
+    border-radius: 9999px !important;
+    padding: 0.375rem 0.75rem !important;
+  }
+}

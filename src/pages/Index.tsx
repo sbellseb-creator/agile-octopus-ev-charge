@@ -129,13 +129,6 @@ export default function Index() {
 
       <main className="container py-3 sm:py-4">
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          
-          {/* 
-            FIXED NAVIGATION MATRIX: 
-            Changed from a locked grid-cols-4 grid-rows-2 to a smart mobile-first fluid format.
-            - Spreads seamlessly on Fold 7 cover screens without compressed overflow.
-            - Snaps to a uniform single-row dashboard grid interface on desktop screens.
-          */}
           <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:flex lg:flex-row gap-1 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl transition-all">
             <TabsTrigger value="home" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
               <HomeIcon className="h-4 w-4 shrink-0 text-sky-400" /> <span className="truncate">Home</span>
@@ -199,3 +192,15 @@ export default function Index() {
             <WeatherForecast />
           </TabsContent>
 
+          <TabsContent value="work" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <WorkCosts sessions={sessions} />
+              <WorkMileageCard />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <SettingsPanel />
+          </TabsContent>
+        </Tabs>
+      </main>

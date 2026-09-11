@@ -81,6 +81,7 @@ export default function Index() {
     };
   }, []);
 
+  // RESTORED TO ORIGINAL WORKING FUNCTION SIGNATURES
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
   const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
   const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
@@ -129,12 +130,7 @@ export default function Index() {
 
       <main className="container py-3 sm:py-4">
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          {/* 
-            UPDATED NAVIGATION MATRIX: 
-            Retained all index positions strictly intact to ensure seamless compilation builds.
-            - Spreads smoothly on ultra-narrow aspect ratio display grids.
-            - Flattens into a single dashboard bar format line layout on wide desktop screens.
-          */}
+          {/* FLUID LAYOUT GRID SPECIFICALLY SCALED FOR GALAXY FOLD COVER DISPLAY */}
           <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:flex lg:flex-row gap-1 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl transition-all">
             <TabsTrigger value="home" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
               <HomeIcon className="h-4 w-4 shrink-0 text-sky-400" /> <span className="truncate">Home</span>
@@ -199,3 +195,9 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <WorkCosts sessions={sessions} />
+              <WorkMileageCard />
+            </div>
+          </TabsContent>
+

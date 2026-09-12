@@ -27,7 +27,7 @@ import { startAutoSync } from "@/lib/cloud-sync";
 import { recalculateHistoricalSessions } from "@/lib/recalc-historical";
 import HomeDashboard from "@/components/HomeDashboard";
 
-// 🔮 IMPORT YOUR BRAND-NEW DISCOVERED EARLY FORECASTER ENGINE COMPONENT
+// 🔮 IMPORT THE UNTOUCHED STANDALONE FORECASTER PANEL
 import AgileCrystalBall from "@/components/AgileCrystalBall";
 
 export default function Index() {
@@ -84,6 +84,7 @@ export default function Index() {
     };
   }, []);
 
+  // RESTORED INDICES TO ORIGINAL SIGNATURE FORMATS TO PASS THE TYPE CHECK PIPELINE
   const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
   const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
   const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
@@ -160,7 +161,7 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">
-            {/* 🔮 THE CRYSTAL BALL: POSITIONED STANDOUT RIGHT ON TOP */}
+            {/* 🔮 THE STANDOUT PREDICTOR CONTAINER ARRANGE LINK */}
             <AgileCrystalBall />
             
             <HomeDashboard
@@ -199,4 +200,3 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="work" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">

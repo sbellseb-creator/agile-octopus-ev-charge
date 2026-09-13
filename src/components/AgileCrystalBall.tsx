@@ -6,8 +6,7 @@ export default function AgileCrystalBall() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // A clean transition delay to simulate the data handshake cleanly
-    const timer = setTimeout(() => setLoading(false), 350);
+    const timer = setTimeout(() => setLoading(false), 200);
     return () => clearTimeout(timer);
   }, []);
 
@@ -32,7 +31,7 @@ export default function AgileCrystalBall() {
           </div>
         </div>
         <div className="text-left sm:text-right">
-          <span className="inline-block text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full border border-purple-500/20 shadow-sm animate-pulse">
+          <span className="inline-block text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full border border-purple-500/20 shadow-sm">
              ● Auction Settled (10:30 AM)
           </span>
         </div>

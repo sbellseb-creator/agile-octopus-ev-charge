@@ -14,6 +14,8 @@ import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } f
 import PriceList from "@/components/PriceList";
 import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
 import { toast } from "sonner";
+import AgileCrystalBall from "@/components/AgileCrystalBall";
+
 
 function rateColor(p: number): string {
   if (p <= 0) return "hsl(var(--neon-green))";
@@ -674,6 +676,10 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
       {rates && rates.length > 0 && (
         <PriceList rates={rates} now={now} />
       )}
+            <div className="mt-6 border-t border-white/5 pt-6">
+        <AgileCrystalBall />
+      </div>
+
     </div>
   );
 }

@@ -16,7 +16,6 @@ import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
 import { toast } from "sonner";
 import AgileCrystalBall from "@/components/AgileCrystalBall";
 
-
 function rateColor(p: number): string {
   if (p <= 0) return "hsl(var(--neon-green))";
   if (p < 8) return "hsl(var(--neon-cyan))";

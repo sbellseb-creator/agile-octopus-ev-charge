@@ -1,202 +1,95 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
-import { loadVehicles, addVehicle, updateVehicle, deleteVehicle } from "@/lib/vehicle-data";
-import type { Vehicle } from "@/lib/vehicle-data";
-import { useAuth } from "@/hooks/useAuth";
-import ChargeForm from "@/components/ChargeForm";
-import ChargeCharts from "@/components/ChargeCharts";
-import ChargeTable from "@/components/ChargeTable";
-import ChargeStats from "@/components/ChargeStats";
-import VehicleManager from "@/components/VehicleManager";
-import AgileRates from "@/components/AgileRates";
-import ChargePlanner from "@/components/ChargePlanner";
-import TrackerRates from "@/components/TrackerRates";
-import WeatherForecast from "@/components/WeatherForecast";
-import FuelComparison from "@/components/FuelComparison";
-import WorkCosts from "@/components/WorkCosts";
-import WorkMileageCard from "@/components/WorkMileageCard";
-import TariffComparison from "@/components/TariffComparison";
-import SyncIndicator from "@/components/SyncIndicator";
-import SettingsPanel from "@/components/SettingsPanel";
-import VehicleIdentityBar from "@/components/vehicles/VehicleIdentityBar";
-import { loadSettingsFromCloud } from "@/lib/app-settings";
-import { startAutoSync } from "@/lib/cloud-sync";
-import { recalculateHistoricalSessions } from "@/lib/recalc-historical";
-import HomeDashboard from "@/components/HomeDashboard";
 
-// 🔮 IMPORT THE NEW 10:30 AM FORECAST PANEL
-import AgileCrystalBall from "@/components/AgileCrystalBall";
+import React, { useState, useEffect } from "react";
+import { Sparkles, TrendingDown, Zap } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { fetchAgileEarlyForecast, type AgileRate } from "@/lib/octopus-api";
 
-export default function Index() {
-  const [sessions, setSessions] = useState(loadSessions);
-  const [sessionsCloudConfirmed, setSessionsCloudConfirmed] = useState(false);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [tab, setTab] = useState("home");
-  const historicalSessionsRecalculated = useRef(false);
-  const { signOut } = useAuth();
+export default function AgileCrystalBall() {
+  const [forecastPrices, setForecastPrices] = useState<AgileRate[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void loadVehicles().then(setVehicles);
-    void loadSettingsFromCloud();
-    const reload = () => void loadVehicles().then(setVehicles);
-    window.addEventListener("vehicles:updated", reload);
-    return () => window.removeEventListener("vehicles:updated", reload);
-  }, []);
-
-  useEffect(() => {
-    if (
-      !sessionsCloudConfirmed ||
-      vehicles.length === 0 ||
-      historicalSessionsRecalculated.current
-    ) {
-      return;
+    async function getForecast() {
+      const prices = await fetchAgileEarlyForecast();
+      setForecastPrices(prices);
+      setLoading(false);
     }
+    void getForecast();
+  }, []);
 
-    historicalSessionsRecalculated.current = true;
-    const capacityByVehicle = new Map(
-      vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
-    );
-    const corrections = recalculateHistoricalSessions(
-      sessions,
-      (session) => capacityByVehicle.get(session.vehicle_id),
-    );
+  // Compute key stats for the layout
+  const insights = React.useMemo(() => {
+    if (forecastPrices.length === 0) return null;
 
-    if (corrections.length === 0) return;
+    // Filter to isolate slots matching tomorrow's date profile boundaries
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    const tomorrowSlots = forecastPrices.filter(s => s.valid_from.startsWith(tomorrowStr));
+    const targetArray = tomorrowSlots.length > 0 ? tomorrowSlots : forecastPrices;
 
-    corrections.forEach(({ id, updates }) => updateSession(id, updates));
-    setSessions(loadSessions());
-  }, [sessions, sessionsCloudConfirmed, vehicles]);
+    const sorted = [...targetArray].sort((a, b) => a.value_inc_vat - b.value_inc_vat);
+    const lowest = sorted[0];
+    const highest = sorted[sorted.length - 1];
 
-  useEffect(() => {
-    // Cloud sync: migrate/merge local data, then keep devices in step.
-    const stop = startAutoSync();
-    const onUpdated = () => {
-      setSessions(loadSessions());
-      setSessionsCloudConfirmed(true);
+    const lowTime = new Date(lowest.valid_from).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const highTime = new Date(highest.valid_from).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+    return {
+      bestPrice: lowest.value_inc_vat.toFixed(1),
+      bestTime: lowTime,
+      peakPrice: highest.value_inc_vat.toFixed(1),
+      peakTime: highTime
     };
-    window.addEventListener("cloud-sync:updated", onUpdated);
-    return () => {
-      window.removeEventListener("cloud-sync:updated", onUpdated);
-      stop();
-    };
-  }, []);
+  }, [forecastPrices]);
 
-  // PRESERVED LOVABLE DATA KEY SIGNATURES PERFECTLY
-  const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
-  const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
-  const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
-  
-  const handleAddVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
-    const updated = await addVehicle(v);
-    setVehicles(updated);
-  }, []);
-  
-  const handleUpdateVehicle = useCallback(async (id: string, updates: Partial<Omit<Vehicle, "id">>) => {
-    const updated = await updateVehicle(id, updates);
-    setVehicles(updated);
-  }, []);
-
-  const handleDeleteVehicle = useCallback(async (id: string) => {
-    const updated = await deleteVehicle(id);
-    setVehicles(updated);
-  }, []);
+  if (loading) return null;
+  if (!insights || forecastPrices.length === 0) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container flex min-w-0 items-center gap-1.5 py-3 sm:gap-3 sm:py-4">
-          <Zap className="h-5 w-5 shrink-0 text-primary sm:h-7 sm:w-7" />
-          <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
-          <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold text-emerald-300 min-[430px]:inline">
-            Release 031
-          </span>
-          <SyncIndicator />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={() => setTab("settings")}
-            aria-label="Settings"
-          >
-            <Cog className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut} aria-label="Sign out">
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
-
+    <Card className="w-full bg-gradient-to-br from-indigo-950/60 via-slate-900/90 to-purple-950/40 border border-purple-500/30 rounded-3xl p-4 shadow-[0_0_25px_rgba(168,85,247,0.15)] relative overflow-hidden mb-6">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
       
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <Sparkles className="h-5 w-5 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black tracking-wide text-white uppercase flex items-center gap-1.5">
+              Agile Crystal Ball <span className="text-[9px] font-mono font-normal tracking-widest text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">REGION F FORECAST</span>
+            </h3>
+            <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+              Tomorrow's wholesale auction rates mapped 5.5 hours early
+            </p>
+          </div>
+        </div>
+        <div className="text-left sm:text-right">
+          <span className="inline-block text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full border border-purple-500/20 shadow-sm">
+             Wholesale Market Linked
+          </span>
+        </div>
+      </div>
 
-      <main className="container py-3 sm:py-4">
-        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          {/* FLUID MOBILE RESPONSIVE TABS LIST GRID FOR YOUR FOLD DISPLAY SCREEN */}
-          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:flex lg:flex-row gap-1 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl transition-all">
-            <TabsTrigger value="home" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <HomeIcon className="h-4 w-4 shrink-0 text-sky-400" /> <span className="truncate">Home</span>
-            </TabsTrigger>
-            <TabsTrigger value="agile" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <TrendingDown className="h-4 w-4 shrink-0 text-emerald-400" /> <span className="truncate">Agile</span>
-            </TabsTrigger>
-            <TabsTrigger value="charging" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <Zap className="h-4 w-4 shrink-0 text-amber-400" /> <span className="truncate">Charge</span>
-            </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <Gauge className="h-4 w-4 shrink-0 text-teal-400" /> <span className="truncate">Tracker</span>
-            </TabsTrigger>
-            <TabsTrigger value="planner" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <CalendarClock className="h-4 w-4 shrink-0 text-indigo-400" /> <span className="truncate">Planner</span>
-            </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <Car className="h-4 w-4 shrink-0 text-purple-400" /> <span className="truncate">Vehicles</span>
-            </TabsTrigger>
-            <TabsTrigger value="forecast" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <CloudSun className="h-4 w-4 shrink-0 text-yellow-400" /> <span className="truncate">Forecast</span>
-            </TabsTrigger>
-            <TabsTrigger value="work" className="flex h-10 flex-row sm:flex-col items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-medium w-full">
-              <Briefcase className="h-4 w-4 shrink-0 text-pink-400" /> <span className="truncate">Work</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="home" className="space-y-6">
-            {/* 🔮 THE STANDOUT CRYSTAL BALL CARD - PINNED TO THE TOP OF THE HOME VIEW */}
-            <AgileCrystalBall />
-            
-            <HomeDashboard
-              vehicles={vehicles}
-              sessions={sessionsCloudConfirmed ? sessions : []}
-              onSessionsChanged={() => setSessions(loadSessions())}
-              onManageSchedule={() => setTab("planner")}
-              onReviewCharges={() => setTab("charging")}
-            />
-          </TabsContent>
-
-          <TabsContent value="agile" className="space-y-6">
-            <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
-            <TariffComparison />
-          </TabsContent>
-
-          <TabsContent value="tracker" className="space-y-6">
-            <TrackerRates />
-          </TabsContent>
-
-          <TabsContent value="planner" className="space-y-6">
-            <ChargePlanner vehicles={vehicles} />
-          </TabsContent>
-
-          <TabsContent value="vehicles" className="space-y-6">
-            <VehicleManager
-              vehicles={vehicles}
-              onAddVehicle={handleAddVehicle}
-              onUpdateVehicle={handleUpdateVehicle}
-              onDeleteVehicle={handleDeleteVehicle}
-            />
-          </TabsContent>
-
-          <TabsContent value="forecast" className="space-y-6">
-            <WeatherForecast />
-          </TabsContent>
-
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-slate-950/60 border border-white/5 p-3 rounded-2xl relative shadow-inner">
+          <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+            <Zap className="h-3 w-3 text-emerald-400 fill-emerald-400/10" /> Best Predicted Charge Window
+          </span>
+          <span className="block text-base font-extrabold text-white mt-1">Around {insights.bestTime}</span>
+          <span className="text-[10px] font-medium text-emerald-400 mt-0.5 block font-mono">
+            Forecast ~ {insights.bestPrice}p/kWh
+          </span>
+        </div>
+        
+        <div className="bg-slate-950/60 border border-white/5 p-3 rounded-2xl relative shadow-inner">
+          <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+            <TrendingDown className="h-3 w-3 text-rose-400" /> Peak Hour Price Spike
+          </span>
+          <span className="block text-base font-extrabold text-rose-400 mt-1">Around {insights.peakTime}</span>
+          <span className="text-[10px] font-medium text-slate-400 mt-0.5 block font-mono">
+            Surcharge Expected ~ {insights.peakPrice}p/kWh
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}

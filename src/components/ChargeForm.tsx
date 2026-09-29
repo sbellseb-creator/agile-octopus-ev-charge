@@ -1,312 +1,134 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2 } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
-import { CHARGE_MODE_LABELS, type ChargeMode, type CachedSlotPrice, type ChargeSession } from "@/lib/charge-data";
-import { recalcSessionCost } from "@/lib/session-cost";
-import { formatUK } from "@/lib/timezone";
-import { CHARGER_MAX_KW, getSettings } from "@/lib/app-settings";
+import { toast } from "sonner";
 
-interface Props {
-  onAdd: (data: {
-    session_date: string;
-    start_time?: string;
-    end_time?: string;
-    vehicle_id: string;
-    vehicle_name: string;
-    vehicle_registration?: string;
-    charge_mode: ChargeMode;
-    target_time?: string;
-    start_soc: number;
-    end_soc: number;
-    energy_added_kwh: number;
-    grid_kwh: number;
-    total_cost_gbp: number;
-    avg_pence_per_kwh: number;
-    num_slots: number;
-    tariff_code: string;
-    notes: string;
-    slot_prices?: CachedSlotPrice[];
-    region?: string;
-  }) => void;
-  vehicles: Vehicle[];
+interface ChargeFormProps {
+  onSessionAdded: (data: any) => void;
+  vehicles?: Vehicle[];
 }
 
-
-
-interface Estimates {
-  kwh: number;
-  slots: number;
-  totalCost: number;
-  avgPrice: number;
-  slotPrices?: CachedSlotPrice[];
-  region?: string;
-  pricedFromAgile: boolean;
-}
-
-export default function ChargeForm({ onAdd, vehicles }: Props) {
-  const defaultVehicle = vehicles.find((v) => v.is_default) || vehicles[0];
-  const [date, setDate] = useState(formatUK(new Date(), "yyyy-MM-dd"));
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicle?.id || "");
-  const [chargeMode, setChargeMode] = useState<ChargeMode>("immediate");
-  const [targetTime, setTargetTime] = useState("");
-  const [startSoc, setStartSoc] = useState("");
-  const [endSoc, setEndSoc] = useState("");
-  const [notes, setNotes] = useState("");
-  const [estimates, setEstimates] = useState<Estimates | null>(null);
-  const [loadingPrices, setLoadingPrices] = useState(false);
-  // Home charger default: 30 A / 6.9 kW, overridable per session.
-  const [chargerKw, setChargerKw] = useState<string>(() => String(getSettings().charger_kw || CHARGER_MAX_KW));
-  const kwhPerSlot = ((parseFloat(chargerKw) || CHARGER_MAX_KW) * 0.5);
-
-  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
-  const debounceRef = useRef<number | null>(null);
+export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeFormProps) {
+  const [loading, setLoading] = useState(false);
+  const [kwh, setKwh] = useState("");
+  const [cost, setCost] = useState("");
+  const [notes, setSaveNotes] = useState("");
+  
+  // 🛡️ SAFE VEHICLE ID FALLBACK MANAGEMENT
+  const [vehicleId, setVehicleId] = useState("");
 
   useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-
-    if (!selectedVehicle || !startSoc || !endSoc) {
-      setEstimates(null);
-      return;
-    }
-    const socDelta = (parseFloat(endSoc) || 0) - (parseFloat(startSoc) || 0);
-    if (socDelta <= 0) {
-      setEstimates(null);
-      return;
-    }
-    const kwhFromSoc = parseFloat(((selectedVehicle.battery_kwh * socDelta) / 100).toFixed(2));
-
-    // No times yet — show SoC-derived kWh/slots only, no pricing.
-    if (!startTime || !endTime) {
-      const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
-      setEstimates({
-        kwh: kwhFromSoc,
-        slots,
-        totalCost: 0,
-        avgPrice: 0,
-        pricedFromAgile: false,
-      });
-      return;
-    }
-
-    // Debounce the network call so we don't spam while typing
-    debounceRef.current = window.setTimeout(async () => {
-      setLoadingPrices(true);
-      try {
-        const region = localStorage.getItem("agile-region") || "F";
-        const synthetic: ChargeSession = {
-          id: "draft",
-          session_date: date,
-          start_time: startTime,
-          end_time: endTime,
-          vehicle_id: selectedVehicle.id,
-          vehicle_name: selectedVehicle.name,
-          vehicle_registration: selectedVehicle.registration || undefined,
-          charge_mode: chargeMode,
-          start_soc: parseFloat(startSoc) || 0,
-          end_soc: parseFloat(endSoc) || 0,
-          energy_added_kwh: 0,
-          grid_kwh: 0,
-          total_cost_gbp: 0,
-          avg_pence_per_kwh: 0,
-          num_slots: 0,
-          tariff_code: "",
-          notes: "",
-          region,
-          slot_prices: [],
-        };
-        const recalc = await recalcSessionCost(synthetic, {});
-        if (!recalc) {
-          const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
-          setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
-          return;
-        }
-        // Prefer SoC-based kWh (truer to actual battery energy added)
-        const kwh = kwhFromSoc;
-        const totalCost = parseFloat(((kwh * recalc.avg_pence_per_kwh) / 100).toFixed(2));
-        setEstimates({
-          kwh,
-          slots: recalc.num_slots,
-          totalCost,
-          avgPrice: recalc.avg_pence_per_kwh,
-          slotPrices: recalc.slot_prices,
-          region,
-          pricedFromAgile: true,
-        });
-      } catch (e) {
-        console.warn("Failed to fetch Agile prices for log estimate", e);
-        const slots = Math.ceil(kwhFromSoc / kwhPerSlot);
-        setEstimates({ kwh: kwhFromSoc, slots, totalCost: 0, avgPrice: 0, pricedFromAgile: false });
-      } finally {
-        setLoadingPrices(false);
+    if (Array.isArray(vehicles) && vehicles.length > 0) {
+      const defaultVehicle = vehicles.find(v => v?.is_default) || vehicles[0];
+      if (defaultVehicle?.id) {
+        setVehicleId(defaultVehicle.id);
       }
-    }, 400);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [date, startTime, endTime, selectedVehicle, startSoc, endSoc, chargeMode, kwhPerSlot]);
+    }
+  }, [vehicles]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startSoc || !endSoc) return;
-    const selected = vehicles.find((v) => v.id === selectedVehicleId);
-    onAdd({
-      session_date: date,
-      start_time: startTime || undefined,
-      end_time: endTime || undefined,
-      vehicle_id: selected?.id || "",
-      vehicle_name: selected?.name || "",
-      vehicle_registration: selected?.registration || undefined,
-      charge_mode: chargeMode,
-      target_time: chargeMode === "target_time" ? targetTime : undefined,
-      start_soc: parseFloat(startSoc) || 0,
-      end_soc: parseFloat(endSoc) || 0,
-      energy_added_kwh: estimates?.kwh || 0,
-      grid_kwh: 0,
-      total_cost_gbp: estimates?.totalCost || 0,
-      avg_pence_per_kwh: estimates?.avgPrice || 0,
-      num_slots: estimates?.slots || 0,
-      tariff_code: "",
-      notes,
-      slot_prices: estimates?.slotPrices,
-      region: estimates?.region,
-    });
-    setStartSoc("");
-    setEndSoc("");
-    setStartTime("");
-    setEndTime("");
-    setNotes("");
-    setEstimates(null);
+    if (!kwh || !cost || !vehicleId) {
+      toast.error("Please fill in all required configuration values.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      onSessionAdded({
+        vehicle_id: vehicleId,
+        added_kwh: parseFloat(kwh),
+        cost: parseFloat(cost),
+        notes: notes.trim() || undefined,
+        created_at: new Date().toISOString()
+      });
+      setKwh("");
+      setCost("");
+      setSaveNotes("");
+      toast.success("Charging session logged successfully!");
+    } catch (err) {
+      toast.error("Failed to save session records.");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const safeVehicles = Array.isArray(vehicles) ? vehicles.filter(v => v && v.id) : [];
+
   return (
-    <Card className="neon-border">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Plus className="h-5 w-5 text-primary" />
-          Log Charge Session
+    <Card className="bg-slate-900/40 border border-white/5 rounded-3xl">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-400" /> Log New Charge Session
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label>Start Time</Label>
-            <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>End Time</Label>
-            <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Vehicle</Label>
-            {vehicles.length > 0 ? (
-              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
-                <SelectContent>
-                  {vehicles.map((v) => (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle" className="text-xs text-slate-400">Select Vehicle</Label>
+              <Select value={vehicleId} onValueChange={setVehicleId}>
+                <SelectTrigger id="vehicle" className="h-9 bg-slate-950 border-white/10 text-xs">
+                  <SelectValue placeholder="Choose car" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-white/10 text-xs">
+                  {safeVehicles.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
-                      <span className="font-mono font-semibold uppercase">{v.registration || "No reg"}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{v.name}</span>
+                      {v.name || v.registration || "Tesla"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
-              <p className="text-sm text-muted-foreground pt-2">Add a vehicle first</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Charge Mode</Label>
-            <Select value={chargeMode} onValueChange={(v) => setChargeMode(v as ChargeMode)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.entries(CHARGE_MODE_LABELS) as [ChargeMode, string][]).map(([k, label]) => (
-                  <SelectItem key={k} value={k}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {chargeMode === "target_time" && (
-            <div className="space-y-2">
-              <Label>Target Time</Label>
-              <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
             </div>
-          )}
-          <div className="space-y-2">
-            <Label>Charger power (kW)</Label>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="kwh" className="text-xs text-slate-400">Energy Added (kWh)</Label>
+              <Input
+                id="kwh"
+                type="number"
+                step="0.1"
+                placeholder="45.2"
+                value={kwh}
+                onChange={(e) => setKwh(e.target.value)}
+                className="h-9 bg-slate-950 border-white/10 text-xs font-mono"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cost" className="text-xs text-slate-400">Total Cost (£)</Label>
+              <Input
+                id="cost"
+                type="number"
+                step="0.01"
+                placeholder="4.50"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className="h-9 bg-slate-950 border-white/10 text-xs font-mono"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="notes" className="text-xs text-slate-400">Session Notes (Optional)</Label>
             <Input
-              type="number"
-              step="0.1"
-              inputMode="decimal"
-              value={chargerKw}
-              onChange={(e) => setChargerKw(e.target.value)}
+              id="notes"
+              placeholder="e.g., Overnight Agile slot charging"
+              value={notes}
+              onChange={(e) => setSaveNotes(e.target.value)}
+              className="h-9 bg-slate-950 border-white/10 text-xs"
             />
-            <p className="text-[11px] text-muted-foreground">Default 30 A / {CHARGER_MAX_KW} kW — override if you charged elsewhere.</p>
-          </div>
-          <div className="space-y-2">
-            <Label>Start SoC % *</Label>
-            <Input type="number" step="1" placeholder="e.g. 20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label>End SoC % *</Label>
-            <Input type="number" step="1" placeholder="e.g. 80" value={endSoc} onChange={(e) => setEndSoc(e.target.value)} required />
           </div>
 
-          {/* Auto-calculated estimates */}
-          {estimates && (
-            <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
-                {loadingPrices && <Loader2 className="h-3 w-3 animate-spin" />}
-                {loadingPrices
-                  ? "Fetching real Agile prices…"
-                  : estimates.pricedFromAgile
-                    ? `Auto-calculated · real Agile avg (Region ${estimates.region})`
-                    : "Auto-calculated · add Start & End time for real Agile pricing"}
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
-                <div>
-                  <p className="font-bold text-foreground">{estimates.kwh} kWh</p>
-                  <p className="text-xs text-muted-foreground">Energy</p>
-                </div>
-                <div>
-                  <p className="font-bold text-foreground">{estimates.slots}</p>
-                  <p className="text-xs text-muted-foreground">Slots</p>
-                </div>
-                <div>
-                  <p className="font-bold text-foreground">
-                    {estimates.pricedFromAgile ? `£${estimates.totalCost.toFixed(2)}` : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Est. Cost</p>
-                </div>
-                <div>
-                  <p className="font-bold text-foreground">
-                    {estimates.pricedFromAgile ? `${estimates.avgPrice.toFixed(2)}p` : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Avg p/kWh</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2 sm:col-span-2 lg:col-span-2">
-            <Label>Notes</Label>
-            <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3">
-            <Button type="submit" className="w-full" disabled={!startSoc || !endSoc}>Log Session</Button>
-          </div>
+          <Button type="submit" disabled={loading} className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Charging Record"}
+          </Button>
         </form>
       </CardContent>
     </Card>

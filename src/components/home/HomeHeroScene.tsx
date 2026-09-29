@@ -328,7 +328,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
       {/* Top status */}
-      <div className="absolute right-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+      <div className="absolute left-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={

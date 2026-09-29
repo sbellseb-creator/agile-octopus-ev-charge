@@ -18,14 +18,14 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
   const [kwh, setKwh] = useState("");
   const [cost, setCost] = useState("");
   const [notes, setSaveNotes] = useState("");
-  
-  // 🛡️ SAFE VEHICLE ID FALLBACK MANAGEMENT
   const [vehicleId, setVehicleId] = useState("");
 
+  // 🛡️ ACCORDION ACCURACY: COMPLETELY INSULATE ARRAY METHODS AGAINST UNDEFINED ENTRIES
   useEffect(() => {
-    if (Array.isArray(vehicles) && vehicles.length > 0) {
-      const defaultVehicle = vehicles.find(v => v?.is_default) || vehicles[0];
-      if (defaultVehicle?.id) {
+    const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
+    if (safeVehicles.length > 0) {
+      const defaultVehicle = safeVehicles.find(v => v && v.is_default) || safeVehicles[0];
+      if (defaultVehicle && defaultVehicle.id) {
         setVehicleId(defaultVehicle.id);
       }
     }
@@ -34,7 +34,7 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!kwh || !cost || !vehicleId) {
-      toast.error("Please fill in all required configuration values.");
+      toast.error("Please select a vehicle and populate all required configurations.");
       return;
     }
 
@@ -52,13 +52,13 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
       setSaveNotes("");
       toast.success("Charging session logged successfully!");
     } catch (err) {
-      toast.error("Failed to save session records.");
+      toast.error("Failed to save session data.");
     } finally {
       setLoading(false);
     }
   };
 
-  const safeVehicles = Array.isArray(vehicles) ? vehicles.filter(v => v && v.id) : [];
+  const safeVehiclesList = Array.isArray(vehicles) ? vehicles.filter(v => v && v.id) : [];
 
   return (
     <Card className="bg-slate-900/40 border border-white/5 rounded-3xl">
@@ -74,10 +74,10 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
               <Label htmlFor="vehicle" className="text-xs text-slate-400">Select Vehicle</Label>
               <Select value={vehicleId} onValueChange={setVehicleId}>
                 <SelectTrigger id="vehicle" className="h-9 bg-slate-950 border-white/10 text-xs">
-                  <SelectValue placeholder="Choose car" />
+                  <SelectValue placeholder={safeVehiclesList.length === 0 ? "Loading profiles..." : "Choose car"} />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-white/10 text-xs">
-                  {safeVehicles.map((v) => (
+                  {safeVehiclesList.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.name || v.registration || "Tesla"}
                     </SelectItem>
@@ -126,7 +126,7 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
             />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl">
+          <Button type="submit" disabled={loading || safeVehiclesList.length === 0} className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Charging Record"}
           </Button>
         </form>

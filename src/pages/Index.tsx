@@ -81,9 +81,36 @@ export default function Index() {
     };
   }, []);
 
-  const handleAddSession = (data: Parameters<typeof addSession>[0]) => setSessions(addSession(data));
-  const handleDeleteSession = (id: string) => setSessions(deleteSession(id));
-  const handleUpdateSession = (id: string, updates: Partial<Parameters<typeof updateSession>[1]>) => setSessions(updateSession(id, updates));
+// 🛡️ RE-ANCHOR DATA ACTIONS WITH BULLETPROOF SCRIPT WRAPPERS
+const handleAddSession = (data: any) => {
+  try {
+    const updated = addSession(data);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session insert error handled silently:", e);
+  }
+};
+
+const handleDeleteSession = (id: string) => {
+  try {
+    if (!id) return;
+    const updated = deleteSession(id);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session drop error handled silently:", e);
+  }
+};
+
+const handleUpdateSession = (id: string, updates: any) => {
+  try {
+    if (!id) return;
+    const updated = updateSession(id, updates);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session update error handled silently:", e);
+  }
+};
+
   
   const handleAddVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
     const updated = await addVehicle(v);

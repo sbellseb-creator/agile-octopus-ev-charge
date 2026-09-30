@@ -132,7 +132,7 @@ export default function Index() {
           <Zap className="h-5 w-5 shrink-0 text-primary sm:h-7 sm:w-7" />
           <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
           <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold text-emerald-300 min-[430px]:inline">
-            Release 031
+            Release 032
           </span>
           <SyncIndicator />
           <Button

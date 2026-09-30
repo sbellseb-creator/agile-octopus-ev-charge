@@ -20,7 +20,7 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
   const [notes, setSaveNotes] = useState("");
   const [vehicleId, setVehicleId] = useState("");
 
-  // 🛡️ ACCORDION ACCURACY: COMPLETELY INSULATE ARRAY METHODS AGAINST UNDEFINED ENTRIES
+  // 🛡️ ACCORDION ACCURACY: INSULATE ARRAY LOOPS AND AUTO-ASSIGN DEFAULT CARS
   useEffect(() => {
     const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
     if (safeVehicles.length > 0) {
@@ -40,11 +40,14 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
 
     try {
       setLoading(true);
+      // 🤝 FIXED SCHEMA VARIABLES MATCHING YOUR 314-LINE CORE PROPERTY FILE
       onSessionAdded({
         vehicle_id: vehicleId,
-        added_kwh: parseFloat(kwh),
-        cost: parseFloat(cost),
+        energy_added_kwh: parseFloat(kwh),
+        total_cost_gbp: parseFloat(cost),
+        charge_mode: "manual",
         notes: notes.trim() || undefined,
+        session_date: new Date().toISOString().split('T')[0],
         created_at: new Date().toISOString()
       });
       setKwh("");

@@ -1,32 +1,22 @@
 import React, { useMemo } from "react";
 import { formatUK } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
-import { AlertTriangle, Trash2, Calendar } from "lucide-react";
+import { Trash2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ChargeSession {
-  id: string;
-  vehicle_id: string;
-  added_kwh: number;
-  cost: number;
-  created_at: string;
-  notes?: string;
-}
-
 interface ChargeTableProps {
-  sessions: ChargeSession[];
+  sessions: any[];
   onDeleteSession?: (id: string) => void;
 }
 
 export default function ChargeTable({ sessions = [], onDeleteSession }: ChargeTableProps) {
-  // 🛡️ SAFELY CLEAN AND FILTER CORRUPTED DATA RECORDS BEFORE LOOPING
   const safeSessions = useMemo(() => {
     if (!Array.isArray(sessions)) return [];
     return [...sessions]
       .filter(s => s && typeof s === 'object' && s.id)
       .sort((a, b) => {
-        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const dateA = a.created_at || a.session_date ? new Date(a.created_at || a.session_date).getTime() : 0;
+        const dateB = b.created_at || b.session_date ? new Date(b.created_at || b.session_date).getTime() : 0;
         return dateB - dateA;
       });
   }, [sessions]);
@@ -35,7 +25,7 @@ export default function ChargeTable({ sessions = [], onDeleteSession }: ChargeTa
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-900/10 border border-white/5 rounded-2xl">
         <Calendar className="h-6 w-6 text-slate-500 mb-2" />
-        <p className="text-xs text-slate-400 font-medium">No valid charging sessions log recorded yet.</p>
+        <p className="text-xs text-slate-400 font-medium">No valid charging sessions logged yet.</p>
       </div>
     );
   }
@@ -48,17 +38,15 @@ export default function ChargeTable({ sessions = [], onDeleteSession }: ChargeTa
         </h3>
         <div className="divide-y divide-white/5">
           {safeSessions.map((session) => {
-            const displayCost = typeof session.cost === 'number' ? session.cost.toFixed(2) : '0.00';
-            const displayKwh = typeof session.added_kwh === 'number' ? session.added_kwh.toFixed(1) : '0.0';
-            let displayDate = "Unknown Date";
+            const displayCost = typeof session.total_cost_gbp === 'number' ? session.total_cost_gbp.toFixed(2) : '0.00';
+            const displayKwh = typeof session.energy_added_kwh === 'number' ? session.energy_added_kwh.toFixed(1) : '0.0';
+            let displayDate = "Manual Session";
             
             try {
-              if (session.created_at) {
-                displayDate = formatUK(session.created_at, "dd MMM yyyy HH:mm");
+              if (session.created_at || session.session_date) {
+                displayDate = formatUK(session.created_at || session.session_date, "dd MMM yyyy HH:mm");
               }
-            } catch (e) {
-              // Fail silent safety net
-            }
+            } catch (e) {}
 
             return (
               <div key={session.id} className="py-3 flex items-center justify-between gap-4 text-xs font-mono">

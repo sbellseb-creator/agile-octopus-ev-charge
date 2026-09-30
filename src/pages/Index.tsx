@@ -231,7 +231,6 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-                      <TabsContent value="settings" className="space-y-6">
             <SettingsPanel />
           </TabsContent>
         </Tabs>

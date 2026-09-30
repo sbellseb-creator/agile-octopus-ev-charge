@@ -54,14 +54,15 @@ export default function Index() {
 
     historicalSessionsRecalculated.current = true;
     const capacityByVehicle = new Map(
-      vehicles.map((vehicle) => [vehicle.id, vehicle.battery_kwh]),
-    );
-    const corrections = recalculateHistoricalSessions(
-      sessions,
-      (session) => capacityByVehicle.get(session.vehicle_id),
-    );
+      (Array.isArray(vehicles) ? vehicles : []).map((vehicle) => [vehicle?.id, vehicle?.battery_kwh]),
 
-    if (corrections.length === 0) return;
+    );
+        const corrections = recalculateHistoricalSessions(
+      Array.isArray(sessions) ? sessions : [],
+      (session) => capacityByVehicle.get(session?.vehicle_id) || 75,
+    );
+    
+    if (!corrections || !Array.isArray(corrections) || corrections.length === 0) return;
 
     corrections.forEach(({ id, updates }) => updateSession(id, updates));
     setSessions(loadSessions());

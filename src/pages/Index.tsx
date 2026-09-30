@@ -68,6 +68,7 @@ export default function Index() {
   }, [sessions, sessionsCloudConfirmed, vehicles]);
 
   useEffect(() => {
+    // Cloud sync: migrate/merge local data, then keep devices in step.
     const stop = startAutoSync();
     const onUpdated = () => {
       setSessions(loadSessions());
@@ -80,34 +81,36 @@ export default function Index() {
     };
   }, []);
 
-  const handleAddSession = (data: any) => {
-    try {
-      const updated = addSession(data);
-      if (Array.isArray(updated)) setSessions(updated);
-    } catch (e) {
-      console.error("Session insert error handled silently:", e);
-    }
-  };
+// 🛡️ RE-ANCHOR DATA ACTIONS WITH BULLETPROOF SCRIPT WRAPPERS
+const handleAddSession = (data: any) => {
+  try {
+    const updated = addSession(data);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session insert error handled silently:", e);
+  }
+};
 
-  const handleDeleteSession = (id: string) => {
-    try {
-      if (!id) return;
-      const updated = deleteSession(id);
-      if (Array.isArray(updated)) setSessions(updated);
-    } catch (e) {
-      console.error("Session drop error handled silently:", e);
-    }
-  };
+const handleDeleteSession = (id: string) => {
+  try {
+    if (!id) return;
+    const updated = deleteSession(id);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session drop error handled silently:", e);
+  }
+};
 
-  const handleUpdateSession = (id: string, updates: any) => {
-    try {
-      if (!id) return;
-      const updated = updateSession(id, updates);
-      if (Array.isArray(updated)) setSessions(updated);
-    } catch (e) {
-      console.error("Session update error handled silently:", e);
-    }
-  };
+const handleUpdateSession = (id: string, updates: any) => {
+  try {
+    if (!id) return;
+    const updated = updateSession(id, updates);
+    if (Array.isArray(updated)) setSessions(updated);
+  } catch (e) {
+    console.error("Session update error handled silently:", e);
+  }
+};
+
   
   const handleAddVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
     const updated = await addVehicle(v);
@@ -195,13 +198,6 @@ export default function Index() {
             <TariffComparison />
           </TabsContent>
 
-          {/* ⚡ RESTORED COMPLETELY BUG-FREE CHARGING CONTENT MODULE WITH PROP INJECTORS */}
-          <TabsContent value="charging" className="space-y-6">
-            <ChargeForm onSessionAdded={handleAddSession} vehicles={vehicles} />
-            <ChargeStats sessions={sessions || []} />
-            <ChargeTable sessions={sessions || []} onDeleteSession={handleDeleteSession} />
-          </TabsContent>
-
           <TabsContent value="tracker" className="space-y-6">
             <TrackerRates />
           </TabsContent>
@@ -225,9 +221,16 @@ export default function Index() {
 
           <TabsContent value="work" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <WorkCosts sessions={sessions || []} />
+              <WorkCosts sessions={sessions} />
               <WorkMileageCard />
             </div>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            <SettingsPanel />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

@@ -178,6 +178,7 @@ export default function HomeDashboard({
   onReviewCharges,
 }: Props) {
   const settings = getSettings();
+if (!vehicles || !Array.isArray(vehicles) || vehicles.length === 0) return <div className="p-6 text-xs text-slate-400 font-medium bg-slate-950/40 border border-white/5 rounded-3xl animate-pulse text-center">Synchronizing live vehicle data streams...</div>;
 
   const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(() => {
     if (teslaVehicles.length) return teslaVehicles;

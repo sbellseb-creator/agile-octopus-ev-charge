@@ -1,15 +1,9 @@
 import React, { useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { PoundSterling, BatteryCharging, TrendingDown } from "lucide-react";
 
-interface ChargeSession {
-  id: string;
-  added_kwh: number;
-  cost: number;
-}
-
 interface ChargeStatsProps {
-  sessions?: ChargeSession[];
+  sessions?: any[];
 }
 
 export default function ChargeStats({ sessions = [] }: ChargeStatsProps) {
@@ -20,8 +14,8 @@ export default function ChargeStats({ sessions = [] }: ChargeStatsProps) {
     let totalKwh = 0;
 
     list.forEach((s) => {
-      if (typeof s.cost === 'number') totalCost += s.cost;
-      if (typeof s.added_kwh === 'number') totalKwh += s.added_kwh;
+      if (typeof s.total_cost_gbp === 'number') totalCost += s.total_cost_gbp;
+      if (typeof s.energy_added_kwh === 'number') totalKwh += s.energy_added_kwh;
     });
 
     const averageRate = totalKwh > 0 ? (totalCost / totalKwh) * 100 : 0;
@@ -29,8 +23,7 @@ export default function ChargeStats({ sessions = [] }: ChargeStatsProps) {
     return {
       totalCost: totalCost.toFixed(2),
       totalKwh: totalKwh.toFixed(1),
-      averageRate: averageRate.toFixed(2),
-      count: list.length
+      averageRate: averageRate.toFixed(2)
     };
   }, [sessions]);
 

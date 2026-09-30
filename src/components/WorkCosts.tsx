@@ -224,11 +224,15 @@ export default function WorkCosts({ sessions }: Props) {
     return m;
   }, [sessionsNumbered]);
 
-  const linkedSessions = (ids?: string[]): NumberedSession[] =>
-    (ids ?? []).map((id) => sessionById.get(id)).filter(Boolean) as NumberedSession[];
+    const linkedSessions = (ids?: string[]): NumberedSession[] => {
+    return (ids ?? [])
+      .map((id) => sessionById.get(id))
+      .filter((s): s is NumberedSession => !!s);
+  };
 
-  const linkedSessionCost = (ids?: string[]): number =>
-    linkedSessions(ids).reduce((total, session) => total + session.total_cost_gbp, 0);
+  const linkedSessionCost = (ids?: string[]): number => {
+    return linkedSessions(ids).reduce((total, session) => total + (session?.total_cost_gbp ?? 0), 0);
+  };
 
   const handleAdd = () => {
     const m = parseFloat(miles);

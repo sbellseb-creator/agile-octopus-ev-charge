@@ -492,7 +492,7 @@ export default function WorkCosts({ sessions }: Props) {
             filtered.map((t) => {
               const isEditing = editingId === t.id;
               const claim = (t.miles * t.rate_pence_per_mile) / 100;
-              const linked = linkedSessions(t.charge_session_ids);
+              const linked = linkedSessions(Array.isArray(t.charge_session_ids) ? t.charge_session_ids.filter(Boolean) : undefined);
               const linkedNumbers = linked.map((session) => session.number);
               const selectedSessionCost = linked.reduce((total, session) => total + session.total_cost_gbp, 0);
               const extras = tripExtraCharges(t);

@@ -182,7 +182,7 @@ if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400
 
 
   const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(() => {
-    if (teslaVehicles.length) return teslaVehicles;
+   if (Array.isArray(teslaVehicles) && teslaVehicles.length) return teslaVehicles;
 
     try {
       const cached = window.localStorage.getItem("ev-home-tesla-snapshot");

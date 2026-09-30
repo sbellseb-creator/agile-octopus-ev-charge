@@ -10,8 +10,9 @@ interface Props {
  * Prominent registration-first identity strip shown on every screen.
  * Registration is the primary identifier; VIN is never shown here.
  */
-export default function VehicleIdentityBar({ vehicles }: Props) {
-  const v = vehicles.find((x) => x.is_default) ?? vehicles[0];
+export default function VehicleIdentityBar({ vehicles = [] }: Props) {
+  const safeList = Array.isArray(vehicles) ? vehicles.filter(x => x && typeof x === 'object') : [];
+  const v = safeList.find((x) => x.is_default) ?? safeList[0];
   if (!v) return null;
 
   return (

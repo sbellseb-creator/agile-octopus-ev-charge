@@ -225,7 +225,7 @@ export default function Index() {
 
           <TabsContent value="work" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <WorkCosts sessions={sessions || []} vehicles={vehicles} />
+              {vehicles && vehicles.length > 0 ? <WorkCosts sessions={sessions || []} vehicles={vehicles} /> : <div className="text-xs text-slate-400 p-4">Loading business profile data...</div>}
               <WorkMileageCard />
             </div>
           </TabsContent>

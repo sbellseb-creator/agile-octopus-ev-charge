@@ -68,13 +68,27 @@ export default function Index() {
     setSessions(loadSessions());
   }, [sessions, sessionsCloudConfirmed, vehicles]);
 
-  useEffect(() => {
-    const stop = startAutoSync();
+    useEffect(() => {
+    let stop = () => {};
+    try {
+      stop = startAutoSync() || (() => {});
+    } catch (e) {
+      console.error("Cloud sync init guard:", e);
+    }
+
     const onUpdated = () => {
-      setSessions(loadSessions());
-      setSessionsCloudConfirmed(true);
+      try {
+        const rawData = loadSessions();
+        // 🛡️ DATA-GUARD NET: Force empty array if database payload is corrupted or missing
+        setSessions(Array.isArray(rawData) ? rawData : []);
+        setSessionsCloudConfirmed(true);
+      } catch (err) {
+        console.error("Sync payload layout error caught safely:", err);
+      }
     };
+
     window.addEventListener("cloud-sync:updated", onUpdated);
+
     return () => {
       window.removeEventListener("cloud-sync:updated", onUpdated);
       stop();

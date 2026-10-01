@@ -1210,6 +1210,7 @@ export default function HomeDashboard({
                       )}
                     </div>
                     <p className="truncate text-[9px] text-muted-foreground mt-0.5">
+                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
                       {sessionClock(session, "start")} - {sessionClock(session, "finish")}
                       {" · "}{sessionDurationLabel(session)}
                       {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
@@ -1220,6 +1221,7 @@ export default function HomeDashboard({
                         ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
                         : quality.reason}
                     </p>
+
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <button
                         type="button"

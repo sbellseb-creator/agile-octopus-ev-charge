@@ -287,11 +287,11 @@ export default function HomeDashboard({
       document.removeEventListener("visibilitychange", handleVisible);
     };
   }, [vehicles.length, vehicle?.tesla_vehicle_id]);
-  const live = useMemo(() => {
+   const live = useMemo(() => {
     if (!vehicle) return undefined;
     return (
       liveVehicles.find((t) => t.id === vehicle.tesla_vehicle_id) ??
-      (liveVehicles.length === 1 && vehicle.source === "tesla" ? liveVehicles[0] : undefined)
+      (liveVehicles.length === 1 && vehicle.source === "tesla" ? liveVehicles : undefined)
     );
   }, [liveVehicles, vehicle]);
 
@@ -711,8 +711,8 @@ export default function HomeDashboard({
 
   const priceTrendDirection = useMemo(() => {
     if (recentPriceTrend.length < 2) return 0;
-    const first = recentPriceTrend[0];
-    const last = recentPriceTrend[recentPriceTrend.length - 1];
+    const first = recentPriceTrend[0]!;
+    const last = recentPriceTrend[recentPriceTrend.length - 1]!;
     if (Math.abs(last - first) < 0.5) return 0;
     return last > first ? 1 : -1;
   }, [recentPriceTrend]);
@@ -1014,172 +1014,232 @@ export default function HomeDashboard({
                     ? `Tesla schedule · ${scheduleLabel}`
                     : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
                 </p>
-          {ribbon.length > 0 && (
-            <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
-              <div className="flex items-stretch gap-1">
-                <button
-                  type="button"
-                  onClick={() => scrollPrices(-1)}
-                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                  aria-label="Earlier Agile prices"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div
-                  ref={priceStripRef}
-                  onWheel={(event) => {
-                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                      event.preventDefault();
-                      event.currentTarget.scrollLeft += event.deltaY;
-                    }
-                  }}
-                  className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                  <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
-                    {ribbon.map((rate, index) => {
-                      const inCheapestWindow = Boolean(
-                        bestWindow &&
-                        rate!.valid_from >= bestWindow.from &&
-                        rate!.valid_from < bestWindow.to,
-                      );
-                      const isPricePlunge = rate!.value_inc_vat < 0;
-                      const barHeight = 7 + ((rate!.value_inc_vat - ribbonMinPrice) / ribbonPriceRange) * 22;
+  const scheduleLabel = useMemo(() => {
+    if (!live?.id) return null;
+    const local = scheduleRows.find((s) => s.vehicle_id === vehicle?.id);
+    if (local?.mode === "off") return "Off";
+    if (local?.mode === "target_soc" && local.target_time) {
+      return `Ready by ${local.target_time}`;
+    }
+    return local?.mode ? `Active (${local.mode})` : null;
+  }, [live?.id, scheduleRows, vehicle?.id]);
 
-                      return (
-                        <div
-                          key={`${rate!.valid_from}-${index}`}
-                          title={`${formatUK(rate!.valid_from, "HH:mm")} · ${rate!.value_inc_vat.toFixed(2)}p/kWh`}
-                          className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
-                            isPricePlunge
-                              ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
-                              : inCheapestWindow
-                                ? "animate-pulse bg-emerald-400/10"
-                                : ""
-                          }`}
-                        >
-                          <div
-                            className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(rate!.value_inc_vat)}`}
-                            style={{ height: `${barHeight}px` }}
-                          />
-                          <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
-                            {index === 0 ? "Now" : formatUK(rate!.valid_from, "HH:mm")}
-                          </p>
-                          <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
-                            {rate!.value_inc_vat.toFixed(1)}p
-                          </p>
-                          <div className={`absolute inset-x-1 bottom-0 ${isPricePlunge ? "h-1" : "h-0.5"} ${priceColour(rate!.value_inc_vat)}`} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => scrollPrices(1)}
-                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                  aria-label="Later Agile prices"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+  const cockpitCheapestWindow = useMemo(() => {
+    if (!bestWindow) return undefined;
+    return `${formatUK(bestWindow.from, "HH:mm")}–${formatUK(bestWindow.to, "HH:mm")} · ${bestWindow.avg.toFixed(1)}p/kWh`;
+  }, [bestWindow]);
 
-              <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
-                <span className="md:hidden">Swipe prices →</span>
-                <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
-                {bestWindow && (
-                  <span className="ml-auto text-right">
-                    Cheapest window {formatUK(bestWindow.from, "HH:mm")} · {bestWindow.avg.toFixed(1)}p/kWh
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
+  const scene = useMemo(() => {
+    const isNight = homeWeather
+      ? nowTime < new Date(homeWeather.sunrise).getTime() || nowTime > new Date(homeWeather.sunset).getTime()
+      : new Date().getHours() < 6 || new Date().getHours() > 19;
+      
+    return resolveHomeScene({
+      weatherCode: homeWeather?.weatherCode ?? 3,
+      cloudCover: homeWeather?.cloudCover ?? 20,
+      isNight,
+    });
+  }, [homeWeather, nowTime]);
 
-      {/* Charge totals */}
-      <section className="rounded-[26px] border border-border bg-card px-4 py-2.5 shadow-lg md:py-3">
-        <div className="mb-2.5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              This {summaryPeriod}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowRecentCharges((open) => !open)}
-              className="mt-1 flex min-w-0 items-center gap-1.5 text-left text-[9px] text-muted-foreground transition-colors hover:text-foreground"
-              aria-expanded={showRecentCharges}
-            >
-              <Zap className="h-3 w-3 shrink-0 text-emerald-300" />
-              <span className="shrink-0 font-semibold text-foreground/80">
-                Last charge
-              </span>
-              <span className="truncate">{lastChargeLabel}</span>
-              {recentCharges.length > 1 && (
-                showRecentCharges
-                  ? <ChevronUp className="h-3 w-3 shrink-0" />
-                  : <ChevronDown className="h-3 w-3 shrink-0" />
-              )}
-            </button>
-          </div>
-          <div className="flex items-center gap-3" aria-label="Charge totals period">
-            {(["week", "month", "year"] as const).map((period) => (
+  const heroState = isCharging
+    ? ("charging" as const)
+    : isPluggedIn
+      ? ("plugged_in" as const)
+      : ("driveway" as const);
+
+  const scrollPrices = (direction: number) => {
+    if (!priceStripRef.current) return;
+    const cardWidth = priceStripRef.current.clientWidth * 0.45;
+    priceStripRef.current.scrollBy({
+      left: direction * cardWidth,
+      behavior: "smooth",
+    });
+  };
+
+  const ribbonMinPrice = useMemo(() => (ribbon.length ? Math.min(...ribbon.map((r) => r.value_inc_vat)) : 0), [ribbon]);
+  const ribbonMaxPrice = useMemo(() => (ribbon.length ? Math.max(...ribbon.map((r) => r.value_inc_vat)) : 35), [ribbon]);
+  const ribbonPriceRange = ribbonMaxPrice - ribbonMinPrice || 1;
+
+  const acceptEstimatedSession = (session: ChargeSession) => {
+    updateSession(session.id, {
+      raw_observations: {
+        ...(session.raw_observations ?? {}),
+        quality_override: true,
+        quality_override_at: new Date().toISOString(),
+        quality_override_source: "user",
+      },
+      notes: `${session.notes ? `${session.notes} ` : ""}User reviewed and accepted this session as an estimate.`,
+    });
+    onSessionsChanged?.();
+  };
+
+  const removeReviewedSession = (session: ChargeSession) => {
+    if (!window.confirm("Delete this charge observation? This cannot be undone.")) return;
+    deleteSession(session.id);
+    onSessionsChanged?.();
+  };
+
+  return (
+    <div className="space-y-3 md:space-y-4">
+      <div className="relative">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-1.5 shadow-lg backdrop-blur-xl">
+          <div className="flex rounded-lg bg-black/25 p-0.5">
+            {(["driveway", "cockpit"] as const).map((mode) => (
               <button
-                key={period}
+                key={mode}
                 type="button"
-                onClick={() => setSummaryPeriod(period)}
-                className={`border-b pb-0.5 text-[10px] font-bold capitalize transition-colors ${
-                  summaryPeriod === period
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                onClick={() => setViewMode(mode)}
+                className={`rounded-md px-3 py-1.5 text-[10px] font-bold capitalize transition-colors sm:text-xs ${homeViewMode === mode ? "bg-emerald-400/15 text-emerald-200 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {period}
+                {mode}
               </button>
             ))}
           </div>
+
+          {homeViewMode === "cockpit" && (
+            <label className="flex items-center gap-2 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground sm:text-[10px]">
+              Team badge
+              <select
+                value={footballTeam}
+                onChange={(event) => setTeam(event.target.value)}
+                className="rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-[10px] font-bold normal-case tracking-normal text-foreground outline-none focus:border-emerald-300/40 sm:text-xs"
+              >
+                <option>Sunderland</option>
+                <option>Arsenal</option>
+                <option>Chelsea</option>
+                <option>Liverpool</option>
+                <option>Manchester City</option>
+                <option>Manchester United</option>
+                <option>Newcastle United</option>
+                <option>Tottenham Hotspur</option>
+                <option>Apple</option>
+                <option>Lemon</option>
+                <option>Paw</option>
+                <option>None</option>
+              </select>
+            </label>
+          )}
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div>
-            <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-            <p className="text-lg font-black">{summary.count}</p>
-            <p className="text-[9px] text-muted-foreground">Charges</p>
+        {/* Vehicle scene */}
+        <section className="overflow-hidden rounded-[24px] border border-white/10 bg-card shadow-2xl md:col-span-2 sm:rounded-[30px]">
+          <HomeHeroScene
+            scene={scene}
+            charging={isCharging}
+            pluggedIn={isPluggedIn}
+            batteryLevel={displayedBatteryLevel}
+            batteryIsLastKnown={batteryIsLastKnown}
+            batteryCapacityKwh={vehicle?.battery_kwh}
+            chargeLimit={live?.charge_limit_soc}
+            chargerPowerKw={Math.min(
+              live?.charger_power_kw ?? settings.charger_kw,
+              settings.charger_kw,
+            )}
+            chargerAmps={
+              live?.charger_actual_current ??
+              live?.charge_amps ??
+              settings.charger_amps
+            }
+            chargerAmpsLive={
+              live?.charger_actual_current != null ||
+              live?.charge_amps != null
+            }
+            timeToFullChargeHours={live?.time_to_full_charge}
+            state={heroState}
+            viewMode={homeViewMode}
+            agilePricePence={current?.value_inc_vat}
+            cheapestWindowLabel={cockpitCheapestWindow}
+            scheduleLabel={scheduleLabel}
+            footballTeam={footballTeam}
+          />
+
+          <div className="flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-slate-950/90 px-3 py-2.5 backdrop-blur-xl md:min-h-[66px] md:px-4 md:py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
+
+                <p className="font-mono text-base font-black uppercase tracking-wider">
+                  {formatRegistration(
+                    vehicle?.registration ?? "",
+                  ) ||
+                    vehicle?.name ||
+                    "No vehicle"}
+                </p>
+
+                {live?.state && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] capitalize"
+                  >
+                    {live.state}
+                  </Badge>
+                )}
+              </div>
+
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {vehicle
+                  ? vehicleModelLine(vehicle)
+                  : "Add a vehicle to get started"}
+              </p>
+            </div>
+
+            {live?.charge_limit_soc !== null &&
+              live?.charge_limit_soc !== undefined && (
+                <div className="hidden text-right md:block">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Charge limit
+                  </p>
+                  <p className="text-lg font-black text-primary">
+                    {live.charge_limit_soc}%
+                  </p>
+                </div>
+              )}
           </div>
-          <div>
-            <BatteryCharging className="mx-auto mb-1 h-4 w-4 text-emerald-300" />
-            <p className="text-lg font-black">{summary.kwh.toFixed(1)}</p>
-            <p className="text-[9px] text-muted-foreground">kWh</p>
-          </div>
-          <div>
-            <PoundSterling className="mx-auto mb-1 h-4 w-4 text-violet-300" />
-            <p className="text-lg font-black">£{summary.cost.toFixed(2)}</p>
-            <p className="text-[9px] text-muted-foreground">Spend</p>
-          </div>
-          <div>
-            <TrendingDown className="mx-auto mb-1 h-4 w-4 text-amber-300" />
-            <p className="text-lg font-black">{summary.kwh > 0 ? `${averageSummaryPrice.toFixed(1)}p` : "—"}</p>
-            <p className="text-[9px] text-muted-foreground">Average</p>
-            {recentPriceTrend.length > 1 && (
-              <div className="mx-auto mt-1 w-16" title="Average price trend across recent charges">
-                <svg viewBox="0 0 100 30" className="h-5 w-full" aria-label="Recent average price trend">
-                  <polyline
-                    points={trendPoints}
-                    fill="none"
-                    stroke={priceTrendDirection <= 0 ? "rgb(52 211 153)" : "rgb(251 191 36)"}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <p className={`text-[8px] font-semibold ${priceTrendDirection <= 0 ? "text-emerald-300" : "text-amber-300"}`}>
-                  {priceTrendDirection < 0 ? "Trending down" : priceTrendDirection > 0 ? "Trending up" : "Steady"}
+        </section>
+
+        {/* Charge intelligence */}
+        <section className="relative z-40 mt-2 overflow-hidden rounded-xl border border-emerald-300/20 bg-gradient-to-r from-slate-950/94 via-slate-900/92 to-emerald-950/40 p-2 shadow-[0_14px_35px_rgba(0,0,0,.45)] backdrop-blur-xl md:flex md:items-stretch md:gap-3 md:p-2.5 xl:absolute xl:bottom-[70px] xl:left-4 xl:right-4 xl:mt-0 xl:h-[108px]">
+          {isCharging ? (
+            <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+                Charge intelligence
+              </p>
+              <span className="text-[9px] font-semibold text-emerald-200">
+                {neededHours}h needed
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-3 md:w-[220px] md:shrink-0 md:self-center">
+              <div>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${recommendation.tone}`}>
+                  {recommendation.label}
+                </p>
+                <h2 className="mt-0.5 text-base font-black tracking-tight sm:text-lg">
+                  {recommendation.title}
+                </h2>
+                <p className="mt-0.5 hidden text-[9px] leading-relaxed text-muted-foreground xl:block">
+                  {recommendation.detail}
                 </p>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="rounded-xl bg-primary/10 p-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          )}
 
+          {(scheduleLabel || bestWindow) && (
+            <button
+              type="button"
+              onClick={onManageSchedule}
+              disabled={!onManageSchedule}
+              className="mt-1.5 w-full rounded-lg border border-emerald-300/20 bg-emerald-400/5 px-2 py-1 text-left transition-colors enabled:hover:bg-emerald-400/10 md:mt-0 md:w-[235px] md:shrink-0 md:self-center xl:w-[270px]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black text-emerald-200">
+                  {scheduleLabel
+                    ? `Tesla schedule · ${scheduleLabel}`
+                    : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
+                </p>
         {showRecentCharges && recentCharges.length > 0 && (
           <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/15">
             {recentCharges.map((session, index) => {
@@ -1201,6 +1261,12 @@ export default function HomeDashboard({
                         </span>
                       )}
                     </div>
+                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
+                      <span>{sessionClock(session, "start")} - {sessionClock(session, "finish")}</span>
+                      {" · "}{sessionDurationLabel(session)}
+                      {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
+                      {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
+                    </p>
                     <p className="truncate text-[8px] text-muted-foreground/80 mt-0.5">
                       {quality.trusted
                         ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`

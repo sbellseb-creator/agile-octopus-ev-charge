@@ -1148,90 +1148,7 @@ export default function HomeDashboard({
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div>
-            <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-            <p className="text-lg font-black">{summary.count}</p>
-            <p className="text-[9px] text-muted-foreground">Charges</p>
-          </div>
-          <div>
-            <BatteryCharging className="mx-auto mb-1 h-4 w-4 text-emerald-300" />
-            <p className="text-lg font-black">{summary.kwh.toFixed(1)}</p>
-            <p className="text-[9px] text-muted-foreground">kWh</p>
-          </div>
-          <div>
-            <PoundSterling className="mx-auto mb-1 h-4 w-4 text-violet-300" />
-            <p className="text-lg font-black">£{summary.cost.toFixed(2)}</p>
-            <p className="text-[9px] text-muted-foreground">Spend</p>
-          </div>
-          <div>
-            <TrendingDown className="mx-auto mb-1 h-4 w-4 text-amber-300" />
-            <p className="text-lg font-black">{summary.kwh > 0 ? `${averageSummaryPrice.toFixed(1)}p` : "—"}</p>
-            <p className="text-[9px] text-muted-foreground">Average</p>
-            {recentPriceTrend.length > 1 && (
-              <div className="mx-auto mt-1 w-16" title="Average price trend across recent charges">
-                <svg viewBox="0 0 100 30" className="h-5 w-full" aria-label="Recent average price trend">
-                  <polyline
-                    points={trendPoints}
-                    fill="none"
-                    stroke={priceTrendDirection <= 0 ? "rgb(52 211 153)" : "rgb(251 191 36)"}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <p className={`text-[8px] font-semibold ${priceTrendDirection <= 0 ? "text-emerald-300" : "text-amber-300"}`}>
-                  {priceTrendDirection < 0 ? "Trending down" : priceTrendDirection > 0 ? "Trending up" : "Steady"}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-            {/* Charge totals */}
-      <section className="rounded-[26px] border border-border bg-card px-4 py-2.5 shadow-lg md:py-3">
-        <div className="mb-2.5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              This {summaryPeriod}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowRecentCharges((open) => !open)}
-              className="mt-1 flex min-w-0 items-center gap-1.5 text-left text-[9px] text-muted-foreground transition-colors hover:text-foreground"
-              aria-expanded={showRecentCharges}
-            >
-              <Zap className="h-3 w-3 shrink-0 text-emerald-300" />
-              <span className="shrink-0 font-semibold text-foreground/80">
-                Last charge
-              </span>
-              <span className="truncate">{lastChargeLabel}</span>
-              {recentCharges.length > 1 && (
-                showRecentCharges
-                  ? <ChevronUp className="h-3 w-3 shrink-0" />
-                  : <ChevronDown className="h-3 w-3 shrink-0" />
-              )}
-            </button>
-          </div>
-          <div className="flex items-center gap-3" aria-label="Charge totals period">
-            {(["week", "month", "year"] as const).map((period) => (
-              <button
-                key={period}
-                type="button"
-                onClick={() => setSummaryPeriod(period)}
-                className={`border-b pb-0.5 text-[10px] font-bold capitalize transition-colors ${
-                  summaryPeriod === period
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
           <div>
             <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
             <p className="text-lg font-black">{summary.count}</p>
@@ -1273,7 +1190,7 @@ export default function HomeDashboard({
 
         {showRecentCharges && recentCharges.length > 0 && (
           <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/15">
-                        {recentCharges.map((session, index) => {
+            {recentCharges.map((session, index) => {
               const energy = sessionEnergyKwh(session);
               const cost = sessionCostGbp(session);
               const quality = sessionQuality(session, vehicle?.battery_kwh ?? 75);
@@ -1293,7 +1210,7 @@ export default function HomeDashboard({
                       )}
                     </div>
                     <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                      {sessionClock(session, "start")}–{sessionClock(session, "finish")}
+                      {sessionClock(session, "start")} - {sessionClock(session, "finish")}
                       {" · "}{sessionDurationLabel(session)}
                       {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
                       {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
@@ -1312,7 +1229,7 @@ export default function HomeDashboard({
                       >
                         Review / amend
                       </button>
-                                          {!quality.trusted && (
+                      {!quality.trusted && (
                         <button
                           type="button"
                           onClick={() => acceptEstimatedSession(session)}
@@ -1337,7 +1254,76 @@ export default function HomeDashboard({
                     £{cost.toFixed(2)}
                   </span>
                 </div>
-                       </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
+                        <button
+                          type="button"
+                          onClick={() => acceptEstimatedSession(session)}
+                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
+                        >
+                          Accept estimate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 

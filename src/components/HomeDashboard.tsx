@@ -691,11 +691,25 @@ export default function HomeDashboard({
       return {
         label: "Peak rates active",
         title: "Hold for cheaper slots",
+        detail: `Current price is higher. A brilliant slot is coming up later at just ${cheapestSlot.value_inc_vat.toFixed(1)}p/kWh.`,
+        tone: "text-amber-300",
+      };
+    }
+
+    return {
+      label: "System standing by",
+      title: "Smart scheduling ready",
+      detail: `Current price is ${currentPrice.toFixed(1)}p/kWh. Optimized target recommendations are completely armed.`,
+      tone: "text-slate-300",
+    };
+  }, [current, cheapestSlot, isCharging, bestWindow, nowTime]);
+
   const { data: rates = [] } = useQuery({
     queryKey: ["agile-home", settings.region],
     queryFn: () => fetchAgileRates(undefined, undefined, undefined, settings.region),
     staleTime: 15 * 60_000,
   });
+
 
   const nowTime = Date.now();
 

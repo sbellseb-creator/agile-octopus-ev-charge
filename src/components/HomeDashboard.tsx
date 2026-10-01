@@ -214,6 +214,7 @@ export default function HomeDashboard({
     queryFn: () => loadSchedules(),
     staleTime: 30_000,
   });
+
   useEffect(() => {
     try {
       window.localStorage.setItem("ev-home-view-mode", homeViewMode);
@@ -333,6 +334,7 @@ export default function HomeDashboard({
       chargerPowerKw: live.charger_power_kw,
       chargeEnergyAddedKwh: live.charge_energy_added_kwh ?? live.charge_energy_added,
     });
+
     try {
       window.localStorage.setItem(monitorKey, JSON.stringify(result.state));
     } catch {}
@@ -419,6 +421,7 @@ export default function HomeDashboard({
         timing_observed_closely: timingObservedClosely,
       },
     };
+
     const isDuplicate = () => {
       const startMs = new Date(closed.actualStart!).getTime();
       const finishMs = new Date(closed.actualFinish!).getTime();
@@ -609,6 +612,7 @@ export default function HomeDashboard({
     if (!ribbon.length) return null;
     return ribbon.reduce((best, rate) => (rate.value_inc_vat < best.value_inc_vat ? rate : best));
   }, [ribbon]);
+
   const summary = useMemo(() => {
     const today = new Date();
     const todayKey = formatUK(today, "yyyy-MM-dd");
@@ -687,6 +691,7 @@ export default function HomeDashboard({
     const dayLabel = finishTime ? `${day} ${finishTime}` : day;
     return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
   }, [lastCharge]);
+
   const vehicleState = live?.state?.toLowerCase() ?? "";
   const chargingState = live?.charging_state?.toLowerCase() ?? "";
   const vehicleIsLive = vehicleState === "online";
@@ -783,18 +788,6 @@ export default function HomeDashboard({
       return {
         label: "Peak rates active",
         title: "Hold for cheaper slots",
-        detail: `Current price is higher. A brilliant slot is coming up later at just ${cheapestSlot.value_inc_vat.toFixed(1)}p/kWh.`,
-        tone: "text-amber-300",
-      };
-    }
-
-    return {
-      label: "System standing by",
-      title: "Smart scheduling ready",
-      detail: `Current price is ${currentPrice.toFixed(1)}p/kWh. Optimized target recommendations are completely armed.`,
-      tone: "text-slate-300",
-    };
-  }, [current, cheapestSlot, isCharging, bestWindow, nowTime]);
   const scheduleLabel = useMemo(() => {
     if (!live?.id) return null;
     const local = scheduleRows.find((s) => s.vehicle_id === vehicle?.id);
@@ -849,7 +842,7 @@ export default function HomeDashboard({
         quality_override_at: new Date().toISOString(),
         quality_override_source: "user",
       },
-      notes: `${session.notes ? `\${session.notes} ` : ""}User reviewed and accepted this session as an estimate.`,
+      notes: `${session.notes ? `${session.notes} ` : ""}User reviewed and accepted this session as an estimate.`,
     });
     onSessionsChanged?.();
   };
@@ -859,6 +852,7 @@ export default function HomeDashboard({
     deleteSession(session.id);
     onSessionsChanged?.();
   };
+
   return (
     <div className="space-y-3 md:space-y-4">
       <div className="relative">
@@ -976,7 +970,8 @@ export default function HomeDashboard({
               )}
           </div>
         </section>
-               {/* Charge intelligence */}
+
+        {/* Charge intelligence */}
         <section className="relative z-40 mt-2 overflow-hidden rounded-xl border border-emerald-300/20 bg-gradient-to-r from-slate-950/94 via-slate-900/92 to-emerald-950/40 p-2 shadow-[0_14px_35px_rgba(0,0,0,.45)] backdrop-blur-xl md:flex md:items-stretch md:gap-3 md:p-2.5 xl:absolute xl:bottom-[70px] xl:left-4 xl:right-4 xl:mt-0 xl:h-[108px]">
           {isCharging ? (
             <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
@@ -1019,10 +1014,6 @@ export default function HomeDashboard({
                     ? `Tesla schedule · ${scheduleLabel}`
                     : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
                 </p>
-                {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
-              </div>
-            </button>
-          )}
           {ribbon.length > 0 && (
             <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
               <div className="flex items-stretch gap-1">
@@ -1091,6 +1082,7 @@ export default function HomeDashboard({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
+
               <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
                 <span className="md:hidden">Swipe prices →</span>
                 <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
@@ -1148,7 +1140,7 @@ export default function HomeDashboard({
           </div>
         </div>
 
-                     <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-4 gap-2 text-center">
           <div>
             <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
             <p className="text-lg font-black">{summary.count}</p>
@@ -1190,7 +1182,7 @@ export default function HomeDashboard({
 
         {showRecentCharges && recentCharges.length > 0 && (
           <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/15">
-                      {recentCharges.map((session, index) => {
+            {recentCharges.map((session, index) => {
               const energy = sessionEnergyKwh(session);
               const cost = sessionCostGbp(session);
               const quality = sessionQuality(session, vehicle?.battery_kwh ?? 75);
@@ -1209,64 +1201,11 @@ export default function HomeDashboard({
                         </span>
                       )}
                     </div>
-                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                      <span>{sessionClock(session, "start")} - {sessionClock(session, "finish")}</span>
-                      {" · "}{sessionDurationLabel(session)}
-                      {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
-                      {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
-                    </p>
                     <p className="truncate text-[8px] text-muted-foreground/80 mt-0.5">
                       {quality.trusted
                         ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
                         : quality.reason}
                     </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={onReviewCharges}
-                        disabled={!onReviewCharges}
-                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
-                      >
-                        Review / amend
-                      </button>
-                      {!quality.trusted && (
-                        <button
-                          type="button"
-                          onClick={() => acceptEstimatedSession(session)}
-                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
-                        >
-                          Accept estimate
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeReviewedSession(session)}
-                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  <span className="font-mono font-bold text-emerald-200">
-                    {energy.toFixed(1)} kWh
-                  </span>
-                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
-                    £{cost.toFixed(2)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
-        <Clock3 className="h-3 w-3" />
-        UK time · Octopus Agile · Home never wakes the car
-      </div>
-    </div>
-  );
-}
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <button
                         type="button"

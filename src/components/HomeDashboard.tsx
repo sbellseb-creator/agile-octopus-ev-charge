@@ -1312,7 +1312,7 @@ export default function HomeDashboard({
                       >
                         Review / amend
                       </button>
-                      {!quality.trusted && (
+                                          {!quality.trusted && (
                         <button
                           type="button"
                           onClick={() => acceptEstimatedSession(session)}
@@ -1323,14 +1323,12 @@ export default function HomeDashboard({
                       )}
                       <button
                         type="button"
-                                               <button
-                          type="button"
-                          onClick={() => removeReviewedSession(session)}
-                          className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                   <span className="font-mono font-bold text-emerald-200">
                     {energy.toFixed(1)} kWh

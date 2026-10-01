@@ -976,164 +976,133 @@ export default function HomeDashboard({
               )}
           </div>
         </section>
-        {/* Charge intelligence */}
+               {/* Charge intelligence */}
         <section className="relative z-40 mt-2 overflow-hidden rounded-xl border border-emerald-300/20 bg-gradient-to-r from-slate-950/94 via-slate-900/92 to-emerald-950/40 p-2 shadow-[0_14px_35px_rgba(0,0,0,.45)] backdrop-blur-xl md:flex md:items-stretch md:gap-3 md:p-2.5 xl:absolute xl:bottom-[70px] xl:left-4 xl:right-4 xl:mt-0 xl:h-[108px]">
-        {isCharging ? (
-          <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300">
-              Charge intelligence
-            </p>
-            <span className="text-[9px] font-semibold text-emerald-200">
-              {neededHours}h needed
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-start justify-between gap-3 md:w-[220px] md:shrink-0 md:self-center">
-            <div>
-              <p
-                className={`text-[11px] font-bold uppercase tracking-[0.18em] ${recommendation.tone}`}
-              >
-                {recommendation.label}
+          {isCharging ? (
+            <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+                Charge intelligence
               </p>
-
-              <h2 className="mt-0.5 text-base font-black tracking-tight sm:text-lg">
-                {recommendation.title}
-              </h2>
-
-              <p className="mt-0.5 hidden text-[9px] leading-relaxed text-muted-foreground xl:block">{recommendation.detail}</p>
+              <span className="text-[9px] font-semibold text-emerald-200">
+                {neededHours}h needed
+              </span>
             </div>
-
-            <div className="rounded-xl bg-primary/10 p-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-        )}
-
-        {(scheduleLabel || bestWindow) && (
-          <button
-            type="button"
-            onClick={onManageSchedule}
-            disabled={!onManageSchedule}
-            className="mt-1.5 w-full rounded-lg border border-emerald-300/20 bg-emerald-400/5 px-2 py-1 text-left transition-colors enabled:hover:bg-emerald-400/10 md:mt-0 md:w-[235px] md:shrink-0 md:self-center xl:w-[270px]"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-black text-emerald-200">
-                {scheduleLabel
-                  ? `Tesla schedule · ${scheduleLabel}`
-                  : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
-              </p>
-              {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
-            </div>
-            <p className="mt-0.5 text-[8px] text-muted-foreground"></p>
-          </button>
-        )}
-
-        {ribbon.length > 0 && (
-          <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
-            <div className="flex items-stretch gap-1">
-              <button
-                type="button"
-                onClick={() => scrollPrices(-1)}
-                className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                aria-label="Earlier Agile prices"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            <div
-              ref={priceStripRef}
-              onWheel={(event) => {
-                if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                  event.preventDefault();
-                  event.currentTarget.scrollLeft += event.deltaY;
-                }
-              }}
-              className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
-                {ribbon.map((rate, index) => {
-                  const inCheapestWindow = Boolean(
-                    bestWindow &&
-                    rate!.valid_from >= bestWindow.from &&
-                    rate!.valid_from < bestWindow.to,
-                  );
-                  const isPricePlunge = rate!.value_inc_vat < 0;
-                  const barHeight =
-                    7 +
-                    ((rate!.value_inc_vat - ribbonMinPrice) /
-                      ribbonPriceRange) *
-                      22;
-
-                  return (
-                  <div
-                    key={`${rate!.valid_from}-${index}`}
-                    title={`${formatUK(
-                      rate!.valid_from,
-                      "HH:mm",
-                    )} · ${rate!.value_inc_vat.toFixed(
-                      2,
-                    )}p/kWh`}
-                    className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
-                      isPricePlunge
-                        ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
-                        : inCheapestWindow
-                          ? "animate-pulse bg-emerald-400/10"
-                          : ""
-                    }`}
-                  >
-                    <div
-                      className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(
-                        rate!.value_inc_vat,
-                      )}`}
-                      style={{ height: `${barHeight}px` }}
-                    />
-                    <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
-                      {index === 0
-                        ? "Now"
-                        : formatUK(rate!.valid_from, "HH:mm")}
-                    </p>
-                    <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
-                      {rate!.value_inc_vat.toFixed(1)}p
-                    </p>
-                    <div
-                      className={`absolute inset-x-1 bottom-0 ${
-                        isPricePlunge ? "h-1" : "h-0.5"
-                      } ${priceColour(
-                        rate!.value_inc_vat,
-                      )}`}
-                    />
-                  </div>
-                  );
-                })}
+          ) : (
+            <div className="flex items-start justify-between gap-3 md:w-[220px] md:shrink-0 md:self-center">
+              <div>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${recommendation.tone}`}>
+                  {recommendation.label}
+                </p>
+                <h2 className="mt-0.5 text-base font-black tracking-tight sm:text-lg">
+                  {recommendation.title}
+                </h2>
+                <p className="mt-0.5 hidden text-[9px] leading-relaxed text-muted-foreground xl:block">
+                  {recommendation.detail}
+                </p>
+              </div>
+              <div className="rounded-xl bg-primary/10 p-2">
+                <Sparkles className="h-5 w-5 text-primary" />
               </div>
             </div>
-              <button
-                type="button"
-                onClick={() => scrollPrices(1)}
-                className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                aria-label="Later Agile prices"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+          )}
 
-            <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
-              <span className="md:hidden">Swipe prices →</span>
-              <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
-              {bestWindow && (
-                <span className="ml-auto text-right">
-                  Cheapest window{" "}
-                  {formatUK(
-                    bestWindow.from,
-                    "HH:mm",
-                  )}{" "}
-                  · {bestWindow.avg.toFixed(1)}p/kWh
-                </span>
-              )}
+          {(scheduleLabel || bestWindow) && (
+            <button
+              type="button"
+              onClick={onManageSchedule}
+              disabled={!onManageSchedule}
+              className="mt-1.5 w-full rounded-lg border border-emerald-300/20 bg-emerald-400/5 px-2 py-1 text-left transition-colors enabled:hover:bg-emerald-400/10 md:mt-0 md:w-[235px] md:shrink-0 md:self-center xl:w-[270px]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black text-emerald-200">
+                  {scheduleLabel
+                    ? `Tesla schedule · ${scheduleLabel}`
+                    : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
+                </p>
+                {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
+              </div>
+            </button>
+          )}
+          {ribbon.length > 0 && (
+            <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
+              <div className="flex items-stretch gap-1">
+                <button
+                  type="button"
+                  onClick={() => scrollPrices(-1)}
+                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
+                  aria-label="Earlier Agile prices"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div
+                  ref={priceStripRef}
+                  onWheel={(event) => {
+                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                      event.preventDefault();
+                      event.currentTarget.scrollLeft += event.deltaY;
+                    }
+                  }}
+                  className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
+                    {ribbon.map((rate, index) => {
+                      const inCheapestWindow = Boolean(
+                        bestWindow &&
+                        rate!.valid_from >= bestWindow.from &&
+                        rate!.valid_from < bestWindow.to,
+                      );
+                      const isPricePlunge = rate!.value_inc_vat < 0;
+                      const barHeight = 7 + ((rate!.value_inc_vat - ribbonMinPrice) / ribbonPriceRange) * 22;
+
+                      return (
+                        <div
+                          key={`${rate!.valid_from}-${index}`}
+                          title={`${formatUK(rate!.valid_from, "HH:mm")} · ${rate!.value_inc_vat.toFixed(2)}p/kWh`}
+                          className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
+                            isPricePlunge
+                              ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
+                              : inCheapestWindow
+                                ? "animate-pulse bg-emerald-400/10"
+                                : ""
+                          }`}
+                        >
+                          <div
+                            className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(rate!.value_inc_vat)}`}
+                            style={{ height: `${barHeight}px` }}
+                          />
+                          <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
+                            {index === 0 ? "Now" : formatUK(rate!.valid_from, "HH:mm")}
+                          </p>
+                          <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
+                            {rate!.value_inc_vat.toFixed(1)}p
+                          </p>
+                          <div className={`absolute inset-x-1 bottom-0 ${isPricePlunge ? "h-1" : "h-0.5"} ${priceColour(rate!.value_inc_vat)}`} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => scrollPrices(1)}
+                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
+                  aria-label="Later Agile prices"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
+                <span className="md:hidden">Swipe prices →</span>
+                <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
+                {bestWindow && (
+                  <span className="ml-auto text-right">
+                    Cheapest window {formatUK(bestWindow.from, "HH:mm")} · {bestWindow.avg.toFixed(1)}p/kWh
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </section>
-
       </div>
 
       {/* Charge totals */}
@@ -1182,411 +1151,23 @@ export default function HomeDashboard({
         <div className="grid grid-cols-4 gap-2 text-center">
           <div>
             <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-            <p className="text-lg font-black">
-              {summary.count}
-            </p>
-            <p className="text-[9px] text-muted-foreground">
-              Charges
-            </p>
+            <p className="text-lg font-black">{summary.count}</p>
+            <p className="text-[9px] text-muted-foreground">Charges</p>
           </div>
-
           <div>
-        {/* Charge intelligence */}
-        <section className="relative z-40 mt-2 overflow-hidden rounded-xl border border-emerald-300/20 bg-gradient-to-r from-slate-950/94 via-slate-900/92 to-emerald-950/40 p-2 shadow-[0_14px_35px_rgba(0,0,0,.45)] backdrop-blur-xl md:flex md:items-stretch md:gap-3 md:p-2.5 xl:absolute xl:bottom-[70px] xl:left-4 xl:right-4 xl:mt-0 xl:h-[108px]">
-        {isCharging ? (
-          <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300">
-              Charge intelligence
-            </p>
-            <span className="text-[9px] font-semibold text-emerald-200">
-              {neededHours}h needed
-            </span>
+            <BatteryCharging className="mx-auto mb-1 h-4 w-4 text-emerald-300" />
+            <p className="text-lg font-black">{summary.kwh.toFixed(1)}</p>
+            <p className="text-[9px] text-muted-foreground">kWh</p>
           </div>
-        ) : (
-          <div className="flex items-start justify-between gap-3 md:w-[220px] md:shrink-0 md:self-center">
-            <div>
-              <p
-                className={`text-[11px] font-bold uppercase tracking-[0.18em] ${recommendation.tone}`}
-              >
-                {recommendation.label}
-              </p>
-
-              <h2 className="mt-0.5 text-base font-black tracking-tight sm:text-lg">
-                {recommendation.title}
-              </h2>
-
-              <p className="mt-0.5 hidden text-[9px] leading-relaxed text-muted-foreground xl:block">{recommendation.detail}</p>
-            </div>
-
-            <div className="rounded-xl bg-primary/10 p-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-        )}
-
-        {(scheduleLabel || bestWindow) && (
-          <button
-            type="button"
-            onClick={onManageSchedule}
-            disabled={!onManageSchedule}
-            className="mt-1.5 w-full rounded-lg border border-emerald-300/20 bg-emerald-400/5 px-2 py-1 text-left transition-colors enabled:hover:bg-emerald-400/10 md:mt-0 md:w-[235px] md:shrink-0 md:self-center xl:w-[270px]"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-black text-emerald-200">
-                {scheduleLabel
-                  ? `Tesla schedule · ${scheduleLabel}`
-                  : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
-              </p>
-              {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
-            </div>
-            <p className="mt-0.5 text-[8px] text-muted-foreground"></p>
-          </button>
-        )}
-
-        {ribbon.length > 0 && (
-          <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
-            <div className="flex items-stretch gap-1">
-              <button
-                type="button"
-                onClick={() => scrollPrices(-1)}
-                className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                aria-label="Earlier Agile prices"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            <div
-              ref={priceStripRef}
-              onWheel={(event) => {
-                if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                  event.preventDefault();
-                  event.currentTarget.scrollLeft += event.deltaY;
-                }
-              }}
-              className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
-                {ribbon.map((rate, index) => {
-                  const inCheapestWindow = Boolean(
-                    bestWindow &&
-                    rate!.valid_from >= bestWindow.from &&
-                    rate!.valid_from < bestWindow.to,
-                  );
-                  const isPricePlunge = rate!.value_inc_vat < 0;
-                  const barHeight =
-                    7 +
-                    ((rate!.value_inc_vat - ribbonMinPrice) /
-                      ribbonPriceRange) *
-                      22;
-
-                  return (
-                  <div
-                    key={`${rate!.valid_from}-${index}`}
-                    title={`${formatUK(
-                      rate!.valid_from,
-                      "HH:mm",
-                    )} · ${rate!.value_inc_vat.toFixed(
-                      2,
-                    )}p/kWh`}
-                    className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
-                      isPricePlunge
-                        ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
-                        : inCheapestWindow
-                          ? "animate-pulse bg-emerald-400/10"
-                          : ""
-                    }`}
-                  >
-                    <div
-                      className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(
-                        rate!.value_inc_vat,
-                      )}`}
-                      style={{ height: `${barHeight}px` }}
-                    />
-                    <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
-                      {index === 0
-                        ? "Now"
-                        : formatUK(rate!.valid_from, "HH:mm")}
-                    </p>
-                    <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
-                      {rate!.value_inc_vat.toFixed(1)}p
-                    </p>
-                    <div
-                      className={`absolute inset-x-1 bottom-0 ${
-                        isPricePlunge ? "h-1" : "h-0.5"
-                      } ${priceColour(
-                        rate!.value_inc_vat,
-                      )}`}
-                    />
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-              <button
-                type="button"
-                onClick={() => scrollPrices(1)}
-                className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                aria-label="Later Agile prices"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
-              <span className="md:hidden">Swipe prices →</span>
-              <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
-              {bestWindow && (
-                <span className="ml-auto text-right">
-                  Cheapest window{" "}
-                  {formatUK(
-                    bestWindow.from,
-                    "HH:mm",
-                  )}{" "}
-                  · {bestWindow.avg.toFixed(1)}p/kWh
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-        </section>
-
-      </div>
-
-      {/* Charge totals */}
-      <section className="rounded-[26px] border border-border bg-card px-4 py-2.5 shadow-lg md:py-3">
-        <div className="mb-2.5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              This {summaryPeriod}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowRecentCharges((open) => !open)}
-              className="mt-1 flex min-w-0 items-center gap-1.5 text-left text-[9px] text-muted-foreground transition-colors hover:text-foreground"
-              aria-expanded={showRecentCharges}
-            >
-              <Zap className="h-3 w-3 shrink-0 text-emerald-300" />
-              <span className="shrink-0 font-semibold text-foreground/80">
-                Last charge
-              </span>
-              <span className="truncate">{lastChargeLabel}</span>
-              {recentCharges.length > 1 && (
-                showRecentCharges
-                  ? <ChevronUp className="h-3 w-3 shrink-0" />
-                  : <ChevronDown className="h-3 w-3 shrink-0" />
-              )}
-            </button>
-          </div>
-          <div className="flex items-center gap-3" aria-label="Charge totals period">
-            {(["week", "month", "year"] as const).map((period) => (
-              <button
-                key={period}
-                type="button"
-                onClick={() => setSummaryPeriod(period)}
-                className={`border-b pb-0.5 text-[10px] font-bold capitalize transition-colors ${
-                  summaryPeriod === period
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2 text-center">
           <div>
-            <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-            <p className="text-lg font-black">
-              {summary.count}
-            </p>
-            <p className="text-[9px] text-muted-foreground">
-              Charges
-            </p>
+            <PoundSterling className="mx-auto mb-1 h-4 w-4 text-violet-300" />
+            <p className="text-lg font-black">£{summary.cost.toFixed(2)}</p>
+            <p className="text-[9px] text-muted-foreground">Spend</p>
           </div>
-
-          <div>
-            <div
-              ref={priceStripRef}
-              onWheel={(event) => {
-                if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                  event.preventDefault();
-                  event.currentTarget.scrollLeft += event.deltaY;
-                }
-              }}
-              className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
-                {ribbon.map((rate, index) => {
-                  const inCheapestWindow = Boolean(
-                    bestWindow &&
-                    rate!.valid_from >= bestWindow.from &&
-                    rate!.valid_from < bestWindow.to,
-                  );
-                  const isPricePlunge = rate!.value_inc_vat < 0;
-                  const barHeight =
-                    7 +
-                    ((rate!.value_inc_vat - ribbonMinPrice) /
-                      ribbonPriceRange) *
-                      22;
-
-                  return (
-                    <div
-                      key={`${rate!.valid_from}-${index}`}
-                      title={`${formatUK(
-                        rate!.valid_from,
-                        "HH:mm",
-                      )} · ${rate!.value_inc_vat.toFixed(
-                        2,
-                      )}p/kWh`}
-                      className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
-                        isPricePlunge
-                          ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
-                          : inCheapestWindow
-                            ? "animate-pulse bg-emerald-400/10"
-                            : ""
-                      }`}
-                    >
-                      <div
-                        className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(
-                          rate!.value_inc_vat,
-                        )}`}
-                        style={{ height: `${barHeight}px` }}
-                      />
-                      <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
-                        {index === 0
-                          ? "Now"
-                          : formatUK(rate!.valid_from, "HH:mm")}
-                      </p>
-                      <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
-                        {rate!.value_inc_vat.toFixed(1)}p
-                      </p>
-                      <div
-                        className={`absolute inset-x-1 bottom-0 ${
-                          isPricePlunge ? "h-1" : "h-0.5"
-                        } ${priceColour(
-                          rate!.value_inc_vat,
-                        )}`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => scrollPrices(1)}
-              className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-              aria-label="Later Agile prices"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
-            <span className="md:hidden">Swipe prices →</span>
-            <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
-            {bestWindow && (
-              <span className="ml-auto text-right">
-                Cheapest window{" "}
-                {formatUK(
-                  bestWindow.from,
-                  "HH:mm",
-                )}{" "}
-                · {bestWindow.avg.toFixed(1)}p/kWh
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      </section>
-
-    </div>
-
-    {/* Charge totals */}
-    <section className="rounded-[26px] border border-border bg-card px-4 py-2.5 shadow-lg md:py-3">
-      <div className="mb-2.5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            This {summaryPeriod}
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowRecentCharges((open) => !open)}
-            className="mt-1 flex min-w-0 items-center gap-1.5 text-left text-[9px] text-muted-foreground transition-colors hover:text-foreground"
-            aria-expanded={showRecentCharges}
-          >
-            <Zap className="h-3 w-3 shrink-0 text-emerald-300" />
-            <span className="shrink-0 font-semibold text-foreground/80">
-              Last charge
-            </span>
-            <span className="truncate">{lastChargeLabel}</span>
-            {recentCharges.length > 1 && (
-              showRecentCharges
-                ? <ChevronUp className="h-3 w-3 shrink-0" />
-                : <ChevronDown className="h-3 w-3 shrink-0" />
-            )}
-          </button>
-        </div>
-        <div className="flex items-center gap-3" aria-label="Charge totals period">
-          {(["week", "month", "year"] as const).map((period) => (
-            <button
-              key={period}
-              type="button"
-              onClick={() => setSummaryPeriod(period)}
-              className={`border-b pb-0.5 text-[10px] font-bold capitalize transition-colors ${
-                summaryPeriod === period
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {period}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-2 text-center">
-        <div>
-          <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-          <p className="text-lg font-black">
-            {summary.count}
-          </p>
-          <p className="text-[9px] text-muted-foreground">
-            Charges
-          </p>
-        </div>
-
-        <div>
-          <BatteryCharging className="mx-auto mb-1 h-4 w-4 text-emerald-300" />
-          <p className="text-lg font-black">
-            {summary.kwh.toFixed(1)}
-          </p>
-          <p className="text-[9px] text-muted-foreground">
-            kWh
-          </p>
-        </div>
-
-        <div>
-          <PoundSterling className="mx-auto mb-1 h-4 w-4 text-violet-300" />
-          <p className="text-lg font-black">
-            £{summary.cost.toFixed(2)}
-          </p>
-          <p className="text-[9px] text-muted-foreground">
-              Spend
-            </p>
-          </div>
-
           <div>
             <TrendingDown className="mx-auto mb-1 h-4 w-4 text-amber-300" />
-            <p className="text-lg font-black">
-              {summary.kwh > 0
-                ? `${averageSummaryPrice.toFixed(1)}p`
-                : "—"}
-            </p>
-            <p className="text-[9px] text-muted-foreground">
-              Average
-            </p>
+            <p className="text-lg font-black">{summary.kwh > 0 ? `${averageSummaryPrice.toFixed(1)}p` : "—"}</p>
+            <p className="text-[9px] text-muted-foreground">Average</p>
             {recentPriceTrend.length > 1 && (
               <div className="mx-auto mt-1 w-16" title="Average price trend across recent charges">
                 <svg viewBox="0 0 100 30" className="h-5 w-full" aria-label="Recent average price trend">
@@ -1620,42 +1201,51 @@ export default function HomeDashboard({
                   className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 border-t border-white/10 px-3 py-2 text-[10px] first:border-t-0 ${quality.trusted ? "" : "bg-amber-400/5"}`}
                 >
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 truncate font-semibold text-foreground/90">
-                      {index === 0 ? "Latest" : `Charge ${index + 1}`} · {formatUK(`${session.session_date}T12:00:00Z`, "dd MMM")}
+                    <div className="flex items-center gap-2 truncate font-semibold text-foreground/90">
+                      <span>{index === 0 ? "Latest" : `Charge ${index + 1}`} · {formatUK(`${session.session_date}T12:00:00Z`, "dd MMM")}</span>
                       {!quality.trusted && (
                         <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[8px] font-bold text-amber-200">
                           Needs review · excluded from totals
                         </span>
                       )}
-                    </p>
-                    <p className="truncate text-[9px] text-muted-foreground">
+                    </div>
+                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
                       {sessionClock(session, "start")}–{sessionClock(session, "finish")}
                       {" · "}{sessionDurationLabel(session)}
                       {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
+                      {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
+                    </p>
+                    <p className="truncate text-[8px] text-muted-foreground/80 mt-0.5">
+                      {quality.trusted
+                        ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
+                        : quality.reason}
+                    </p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
                         <button
-                          type="button"
-                          onClick={onReviewCharges}
-                          disabled={!onReviewCharges}
-                          className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
-                        >
-                          Review / amend
-                        </button>
-                        {!quality.trusted && <button
                           type="button"
                           onClick={() => acceptEstimatedSession(session)}
                           className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
                         >
                           Accept estimate
-                        </button>}
-                        <button
-                          type="button"
-                          onClick={() => removeReviewedSession(session)}
-                          className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
-                        >
-                          Delete
                         </button>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                   <span className="font-mono font-bold text-emerald-200">
                     {energy.toFixed(1)} kWh
@@ -1663,6 +1253,154 @@ export default function HomeDashboard({
                   <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
                     £{cost.toFixed(2)}
                   </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 truncate font-semibold text-foreground/90">
+                      <span>{index === 0 ? "Latest" : `Charge ${index + 1}`} · {formatUK(`${session.session_date}T12:00:00Z`, "dd MMM")}</span>
+                      {!quality.trusted && (
+                        <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[8px] font-bold text-amber-200">
+                          Needs review · excluded from totals
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
+                      {sessionClock(session, "start")}–{sessionClock(session, "finish")}
+                      {" · "}{sessionDurationLabel(session)}
+                      {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
+                      {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
+                    </p>
+                    <p className="truncate text-[8px] text-muted-foreground/80 mt-0.5">
+                      {quality.trusted
+                        ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
+                        : quality.reason}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
+                        <button
+                          type="button"
+                          onClick={() => acceptEstimatedSession(session)}
+                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
+                        >
+                          Accept estimate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
+                        <button
+                          type="button"
+                          onClick={() => acceptEstimatedSession(session)}
+                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
+                        >
+                          Accept estimate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
                 </div>
               );
             })}

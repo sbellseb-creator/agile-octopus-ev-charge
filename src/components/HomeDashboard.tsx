@@ -1148,7 +1148,7 @@ export default function HomeDashboard({
           </div>
         </div>
 
-              <div className="grid grid-cols-4 gap-2 text-center">
+                     <div className="grid grid-cols-4 gap-2 text-center">
           <div>
             <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
             <p className="text-lg font-black">{summary.count}</p>
@@ -1210,8 +1210,7 @@ export default function HomeDashboard({
                       )}
                     </div>
                     <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                      {sessionClock(session, "start")} - {sessionClock(session, "finish")}
+                      {sessionClock(session, "start")} {" - "} {sessionClock(session, "finish")}
                       {" · "}{sessionDurationLabel(session)}
                       {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
                       {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
@@ -1221,7 +1220,6 @@ export default function HomeDashboard({
                         ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
                         : quality.reason}
                     </p>
-
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <button
                         type="button"
@@ -1296,26 +1294,6 @@ export default function HomeDashboard({
                       </button>
                     </div>
                   </div>
-                  <span className="font-mono font-bold text-emerald-200">
-                    {energy.toFixed(1)} kWh
-                  </span>
-                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
-                    £{cost.toFixed(2)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
-        <Clock3 className="h-3 w-3" />
-        UK time · Octopus Agile · Home never wakes the car
-      </div>
-    </div>
-  );
-}
                   <span className="font-mono font-bold text-emerald-200">
                     {energy.toFixed(1)} kWh
                   </span>

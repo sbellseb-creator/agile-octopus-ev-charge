@@ -918,19 +918,21 @@ if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400
     };
   }, [sessions, summaryPeriod, vehicle?.battery_kwh]);
 
-  const recentCharges = useMemo(() => {
-    return sessions
-      .filter((session) => {
-        if (!vehicle) return true;
-        // Older/manual records can pre-date the current local vehicle UUID.
-        // With one configured vehicle they still belong in its Home history;
-        // otherwise match UUID, registration, or vehicle name.
-        if (vehicles.length === 1) return true;
-        const sessionRegistration = formatRegistration(session.vehicle_registration ?? "");
-        const vehicleRegistration = formatRegistration(vehicle.registration ?? "");
-        return session.vehicle_id === vehicle.id ||
-          Boolean(sessionRegistration && sessionRegistration === vehicleRegistration) ||
-          Boolean(session.vehicle_name && session.vehicle_name === vehicle.name);
+   const recentCharges = useMemo(() => {
+     return (Array.isArray(sessions) ? sessions : [])
+       .filter((session) => {
+         if (!session) return false;
+         if (!vehicle || !vehicles || vehicles.length === 1) return true;
+
+         // 🛡️ TYPE-SAFE BOUNDARY SHIELD AGAINST UNINITIALIZED PROPERTY LOOPS
+         const sessionRegistration = formatRegistration(session.vehicle_registration ?? "");
+         const vehicleRegistration = vehicle && typeof vehicle === 'object' ? formatRegistration(vehicle.registration ?? "") : "";
+
+         return session.vehicle_id === vehicle?.id ||
+           Boolean(sessionRegistration && vehicleRegistration && sessionRegistration === vehicleRegistration) ||
+           Boolean(session.vehicle_name && vehicle?.name && session.vehicle_name === vehicle.name);
+       })
+
       })
       .filter((session) =>
         session.status == null ||

@@ -704,269 +704,209 @@ export default function HomeDashboard({
     };
   }, [current, cheapestSlot, isCharging, bestWindow, nowTime]);
 
-  const { data: rates = [] } = useQuery({
-    queryKey: ["agile-home", settings.region],
-    queryFn: () => fetchAgileRates(undefined, undefined, undefined, settings.region),
-    staleTime: 15 * 60_000,
-  });
+  return (
+    <div className="space-y-3 md:space-y-4">
+      <div className="relative">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-1.5 shadow-lg backdrop-blur-xl">
+          <div className="flex rounded-lg bg-black/25 p-0.5">
+            {(["driveway", "cockpit"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={`rounded-md px-3 py-1.5 text-[10px] font-bold capitalize transition-colors sm:text-xs ${homeViewMode === mode ? "bg-emerald-400/15 text-emerald-200 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
 
+          {homeViewMode === "cockpit" && (
+            <label className="flex items-center gap-2 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground sm:text-[10px]">
+              Team badge
+              <select
+                value={footballTeam}
+                onChange={(event) => setTeam(event.target.value)}
+                className="rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-[10px] font-bold normal-case tracking-normal text-foreground outline-none focus:border-emerald-300/40 sm:text-xs"
+              >
+                <option>Sunderland</option>
+                <option>Arsenal</option>
+                <option>Chelsea</option>
+                <option>Liverpool</option>
+                <option>Manchester City</option>
+                <option>Manchester United</option>
+                <option>Newcastle United</option>
+                <option>Tottenham Hotspur</option>
+                <option>Apple</option>
+                <option>Lemon</option>
+                <option>Paw</option>
+                <option>None</option>
+              </select>
+            </label>
+          )}
+        </div>
 
-  const nowTime = Date.now();
+        {/* Vehicle scene */}
+        <section className="overflow-hidden rounded-[24px] border border-white/10 bg-card shadow-2xl md:col-span-2 sm:rounded-[30px]">
+          <HomeHeroScene
+            scene={scene}
+            charging={isCharging}
+            pluggedIn={isPluggedIn}
+            batteryLevel={displayedBatteryLevel}
+            batteryIsLastKnown={batteryIsLastKnown}
+            batteryCapacityKwh={vehicle?.battery_kwh}
+            chargeLimit={live?.charge_limit_soc}
+            chargerPowerKw={Math.min(
+              live?.charger_power_kw ?? settings.charger_kw,
+              settings.charger_kw,
+            )}
+            chargerAmps={
+              live?.charger_actual_current ??
+              live?.charge_amps ??
+              settings.charger_amps
+            }
+            chargerAmpsLive={
+              live?.charger_actual_current != null ||
+              live?.charge_amps != null
+            }
+            timeToFullChargeHours={live?.time_to_full_charge}
+            state={heroState}
+            viewMode={homeViewMode}
+            agilePricePence={current?.value_inc_vat}
+            cheapestWindowLabel={cockpitCheapestWindow}
+            scheduleLabel={scheduleLabel}
+            footballTeam={footballTeam}
+          />
 
-  const current = rates.find(
-    (r) =>
-      new Date(r.valid_from).getTime() <= nowTime &&
-      new Date(r.valid_to).getTime() > nowTime,
-  );
+          <div className="flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-slate-950/90 px-3 py-2.5 backdrop-blur-xl md:min-h-[66px] md:px-4 md:py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
 
-  const future = useMemo(
-    () =>
-      rates
-        .filter((r) => new Date(r.valid_from).getTime() > nowTime)
-        .sort((a, b) => a.valid_from.localeCompare(b.valid_from)),
-    [rates, nowTime],
-  );
+                <p className="font-mono text-base font-black uppercase tracking-wider">
+                  {formatRegistration(
+                    vehicle?.registration ?? "",
+                  ) ||
+                    vehicle?.name ||
+                    "No vehicle"}
+                </p>
 
-  const ribbon = useMemo(() => (current ? [current, ...future] : future), [current, future]);
+                {live?.state && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] capitalize"
+                  >
+                    {live.state}
+                  </Badge>
+                )}
+              </div>
 
-  const targetSoc = live?.charge_limit_soc ?? 100;
-  const batteryCapacityKwh = vehicle?.battery_kwh ?? 75;
-  const planningPowerKw = Math.min(live?.charger_power_kw ?? settings.charger_kw, settings.charger_kw);
-  const planningEfficiency = 0.9;
-  
-  const requiredBatteryKwh =
-    displayedBatteryLevel != null
-      ? Math.max(0, (batteryCapacityKwh * (targetSoc - displayedBatteryLevel)) / 100)
-      : null;
-      
-  const neededHours =
-    requiredBatteryKwh != null && planningPowerKw > 0
-      ? Math.max(0.5, Math.ceil((requiredBatteryKwh / (planningPowerKw * planningEfficiency)) * 2) / 2)
-      : 3;
-      
-  const selectedHours = neededHours;
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {vehicle
+                  ? vehicleModelLine(vehicle)
+                  : "Add a vehicle to get started"}
+              </p>
+            </div>
 
-  const bestWindow = useMemo(() => {
-    const slotCount = Math.max(1, Math.ceil(selectedHours * 2));
-    if (ribbon.length < slotCount) return null;
+            {live?.charge_limit_soc !== null &&
+              live?.charge_limit_soc !== undefined && (
+                <div className="hidden text-right md:block">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Charge limit
+                  </p>
+                  <p className="text-lg font-black text-primary">
+                    {live.charge_limit_soc}%
+                  </p>
+                </div>
+              )}
+          </div>
+        </section>
 
-    let best = { start: 0, avg: Number.POSITIVE_INFINITY };
+        {/* Charge intelligence */}
+        <section className="relative z-40 mt-2 overflow-hidden rounded-xl border border-emerald-300/20 bg-gradient-to-r from-slate-950/94 via-slate-900/92 to-emerald-950/40 p-2 shadow-[0_14px_35px_rgba(0,0,0,.45)] backdrop-blur-xl md:flex md:items-stretch md:gap-3 md:p-2.5 xl:absolute xl:bottom-[70px] xl:left-4 xl:right-4 xl:mt-0 xl:h-[108px]">
+          {isCharging ? (
+            <div className="flex items-center justify-between gap-3 px-0.5 md:w-[220px] md:flex-col md:items-start md:justify-center">
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+                Charge intelligence
+              </p>
+              <span className="text-[9px] font-semibold text-emerald-200">
+                {neededHours}h needed
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-3 md:w-[220px] md:shrink-0 md:self-center">
+              <div>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${recommendation.tone}`}>
+                  {recommendation.label}
+                </p>
+                <h2 className="mt-0.5 text-base font-black tracking-tight sm:text-lg">
+                  {recommendation.title}
+                </h2>
+                <p className="mt-0.5 hidden text-[9px] leading-relaxed text-muted-foreground xl:block">
+                  {recommendation.detail}
+                </p>
+              </div>
+              <div className="rounded-xl bg-primary/10 p-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          )}
 
-    for (let i = 0; i + slotCount <= ribbon.length; i++) {
-      const chunk = ribbon.slice(i, i + slotCount);
-      const continuous = chunk.every((rate, index) => index === 0 || chunk[index - 1]!.valid_to === rate!.valid_from);
-      if (!continuous) continue;
+          {(scheduleLabel || bestWindow) && (
+            <button
+              type="button"
+              onClick={onManageSchedule}
+              disabled={!onManageSchedule}
+              className="mt-1.5 w-full rounded-lg border border-emerald-300/20 bg-emerald-400/5 px-2 py-1 text-left transition-colors enabled:hover:bg-emerald-400/10 md:mt-0 md:w-[235px] md:shrink-0 md:self-center xl:w-[270px]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black text-emerald-200">
+                  {scheduleLabel
+                    ? `Tesla schedule · ${scheduleLabel}`
+                    : `Best ${bestWindow!.hours}h continuous block · ${formatUK(bestWindow!.from, "HH:mm")}–${formatUK(bestWindow!.to, "HH:mm")}`}
+                </p>
+                {bestWindow && <p className="shrink-0 text-[10px] font-black text-foreground">£{bestWindow.estimatedCostGbp.toFixed(2)}</p>}
+              </div>
+            </button>
+          )}
 
-      const avg = chunk.reduce((sum, rate) => sum + rate!.value_inc_vat, 0) / slotCount;
-      if (avg < best.avg) best = { start: i, avg };
-    }
+          {ribbon.length > 0 && (
+            <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
+              <div className="flex items-stretch gap-1">
+                <button
+                  type="button"
+                  onClick={() => scrollPrices(-1)}
+                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
+                  aria-label="Earlier Agile prices"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div
+                  ref={priceStripRef}
+                  onWheel={(event) => {
+                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                      event.preventDefault();
+                      event.currentTarget.scrollLeft += event.deltaY;
+                    }
+                  }}
+                  className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
+                    {ribbon.map((rate, index) => {
+                      const inCheapestWindow = Boolean(
+                        bestWindow &&
+                        rate!.valid_from >= bestWindow.from &&
+                        rate!.valid_from < bestWindow.to,
+                      );
+                      const isPricePlunge = rate!.value_inc_vat < 0;
+                      const barHeight = 7 + ((rate!.value_inc_vat - ribbonMinPrice) / ribbonPriceRange) * 22;
 
-    if (!Number.isFinite(best.avg)) return null;
-
-    const chunk = ribbon.slice(best.start, best.start + slotCount);
-    const gridEnergyKwh = planningPowerKw * slotCount * 0.5;
-    const batteryEnergyKwh = gridEnergyKwh * planningEfficiency;
-    
-    const estimatedCostGbp = chunk.reduce(
-      (total, rate) => total + (planningPowerKw * 0.5 * rate!.value_inc_vat) / 100,
-      0,
-    );
-    
-    const resultingSoc =
-      displayedBatteryLevel == null
-        ? null
-        : Math.min(targetSoc, displayedBatteryLevel + (batteryEnergyKwh / batteryCapacityKwh) * 100);
-
-    return {
-      from: chunk!.valid_from,
-      to: chunk[slotCount - 1]!.valid_to,
-      avg: best.avg,
-      estimatedCostGbp,
-      resultingSoc,
-      hours: slotCount / 2,
-    };
-  }, [ribbon, selectedHours, planningPowerKw, displayedBatteryLevel, targetSoc, batteryCapacityKwh]);
-
-  const cheapestSlot = useMemo(() => {
-    if (!ribbon.length) return null;
-    return ribbon.reduce((best, rate) => (rate.value_inc_vat < best.value_inc_vat ? rate : best));
-  }, [ribbon]);
-
-  const summary = useMemo(() => {
-    const today = new Date();
-    const todayKey = formatUK(today, "yyyy-MM-dd");
-    let firstKey: string;
-
-    if (summaryPeriod === "week") {
-      const monday = new Date(today);
-      const day = Number(formatUK(today, "i"));
-      monday.setDate(monday.getDate() - (day - 1));
-      firstKey = formatUK(monday, "yyyy-MM-dd");
-    } else if (summaryPeriod === "year") {
-      firstKey = `${formatUK(today, "yyyy")}-01-01`;
-    } else {
-      firstKey = `${formatUK(today, "yyyy-MM")}-01`;
-    }
-
-    const rows = sessions.filter((session) => {
-      const date = session.session_date ?? "";
-      return date >= firstKey && date <= todayKey &&
-        sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted;
-    });
-
-    return {
-      kwh: rows.reduce((total, session) => total + sessionEnergyKwh(session), 0),
-      cost: rows.reduce((total, session) => total + sessionCostGbp(session), 0),
-      count: rows.length,
-    };
-  }, [sessions, summaryPeriod, vehicle?.battery_kwh]);
-
-  const recentCharges = useMemo(() => {
-    const safeSessions = Array.isArray(sessions) ? sessions : [];
-    const recentChargesRaw = safeSessions.filter((session) => {
-      if (!session) return false;
-      if (!vehicle || !vehicles || vehicles.length === 1) return true;
-      
-      const sessionRegistration = formatRegistration(session.vehicle_registration ?? "");
-      const vehicleRegistration = vehicle && typeof vehicle === 'object' ? formatRegistration(vehicle.registration ?? "") : "";
-      
-      return session.vehicle_id === vehicle?.id ||
-        Boolean(sessionRegistration && vehicleRegistration && sessionRegistration === vehicleRegistration) ||
-        Boolean(session.vehicle_name && vehicle?.name && session.vehicle_name === vehicle.name);
-    });
-
-    return recentChargesRaw
-      .filter((session) => session.status == null || session.status === "completed" || session.status === "manual")
-      .sort((a, b) => {
-        const aTime = a.actual_finish ?? a.ended_at ?? `${a.session_date}T${a.end_time ?? "23:59"}:00`;
-        const bTime = b.actual_finish ?? b.ended_at ?? `${b.session_date}T${b.end_time ?? "23:59"}:00`;
-        return bTime.localeCompare(aTime);
-      })
-      .slice(0, 5);
-  }, [sessions, vehicle, vehicles.length]);
-
-  const trustedRecentCharges = recentCharges.filter((session) =>
-    sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted,
-  );
-  const lastCharge = trustedRecentCharges ?? null;
-
-  const lastChargeLabel = useMemo(() => {
-    if (!lastCharge) return "Awaiting first completed Tesla charge";
-
-    const todayKey = formatUK(new Date(), "yyyy-MM-dd");
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = formatUK(yesterday, "yyyy-MM-dd");
-    const day =
-      lastCharge.session_date === todayKey
-        ? "Today"
-        : lastCharge.session_date === yesterdayKey
-          ? "Yesterday"
-          : formatUK(`${lastCharge.session_date}T12:00:00Z`, "dd MMM");
-    const energy = sessionEnergyKwh(lastCharge);
-    const cost = sessionCostGbp(lastCharge);
-    const finishTime = isoToUkClock(lastCharge.actual_finish ?? lastCharge.ended_at ?? lastCharge.end_time);
-
-    const dayLabel = finishTime ? `${day} ${finishTime}` : day;
-    return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
-  }, [lastCharge]);
-
-  const vehicleState = live?.state?.toLowerCase() ?? "";
-  const chargingState = live?.charging_state?.toLowerCase() ?? "";
-  const vehicleIsLive = vehicleState === "online";
-  const isCharging = vehicleIsLive && (chargingState === "charging" || chargingState === "starting");
-  const isPluggedIn = vehicleIsLive && chargingState !== "stopped" && chargingState !== "disconnected";
-
-  const averageSummaryPrice = summary.kwh > 0 ? (summary.cost / summary.kwh) * 100 : 0;
-
-  const recentPriceTrend = useMemo(() => {
-    return [...trustedRecentCharges]
-      .reverse()
-      .map((session) => {
-        const energy = sessionEnergyKwh(session);
-        return energy > 0 ? (sessionCostGbp(session) / energy) * 100 : 0;
-      });
-  }, [trustedRecentCharges]);
-
-  const priceTrendDirection = useMemo(() => {
-    if (recentPriceTrend.length < 2) return 0;
-    const first = recentPriceTrend[0]!;
-    const last = recentPriceTrend[recentPriceTrend.length - 1]!;
-    if (Math.abs(last - first) < 0.5) return 0;
-    return last > first ? 1 : -1;
-  }, [recentPriceTrend]);
-
-  const trendPoints = useMemo(() => {
-    if (recentPriceTrend.length < 2) return "";
-    const minPrice = Math.min(...recentPriceTrend);
-    const maxPrice = Math.max(...recentPriceTrend);
-    const range = maxPrice - minPrice || 1;
-    const width = 100;
-    const height = 30;
-    const padding = 4;
-    const usableHeight = height - padding * 2;
-    
-    return recentPriceTrend
-      .map((price, idx) => {
-        const x = (idx / (recentPriceTrend.length - 1)) * width;
-        const y = height - padding - ((price - minPrice) / range) * usableHeight;
-        return `${x},${y}`;
-      })
-      .join(" ");
-  }, [recentPriceTrend]);
-
-  const recommendation = useMemo(() => {
-    if (!cheapestSlot) {
-      return {
-        label: "Octopus Agile",
-        title: "Awaiting prices",
-        detail: "Rates will display as soon as they are successfully fetched.",
-        tone: "text-muted-foreground",
-      };
-    }
-
-    if (isCharging) {
-      return {
-        label: "Live view",
-        title: "Charging in progress",
-        detail: "Home is monitoring telemetry directly from the vehicle.",
-        tone: "text-emerald-300",
-      };
-    }
-
-    const currentPrice = current?.value_inc_vat ?? cheapestSlot.value_inc_vat;
-    
-    if (currentPrice < 0) {
-      return {
-        label: "Price plunge alert",
-        title: "Plug in immediately!",
-        detail: `Agile rate is currently negative (${currentPrice.toFixed(1)}p/kWh). You are actively being paid to charge!`,
-        tone: "text-emerald-300 animate-pulse font-black",
-      };
-    }
-
-    if (currentPrice < 7.5) {
-      return {
-        label: "Excellent value slot",
-        title: "Highly optimized rate",
-        detail: `Current price is beautifully low (${currentPrice.toFixed(1)}p/kWh). Ideal window to bump your charge limits.`,
-        tone: "text-emerald-200",
-      };
-    }
-
-    if (bestWindow && new Date(bestWindow.from).getTime() <= nowTime) {
-      return {
-        label: "Optimized window active",
-        title: "Cheapest block is live",
-        detail: `Your optimized continuous window is running right now at an average of ${bestWindow.avg.toFixed(1)}p/kWh.`,
-        tone: "text-primary font-bold",
-      };
-    }
-
-    if (cheapestSlot.value_inc_vat < 9.5 && currentPrice > cheapestSlot.value_inc_vat + 8) {
-      return {
-        label: "Peak rates active",
-        title: "Hold for cheaper slots",
+                      return (
+                        <div
+                          key={`${rate!.valid_from}-${index}`}
+                          title={`${formatUK(rate!.valid_from, "HH:mm")} · ${rate!.value_inc_vat.toFixed(2)}p/kWh`}
+                          className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
+                            isPricePlunge
           {ribbon.length > 0 && (
             <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
               <div className="flex items-stretch gap-1">
@@ -1154,138 +1094,6 @@ export default function HomeDashboard({
                         </span>
                       )}
                     </div>
-          {ribbon.length > 0 && (
-            <div className="mt-2 flex min-w-0 flex-1 flex-col justify-center border-t border-white/5 pt-2 md:mt-0 md:border-l md:border-t-0 md:pt-0 md:pl-3">
-              <div className="flex items-stretch gap-1">
-                <button
-                  type="button"
-                  onClick={() => scrollPrices(-1)}
-                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                  aria-label="Earlier Agile prices"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div
-                  ref={priceStripRef}
-                  onWheel={(event) => {
-                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                      event.preventDefault();
-                      event.currentTarget.scrollLeft += event.deltaY;
-                    }
-                  }}
-                  className="touch-pan-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-black/25 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                  <div className="grid grid-flow-col auto-cols-[22%] sm:auto-cols-[16%] lg:auto-cols-[13%]">
-                    {ribbon.map((rate, index) => {
-                      const inCheapestWindow = Boolean(
-                        bestWindow &&
-                        rate!.valid_from >= bestWindow.from &&
-                        rate!.valid_from < bestWindow.to,
-                      );
-                      const isPricePlunge = rate!.value_inc_vat < 0;
-                      const barHeight = 7 + ((rate!.value_inc_vat - ribbonMinPrice) / ribbonPriceRange) * 22;
-
-                      return (
-                        <div
-                          key={`${rate!.valid_from}-${index}`}
-                          title={`${formatUK(rate!.valid_from, "HH:mm")} · ${rate!.value_inc_vat.toFixed(2)}p/kWh`}
-                          className={`relative min-w-0 overflow-hidden border-l border-white/10 px-0.5 py-1.5 text-center first:border-l-0 ${
-                            isPricePlunge
-                              ? "animate-pulse bg-emerald-300/35 shadow-[inset_0_0_18px_rgba(52,211,153,.55)]"
-                              : inCheapestWindow
-                                ? "animate-pulse bg-emerald-400/10"
-                                : ""
-                          }`}
-                        >
-                          <div
-                            className={`absolute inset-x-1 bottom-0 rounded-t opacity-35 ${priceColour(rate!.value_inc_vat)}`}
-                            style={{ height: `${barHeight}px` }}
-                          />
-                          <p className="relative z-10 truncate text-[7px] text-muted-foreground sm:text-[8px]">
-                            {index === 0 ? "Now" : formatUK(rate!.valid_from, "HH:mm")}
-                          </p>
-                          <p className="relative z-10 font-mono text-[9px] font-black text-foreground sm:text-[10px]">
-                            {rate!.value_inc_vat.toFixed(1)}p
-                          </p>
-                          <div className={`absolute inset-x-1 bottom-0 ${isPricePlunge ? "h-1" : "h-0.5"} ${priceColour(rate!.value_inc_vat)}`} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => scrollPrices(1)}
-                  className="hidden w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-colors hover:border-emerald-300/30 hover:text-emerald-200 md:flex"
-                  aria-label="Later Agile prices"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="mt-1 flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
-                <span className="md:hidden">Swipe prices →</span>
-                <span className="hidden md:inline">Use arrows or mouse wheel for every published slot</span>
-                {bestWindow && (
-                  <span className="ml-auto text-right">
-                    Cheapest window {formatUK(bestWindow.from, "HH:mm")} · {bestWindow.avg.toFixed(1)}p/kWh
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Charge totals */}
-      <section className="rounded-[26px] border border-border bg-card px-4 py-2.5 shadow-lg md:py-3">
-        <div className="mb-2.5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              This {summaryPeriod}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowRecentCharges((open) => !open)}
-              className="mt-1 flex min-w-0 items-center gap-1.5 text-left text-[9px] text-muted-foreground transition-colors hover:text-foreground"
-              aria-expanded={showRecentCharges}
-            >
-              <Zap className="h-3 w-3 shrink-0 text-emerald-300" />
-              <span className="shrink-0 font-semibold text-foreground/80">
-                Last charge
-              </span>
-              <span className="truncate">{lastChargeLabel}</span>
-              {recentCharges.length > 1 && (
-                showRecentCharges
-                  ? <ChevronUp className="h-3 w-3 shrink-0" />
-                  : <ChevronDown className="h-3 w-3 shrink-0" />
-              )}
-            </button>
-          </div>
-          <div className="flex items-center gap-3" aria-label="Charge totals period">
-            {(["week", "month", "year"] as const).map((period) => (
-              <button
-                key={period}
-                type="button"
-                onClick={() => setSummaryPeriod(period)}
-                className={`border-b pb-0.5 text-[10px] font-bold capitalize transition-colors ${
-                  summaryPeriod === period
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div>
-            <CalendarClock className="mx-auto mb-1 h-4 w-4 text-primary" />
-            <p className="text-lg font-black">{summary.count}</p>
-            <p className="text-[9px] text-muted-foreground">Charges</p>
-          </div>
           <div>
             <BatteryCharging className="mx-auto mb-1 h-4 w-4 text-emerald-300" />
             <p className="text-lg font-black">{summary.kwh.toFixed(1)}</p>
@@ -1341,6 +1149,104 @@ export default function HomeDashboard({
                         </span>
                       )}
                     </div>
+                    <p className="truncate text-[9px] text-muted-foreground mt-0.5">
+                      <span>{sessionClock(session, "start")} - {sessionClock(session, "finish")}</span>
+                      {" · "}{sessionDurationLabel(session)}
+                      {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
+                      {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}
+                    </p>
+                    <p className="truncate text-[8px] text-muted-foreground/80 mt-0.5">
+                      {quality.trusted
+                        ? `${session.avg_pence_per_kwh.toFixed(1)}p/kWh average · ${session.energy_source ?? session.source ?? "recorded"} data`
+                        : quality.reason}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
+                        <button
+                          type="button"
+                          onClick={() => acceptEstimatedSession(session)}
+                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
+                        >
+                          Accept estimate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
+        <Clock3 className="h-3 w-3" />
+        UK time · Octopus Agile · Home never wakes the car
+      </div>
+    </div>
+  );
+}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={onReviewCharges}
+                        disabled={!onReviewCharges}
+                        className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[8px] font-bold text-foreground enabled:hover:bg-white/10"
+                      >
+                        Review / amend
+                      </button>
+                      {!quality.trusted && (
+                        <button
+                          type="button"
+                          onClick={() => acceptEstimatedSession(session)}
+                          className="rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[8px] font-bold text-emerald-200 hover:bg-emerald-300/15"
+                        >
+                          Accept estimate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeReviewedSession(session)}
+                        className="rounded-md border border-rose-300/25 bg-rose-300/5 px-2 py-1 text-[8px] font-bold text-rose-200 hover:bg-rose-300/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-200">
+                    {energy.toFixed(1)} kWh
+                  </span>
+                  <span className="min-w-[52px] text-right font-mono font-bold text-violet-200">
+                    £{cost.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-muted-foreground">
         <Clock3 className="h-3 w-3" />
         UK time · Octopus Agile · Home never wakes the car

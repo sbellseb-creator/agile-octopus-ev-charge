@@ -1190,7 +1190,7 @@ export default function HomeDashboard({
 
         {showRecentCharges && recentCharges.length > 0 && (
           <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/15">
-            {recentCharges.map((session, index) => {
+                      {recentCharges.map((session, index) => {
               const energy = sessionEnergyKwh(session);
               const cost = sessionCostGbp(session);
               const quality = sessionQuality(session, vehicle?.battery_kwh ?? 75);
@@ -1210,7 +1210,7 @@ export default function HomeDashboard({
                       )}
                     </div>
                     <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                      {sessionClock(session, "start")} {" - "} {sessionClock(session, "finish")}
+                      <span>{sessionClock(session, "start")} - {sessionClock(session, "finish")}</span>
                       {" · "}{sessionDurationLabel(session)}
                       {" · "}{session.start_soc > 0 ? `${session.start_soc}%` : "Start —"}
                       {" → "}{session.end_soc > 0 ? `${session.end_soc}%` : "End —"}

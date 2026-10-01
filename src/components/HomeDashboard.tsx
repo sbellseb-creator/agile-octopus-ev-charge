@@ -1337,9 +1337,7 @@ export default function HomeDashboard({
                     £{cost.toFixed(2)}
                   </span>
                 </div>
-              );
-            })}
-          </div>
+                       </div>
         )}
       </section>
 

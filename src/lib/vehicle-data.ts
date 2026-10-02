@@ -42,7 +42,7 @@ export async function loadVehicles(): Promise<Vehicle[]> {
     vin: d.vin ?? undefined,
     registration: d.registration ?? undefined,
     tesla_vehicle_id: d.tesla_vehicle_id ?? undefined,
-    paint_colour: d.paint_colour ?? undefined,
+    paint_colour: (d as { paint_colour?: string | null }).paint_colour ?? undefined,
   }));
 }
 

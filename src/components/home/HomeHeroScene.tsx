@@ -122,6 +122,14 @@ export default function HomeHeroScene({
     pluggedIn,
   });
 
+  // TEMPORARY DEBUG: Log every render to see if component rerenders when theme changes
+  console.log("🔍 [HomeHeroScene RENDER]", {
+    scene_mode: scene.mode,
+    scene_theme: scene.theme,
+    background_value: background,
+    timestamp: new Date().toISOString(),
+  });
+
   const backgroundLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

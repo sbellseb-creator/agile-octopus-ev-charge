@@ -177,6 +177,8 @@ export default function HomeDashboard({
   onManageSchedule,
   onReviewCharges,
 }: Props) {
+  const settings = getSettings();
+
   const safeVehicles = (Array.isArray(vehicles) ? vehicles : []).filter(v => v && typeof v === 'object' && v.id);
 if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400 font-medium bg-slate-950/40 border border-white/5 rounded-3xl animate-pulse text-center">Synchronizing live vehicle data streams...</div>;
 

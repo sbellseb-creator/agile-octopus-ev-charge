@@ -93,7 +93,9 @@ function durationText(
 export default function WorkMileageCard({
   vehicles = [],
 }: WorkMileageCardProps) {
- const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
+  const { toast } = useToast();
+
+  const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
 
   const vehicle = useMemo(
     () =>
@@ -108,7 +110,7 @@ export default function WorkMileageCard({
           item.source === "tesla" &&
           Boolean(item.vin),
       ),
-    [vehicles],
+    [safeVehicles],
   );
 
   const [trip, setTrip] = useState<WorkTrip | null>(

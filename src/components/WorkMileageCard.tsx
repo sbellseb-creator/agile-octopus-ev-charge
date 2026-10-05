@@ -91,8 +91,8 @@ function durationText(
 }
 
 export default function WorkMileageCard({
-  vehicles,
-}: WorkMileageCardProps) {
+  vehicles = [],
+}: Partial<WorkMileageCardProps>) {
   const { toast } = useToast();
 
   const vehicle = useMemo(

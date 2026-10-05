@@ -223,7 +223,7 @@ if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400
   });
 
   const vehicle =
-    vehicles.find((v) => v.is_default) ?? vehicles[0];
+  safeVehicles.find((v) => v.is_default) ?? safeVehicles[0];
 
   // Reading schedules is explicitly wake-free. It is safe to show an existing
   // Tesla schedule on Home even while the vehicle is asleep.

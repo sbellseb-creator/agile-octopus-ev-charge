@@ -52,7 +52,7 @@ import {
 } from "@/lib/workTrips";
 
 interface WorkMileageCardProps {
-  vehicles: Vehicle[];
+  vehicles?: Vehicle[];
 }
 
 function durationText(
@@ -91,24 +91,28 @@ function durationText(
 }
 
 export default function WorkMileageCard({
-  vehicles,
+  vehicles = [],
 }: WorkMileageCardProps) {
   const { toast } = useToast();
+  const safeVehicles = useMemo(
+    () => (Array.isArray(vehicles) ? vehicles : []),
+    [vehicles],
+  );
 
   const vehicle = useMemo(
     () =>
-      vehicles.find(
+      safeVehicles.find(
         (item) =>
-          item.is_default &&
-          item.source === "tesla" &&
-          Boolean(item.vin),
+          item?.is_default &&
+          item?.source === "tesla" &&
+          Boolean(item?.vin),
       ) ??
-      vehicles.find(
+      safeVehicles.find(
         (item) =>
-          item.source === "tesla" &&
-          Boolean(item.vin),
+          item?.source === "tesla" &&
+          Boolean(item?.vin),
       ),
-    [vehicles],
+    [safeVehicles],
   );
 
   const [trip, setTrip] = useState<WorkTrip | null>(

@@ -27,6 +27,7 @@ import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
 import { recalculateHistoricalSessions } from "@/lib/recalc-historical";
 import HomeDashboard from "@/components/HomeDashboard";
+import HopefulEvMan from "@/components/HopefulEvMan";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
@@ -34,6 +35,7 @@ export default function Index() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editingSession, setEditingSession] = useState<any>(null);
   const [tab, setTab] = useState("home");
+  const [agileSub, setAgileSub] = useState<"rates" | "crystal">("rates");
   const historicalSessionsRecalculated = useRef(false);
   const { signOut } = useAuth();
 
@@ -193,9 +195,6 @@ export default function Index() {
             <TabsTrigger value="work" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Briefcase className="h-4 w-4 shrink-0" /> Work
             </TabsTrigger>
-            <TabsTrigger value="crystal" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Sparkles className="h-4 w-4 shrink-0" /> Crystal Ball
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">
@@ -209,8 +208,22 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="agile" className="space-y-6">
-            <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
-            <TariffComparison />
+            <Tabs value={agileSub} onValueChange={(v) => setAgileSub(v as "rates" | "crystal")} className="space-y-4">
+              <TabsList className="grid h-auto w-full grid-cols-2 border border-white/10 bg-slate-900/95 p-1">
+                <TabsTrigger value="rates" className="text-xs font-medium">Rates</TabsTrigger>
+                <TabsTrigger value="crystal" className="flex items-center justify-center gap-1.5 text-xs font-medium">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" /> Crystal Ball
+                  <HopefulEvMan />
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="rates" className="space-y-6">
+                <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+                <TariffComparison />
+              </TabsContent>
+              <TabsContent value="crystal" className="space-y-6">
+                <AgileCrystalBall />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* ⚡ RESTORED COMPLETELY BUG-FREE CHARGING CONTENT MODULE WITH PROP INJECTORS */}
@@ -252,10 +265,6 @@ export default function Index() {
               {vehicles && vehicles.length > 0 ? <WorkCosts sessions={sessions || []} vehicles={vehicles} /> : <div className="text-xs text-slate-400 p-4">Loading business profile data...</div>}
               <WorkMileageCard vehicles={vehicles} />
             </div>
-          </TabsContent>
-
-          <TabsContent value="crystal" className="space-y-6">
-            <AgileCrystalBall />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

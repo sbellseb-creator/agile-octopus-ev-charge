@@ -190,7 +190,7 @@ export function vehicleModelLine(
     if (resolved) {
       const trim = typeof cleanTrim !== 'undefined' ? cleanTrim(live?.trim_badging, model) : "";
       const drive = typeof matchFirst !== 'undefined' ? matchFirst(DRIVE_PATTERNS, [live?.trim_badging, model]) : "";
-      return `Tesla ${resolved}${trim ? ` \${trim}` : ""}${drive ? ` \${drive}` : ""}`;
+      return `Tesla ${resolved}${trim ? ` ${trim}` : ""}${drive ? ` ${drive}` : ""}`;
     }
 
     const line = [make, model].filter(Boolean).join(" ").trim();
@@ -266,7 +266,7 @@ export function vehicleColorName(
       if (!c) continue;
       const key = c.toLowerCase().replace(/[^a-z]/g, "");
       if (TESLA_PAINT[key]) return TESLA_PAINT[key];
-      if (/^[a-z][a-z\s-]{2,24}\$/i.test(c.trim()) && !c.startsWith("#")) {
+      if (/^[a-z][a-z\s-]{2,24}$/i.test(c.trim()) && !c.startsWith("#")) {
         const t = c.trim();
         return t.charAt(0).toUpperCase() + t.slice(1);
       }

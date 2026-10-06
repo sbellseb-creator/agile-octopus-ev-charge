@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
 import {
   buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
-  tomorrowKey, ukMidnightUtc, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  targetDayKey, ukMidnightUtc, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
 } from "@/lib/agileForecast";
 
 const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
 
 export default function AgileCrystalBall() {
-  const dateKey = useMemo(() => tomorrowKey(), []);
+  const dateKey = useMemo(() => targetDayKey(), []);
   const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
   const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
@@ -52,7 +52,7 @@ export default function AgileCrystalBall() {
           {bothFailed && <p className="text-chart-danger">Could not load prices. Please try again later.</p>}
           {!loading && !bothFailed && source === "none" && (
             <p className="text-muted-foreground">
-              Auction results for tomorrow are not available yet. Day-ahead results are typically published around
+              Auction results for this day are not available yet. Day-ahead results are typically published around
               midday UK time and official Octopus rates at about 16:00 – check back then.
             </p>
           )}

@@ -54,7 +54,7 @@ export default function PushSettings() {
       {supported && pushConfigured() && (
         <>
           <label className="flex items-center justify-between gap-3 text-xs text-slate-300">
-            <span>Crystal Ball estimate ready (~10:30–11:00 UK)</span>
+            <span>Crystal Ball estimate ready (auction results, ~11:30–11:45 UK)</span>
             <Switch disabled={busy} checked={prefs?.notify_estimate ?? false} onCheckedChange={(v) => toggleType("notify_estimate", v)} />
           </label>
           <label className="flex items-center justify-between gap-3 text-xs text-slate-300">

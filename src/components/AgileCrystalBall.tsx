@@ -32,7 +32,7 @@ export default function AgileCrystalBall() {
         </div>
         <div className="text-left sm:text-right">
           <span className="inline-block text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full border border-purple-500/20 shadow-sm">
-             ● Auction Settled (10:30 AM)
+             ● Auction closes ~11:00, results ~11:30–11:42 UK
           </span>
         </div>
       </div>

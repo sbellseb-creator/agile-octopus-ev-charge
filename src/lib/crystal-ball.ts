@@ -5,6 +5,7 @@ import { addDays, slotsForUkDate, ukMidnightUtc, type PriceSlot } from "@/lib/cr
 
 export interface CrystalBallEstimate {
   date: string;
+  available: boolean;
   source: string;
   is_mock: boolean;
   updated_at: string;

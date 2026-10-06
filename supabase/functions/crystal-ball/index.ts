@@ -31,6 +31,7 @@ serve(async (req) => {
 
     return json({
       date,
+      available: estimates.length > 0,
       region,
       estimated: true,
       source: provider.label,

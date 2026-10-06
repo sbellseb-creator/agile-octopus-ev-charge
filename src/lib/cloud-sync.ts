@@ -235,6 +235,7 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   });
 
   let skipped = 0;
+  const failedIds = new Set<string>();
   if (toPush.length) {
     const rows = toPush.map((l) => ({ ...cfg.toRow(l), user_id: userId, local_id: l.id, source_device: deviceId() }));
     // onConflict on (user_id, local_id) makes repeated imports idempotent.
@@ -247,7 +248,10 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
         const { error: rowErr } = await (supabase as any)
           .from(table)
           .upsert([row] as never, { onConflict: "user_id,local_id" });
-        if (rowErr) failures.push(`${row.local_id}: ${rowErr.message}`);
+        if (rowErr) {
+          failures.push(`${row.local_id}: ${rowErr.message}`);
+          failedIds.add(row.local_id);
+        }
       }
       if (failures.length === rows.length) {
         // Nothing got through — this is a real connectivity/permission failure.
@@ -263,10 +267,16 @@ async function syncEntity<TLocal extends SyncedRecord, TRow extends { local_id: 
   if (finalErr) throw new SyncError(`${table} read: ${finalErr.message}`, table);
   const merged = ((finalRows ?? []) as unknown as TRow[])
     .filter((row) => !row.local_id || !deletedIds.has(row.local_id))
-    .map(cfg.toLocal)
-    .sort(cfg.sort);
+    .map(cfg.toLocal);
 
-  writeJSON(storageKey, merged);
+  // Records that failed to push exist only locally: keep them (pending /
+  // quarantined) so they are retried on the next sync instead of being lost.
+  // The unsynced local copy wins over any stale cloud version of the same id.
+  const kept = merged.filter((m) => !failedIds.has(m.id));
+  for (const l of local) if (failedIds.has(l.id)) kept.push(l);
+  kept.sort(cfg.sort);
+
+  writeJSON(storageKey, kept);
 
   return skipped;
 }

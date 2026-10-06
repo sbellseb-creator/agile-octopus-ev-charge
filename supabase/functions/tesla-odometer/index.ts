@@ -1,6 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { getValidAccessToken } from "../_shared/teslaAuth.ts";
+import { getAuthedUserId, serviceClient } from "../_shared/auth.ts";
+import { getConnection, getValidAccessToken } from "../_shared/tesla.ts";
 
 const FLEET_BASE =
   "https://fleet-api.prd.eu.vn.cloud.tesla.com";
@@ -52,28 +52,16 @@ Deno.serve(async (request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get(
-      "SUPABASE_SERVICE_ROLE_KEY",
-    );
+    const userId = await getAuthedUserId(request);
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error(
-        "Supabase server environment is not configured",
-      );
+    if (!userId) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const supabase = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-    );
+    const supabase = serviceClient();
+    const conn = await getConnection(supabase, userId);
 
-    const accessToken = await getValidAccessToken(
-      supabase,
-      deviceId,
-    );
-
-    if (!accessToken) {
+    if (!conn) {
       return jsonResponse(
         {
           connected: false,
@@ -82,6 +70,30 @@ Deno.serve(async (request) => {
         401,
       );
     }
+
+    if (conn.device_id !== deviceId) {
+      return jsonResponse(
+        { error: "Device does not belong to the caller" },
+        403,
+      );
+    }
+
+    const vehicles = Array.isArray(conn.vehicles)
+      ? conn.vehicles as Array<{ id?: string; vin_last4?: string }>
+      : [];
+    const ownsVehicle = vehicles.some((v) =>
+      (v.vin_last4 && v.vin_last4 === vin.slice(-4)) ||
+      (v.id && v.id === vin)
+    );
+
+    if (!ownsVehicle) {
+      return jsonResponse(
+        { error: "Vehicle does not belong to the caller" },
+        403,
+      );
+    }
+
+    const accessToken = await getValidAccessToken(supabase, conn);
 
     if (wake) {
       const wakeResponse = await fetch(

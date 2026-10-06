@@ -149,7 +149,6 @@ export default function CrystalBallTab() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="t" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={5} />
                   <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} unit="p" />
-                  <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 11 }} formatter={(v: number) => [`${v}p/kWh`, hasOfficial ? "Official" : "Estimate"]} />
                   <Tooltip
                    contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 11, color: "#ffffff" }}
                    labelStyle={{ color: "#ffffff", fontWeight: 700 }}

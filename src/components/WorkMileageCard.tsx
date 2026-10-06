@@ -99,8 +99,6 @@ export default function WorkMileageCard({
     [vehicles],
   );
 
-  const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
-
   const vehicle = useMemo(
     () =>
       safeVehicles.find(

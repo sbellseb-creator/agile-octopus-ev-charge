@@ -85,6 +85,7 @@ export default function AgileCrystalBall() {
                   <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} unit="p" />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
+                    cursor={{ fill: "rgba(255,255,255,0.08)" }}
                     labelStyle={{ color: "#ffffff" }}
                     itemStyle={{ color: "#ffffff" }}
                     formatter={(v: number | null) => [v === null || v === undefined ? "–" : `${Number(v).toFixed(2)}p/kWh`, "Price"]}

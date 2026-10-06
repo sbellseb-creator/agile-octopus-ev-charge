@@ -94,6 +94,10 @@ export default function WorkMileageCard({
   vehicles = [],
 }: WorkMileageCardProps) {
   const { toast } = useToast();
+  const safeVehicles = useMemo(
+    () => (Array.isArray(vehicles) ? vehicles : []),
+    [vehicles],
+  );
 
   const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
 
@@ -101,14 +105,14 @@ export default function WorkMileageCard({
     () =>
       safeVehicles.find(
         (item) =>
-          item.is_default &&
-          item.source === "tesla" &&
-          Boolean(item.vin),
+          item?.is_default &&
+          item?.source === "tesla" &&
+          Boolean(item?.vin),
       ) ??
       safeVehicles.find(
         (item) =>
-          item.source === "tesla" &&
-          Boolean(item.vin),
+          item?.source === "tesla" &&
+          Boolean(item?.vin),
       ),
     [safeVehicles],
   );

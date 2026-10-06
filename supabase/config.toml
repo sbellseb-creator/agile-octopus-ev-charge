@@ -1,1 +1,5 @@
 project_id = "xrtpcohdyfyjmrxwhtjd"
+
+# push-notify authenticates itself (user JWT for tests, x-cron-secret for cron).
+[functions.push-notify]
+verify_jwt = false

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AGILE_REGION } from "@/lib/agile-config";
 import { useQuery } from "@tanstack/react-query";
 import {
   BatteryCharging,
@@ -528,7 +529,7 @@ if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400
       console.warn("Ignored incomplete Tesla charge observation", closed);
       return;
     }
-    const region = settings.region || "F";
+    const region = settings.region || AGILE_REGION;
 
     const draft: Omit<ChargeSession, "id"> = {
       session_date: formatUK(closed.actualStart, "yyyy-MM-dd"),

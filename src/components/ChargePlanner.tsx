@@ -13,9 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   Zap, Clock, TrendingDown, Activity,
-  CheckCircle2, Loader2, Save, X, Plug, ChevronDown,
+  CheckCircle2, Loader2, Save, X, Plug,
 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatUK, getUKDayKey, ukClockToIso } from "@/lib/timezone";
 import { buildPlan, clampPercent, expandToMinutes, simulateMinutes, type ChargeParams, type PlanStrategy } from "@/lib/charge-plan";
@@ -72,7 +71,6 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [pluggedAt, setPluggedAt] = useState<string>(() => toLocalInput(new Date()));
   const [unplugAt, setUnplugAt] = useState("");
   const [notes, setNotes] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [removedWindows, setRemovedWindows] = useState<Set<number>>(new Set());
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
@@ -264,14 +262,9 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
             )}
           </div>
 
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="gap-1 px-0 text-muted-foreground">
-                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
-                Advanced
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-3">
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Advanced</h3>
+            <div className="space-y-4">
               {mode !== "immediate" && (
                 <div className="space-y-2">
                   <Label>Strategy</Label>
@@ -347,8 +340,8 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
                 <Label>Notes</Label>
                 <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

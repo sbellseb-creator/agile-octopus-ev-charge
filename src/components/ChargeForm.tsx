@@ -6,54 +6,151 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Zap, Loader2 } from "lucide-react";
 import type { Vehicle } from "@/lib/vehicle-data";
+import { vehicleLabel } from "@/lib/vehicle-data";
+import type { ChargeSession } from "@/lib/charge-data";
+import { calculateManualSession, type ManualSessionCalc } from "@/lib/manual-session";
+import { getSettings } from "@/lib/app-settings";
+import { getUKDayKey, isoToUkClock } from "@/lib/timezone";
 import { toast } from "sonner";
 
 interface ChargeFormProps {
   onSessionAdded: (data: any) => void;
+  onSessionUpdated?: (id: string, updates: any) => void;
+  onCancelEdit?: () => void;
+  editingSession?: ChargeSession | null;
   vehicles?: Vehicle[];
 }
 
-export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeFormProps) {
+export default function ChargeForm({
+  onSessionAdded,
+  onSessionUpdated,
+  onCancelEdit,
+  editingSession = null,
+  vehicles = [],
+}: ChargeFormProps) {
   const [loading, setLoading] = useState(false);
-  const [kwh, setKwh] = useState("");
-  const [cost, setCost] = useState("");
   const [notes, setSaveNotes] = useState("");
   const [vehicleId, setVehicleId] = useState("");
+  const [date, setDate] = useState(() => getUKDayKey(new Date()));
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [startSoc, setStartSoc] = useState("");
+  const [endSoc, setEndSoc] = useState("");
+  const [calc, setCalc] = useState<ManualSessionCalc | null>(null);
+  const [calculating, setCalculating] = useState(false);
 
-  // 🛡️ ACCORDION ACCURACY: INSULATE ARRAY LOOPS AND AUTO-ASSIGN DEFAULT CARS
+  const safeVehiclesList = Array.isArray(vehicles) ? vehicles.filter((v) => v && v.id) : [];
+  const vehicle = safeVehiclesList.find((v) => v.id === vehicleId);
+  const isEditing = !!editingSession;
+
   useEffect(() => {
-    const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
-    if (safeVehicles.length > 0) {
-      const defaultVehicle = safeVehicles.find(v => v && v.is_default) || safeVehicles[0];
-      if (defaultVehicle && defaultVehicle.id) {
-        setVehicleId(defaultVehicle.id);
-      }
+    if (editingSession) return;
+    if (safeVehiclesList.length > 0) {
+      const defaultVehicle = safeVehiclesList.find((v) => v.is_default) || safeVehiclesList[0];
+      if (defaultVehicle?.id) setVehicleId(defaultVehicle.id);
     }
-  }, [vehicles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles, editingSession]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!editingSession) return;
+    setVehicleId(editingSession.vehicle_id || "");
+    setDate(editingSession.session_date);
+    setStartTime(isoToUkClock(editingSession.start_time) ?? "");
+    setEndTime(isoToUkClock(editingSession.end_time) ?? "");
+    setStartSoc(String(editingSession.start_soc ?? ""));
+    setEndSoc(String(editingSession.end_soc ?? ""));
+    setSaveNotes(editingSession.notes || "");
+  }, [editingSession]);
+
+  const socValid =
+    startSoc !== "" && endSoc !== "" &&
+    Number(startSoc) >= 0 && Number(endSoc) <= 100 && Number(endSoc) > Number(startSoc);
+
+  const buildInput = () => ({
+    session_date: date,
+    start_time: startTime,
+    end_time: endTime,
+    start_soc: Number(startSoc),
+    end_soc: Number(endSoc),
+    batteryKwh: vehicle?.battery_kwh,
+    efficiencyPct: vehicle?.charge_efficiency_pct,
+    region: getSettings().region,
+  });
+
+  useEffect(() => {
+    if (!date || !startTime || !endTime || !socValid) {
+      setCalc(null);
+      return;
+    }
+    let cancelled = false;
+    setCalculating(true);
+    calculateManualSession(buildInput())
+      .then((r) => { if (!cancelled) setCalc(r); })
+      .catch(() => { if (!cancelled) setCalc(null); })
+      .finally(() => { if (!cancelled) setCalculating(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, startTime, endTime, startSoc, endSoc, vehicleId, vehicle?.battery_kwh, vehicle?.charge_efficiency_pct]);
+
+  const resetForm = () => {
+    setStartTime("");
+    setEndTime("");
+    setStartSoc("");
+    setEndSoc("");
+    setSaveNotes("");
+    setCalc(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!kwh || !cost || !vehicleId) {
-      toast.error("Please select a vehicle and populate all required configurations.");
+    if (!vehicleId || !date || !startTime || !endTime || !socValid) {
+      toast.error("Please choose a vehicle, date, start/end times and a higher End SoC than Start SoC.");
       return;
     }
 
     try {
       setLoading(true);
-      // 🤝 FIXED SCHEMA VARIABLES MATCHING YOUR 314-LINE CORE PROPERTY FILE
-      onSessionAdded({
+      const result = calc ?? (await calculateManualSession(buildInput()));
+      if (!result) {
+        toast.error("Could not calculate energy and cost for this time window.");
+        return;
+      }
+      const data = {
         vehicle_id: vehicleId,
-        energy_added_kwh: parseFloat(kwh),
-        total_cost_gbp: parseFloat(cost),
-        charge_mode: "manual",
-        notes: notes.trim() || undefined,
-        session_date: new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString()
-      });
-      setKwh("");
-      setCost("");
-      setSaveNotes("");
-      toast.success("Charging session logged successfully!");
+        vehicle_name: vehicle ? vehicleLabel(vehicle) : "",
+        vehicle_registration: vehicle?.registration || undefined,
+        session_date: date,
+        start_time: startTime,
+        end_time: endTime,
+        start_soc: Number(startSoc),
+        end_soc: Number(endSoc),
+        energy_added_kwh: result.energy_added_kwh,
+        grid_kwh: result.grid_kwh,
+        estimated_grid_energy_kwh: result.estimated_grid_energy_kwh,
+        energy_source: result.energy_source,
+        total_cost_gbp: result.total_cost_gbp,
+        avg_pence_per_kwh: result.avg_pence_per_kwh,
+        num_slots: result.num_slots,
+        slot_prices: result.slot_prices,
+        region: getSettings().region,
+        notes: notes.trim(),
+      };
+      if (editingSession && onSessionUpdated) {
+        onSessionUpdated(editingSession.id, data);
+        toast.success("Charging session updated!");
+      } else {
+        onSessionAdded({
+          ...data,
+          charge_mode: "immediate",
+          source: "manual",
+          status: "manual",
+          tariff_code: "",
+          created_at: new Date().toISOString(),
+        });
+        toast.success("Charging session logged successfully!");
+      }
+      resetForm();
     } catch (err) {
       toast.error("Failed to save session data.");
     } finally {
@@ -61,18 +158,19 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
     }
   };
 
-  const safeVehiclesList = Array.isArray(vehicles) ? vehicles.filter(v => v && v.id) : [];
+  const inputCls = "h-9 bg-slate-950 border-white/10 text-xs font-mono";
 
   return (
     <Card className="bg-slate-900/40 border border-white/5 rounded-3xl">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-          <Zap className="h-4 w-4 text-amber-400" /> Log New Charge Session
+          <Zap className="h-4 w-4 text-amber-400" />
+          {isEditing ? "Edit Past Charge Session" : "Log a Past Charge Session"}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="vehicle" className="text-xs text-slate-400">Select Vehicle</Label>
               <Select value={vehicleId} onValueChange={setVehicleId}>
@@ -88,35 +186,51 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label htmlFor="kwh" className="text-xs text-slate-400">Energy Added (kWh)</Label>
-              <Input
-                id="kwh"
-                type="number"
-                step="0.1"
-                placeholder="45.2"
-                value={kwh}
-                onChange={(e) => setKwh(e.target.value)}
-                className="h-9 bg-slate-950 border-white/10 text-xs font-mono"
-                required
-              />
+              <Label htmlFor="session-date" className="text-xs text-slate-400">Date</Label>
+              <Input id="session-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} required />
             </div>
-
             <div className="space-y-1.5">
-              <Label htmlFor="cost" className="text-xs text-slate-400">Total Cost (£)</Label>
-              <Input
-                id="cost"
-                type="number"
-                step="0.01"
-                placeholder="4.50"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                className="h-9 bg-slate-950 border-white/10 text-xs font-mono"
-                required
-              />
+              <Label htmlFor="start-time" className="text-xs text-slate-400">Start Time</Label>
+              <Input id="start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputCls} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="end-time" className="text-xs text-slate-400">End Time</Label>
+              <Input id="end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} required />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="start-soc" className="text-xs text-slate-400">Start SoC (%)</Label>
+              <Input id="start-soc" type="number" min={0} max={100} placeholder="20" value={startSoc} onChange={(e) => setStartSoc(e.target.value)} className={inputCls} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="end-soc" className="text-xs text-slate-400">End SoC (%)</Label>
+              <Input id="end-soc" type="number" min={0} max={100} placeholder="80" value={endSoc} onChange={(e) => setEndSoc(e.target.value)} className={inputCls} required />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 rounded-2xl border border-white/5 bg-slate-950/50 p-3 text-center" aria-live="polite">
+            <div>
+              <p className="text-[10px] uppercase text-slate-500">Energy Added</p>
+              <p className="font-mono text-sm font-bold text-white">{calc ? `${calc.energy_added_kwh.toFixed(1)} kWh` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-slate-500">Total Cost</p>
+              <p className="font-mono text-sm font-bold text-emerald-400">
+                {calculating ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : calc ? `£${calc.total_cost_gbp.toFixed(2)}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-slate-500">Avg Price</p>
+              <p className="font-mono text-sm font-bold text-white">{calc ? `${calc.avg_pence_per_kwh.toFixed(2)}p` : "—"}</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            Calculated automatically from your times, SoC and Agile rates.
+            {vehicle && !vehicle.battery_kwh ? " Set the battery size on the vehicle for SoC-based energy; otherwise charger power × time is used." : ""}
+          </p>
 
           <div className="space-y-1.5">
             <Label htmlFor="notes" className="text-xs text-slate-400">Session Notes (Optional)</Label>
@@ -129,9 +243,16 @@ export default function ChargeForm({ onSessionAdded, vehicles = [] }: ChargeForm
             />
           </div>
 
-          <Button type="submit" disabled={loading || safeVehiclesList.length === 0} className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Charging Record"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={loading || calculating || safeVehiclesList.length === 0} className="flex-1 h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : isEditing ? "Update Charging Record" : "Save Charging Record"}
+            </Button>
+            {isEditing && (
+              <Button type="button" variant="outline" onClick={() => { resetForm(); onCancelEdit?.(); }} className="h-9 rounded-xl text-xs">
+                Cancel
+              </Button>
+            )}
+          </div>
         </form>
       </CardContent>
     </Card>

@@ -16,6 +16,9 @@ export interface CrystalBallEstimate {
 }
 
 async function invokeCrystal<T>(body: Record<string, unknown>): Promise<T> {
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error("Supabase is not configured: set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY at build time");
+  }
   const { data, error } = await supabase.functions.invoke("crystal-ball", { method: "POST", body: { region: AGILE_REGION, ...body } });
   if (error) throw new Error(String((error as { message?: string }).message ?? error));
   return data as T;

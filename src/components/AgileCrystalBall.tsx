@@ -22,10 +22,10 @@ export default function AgileCrystalBall() {
   const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
 
   const { slots, source } = useMemo(() => {
-    const off = buildOfficial(dateKey, official.data ?? []);
-    if (hasFullData(off)) return { slots: off, source: "official" as const };
     const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
     if (est.some((s) => s.price !== null)) return { slots: est, source: "estimate" as const };
+    const off = buildOfficial(dateKey, official.data ?? []);
+    if (hasFullData(off)) return { slots: off, source: "official" as const };
     return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
   }, [dateKey, official.data, wholesale.data]);
 

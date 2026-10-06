@@ -67,10 +67,10 @@ export default function CrystalBallTab() {
             <h2 className="flex items-center gap-2 text-lg font-black text-white">
               <Sparkles className="h-5 w-5 text-purple-400" /> Crystal Ball: likely Agile rates
             </h2>
-            <p className="text-xs text-slate-400">Estimates based on market data. Not official Octopus rates.</p>
+            <p className="text-xs text-slate-400">Estimates from the real day-ahead wholesale auction + the Agile formula. Not official Octopus rates.</p>
             <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-bold">
               <span className={`rounded-full border px-2 py-0.5 ${hasOfficial ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>
-                {hasOfficial ? "Official rates" : "Estimated, not official"}
+                {hasOfficial ? "Official rates" : estimateSlots.length ? "Estimated from wholesale data, not official" : "Waiting for wholesale results"}
               </span>
               <span className="rounded-full border border-white/10 px-2 py-0.5 text-slate-300">Region {AGILE_REGION} · {fmt(`${date}T12:00:00Z`, "EEE d MMM")}</span>
               {estimate.data?.is_mock && <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-rose-300">MOCK DATA</span>}
@@ -81,7 +81,7 @@ export default function CrystalBallTab() {
 
         <p className="mt-2 text-xs text-slate-300">
           {loading && "Gazing into the crystal ball…"}
-          {!loading && noData && "Hmm… the ball is cloudy. No rates for tomorrow yet. Estimates usually appear mid-morning; official rates around 16:00."}
+          {!loading && noData && "Hmm… the ball is cloudy. The day-ahead auction hasn't settled yet, so there are no wholesale results to work from (no guesses here!). The auction closes around 11:00 UK and results usually publish around 11:30–11:42. Refresh after that; official rates follow around 16:00."}
           {!loading && !noData && hasOfficial && "Good news: the official rates have landed! Showing those instead of the estimate."}
           {!loading && !noData && !hasOfficial && summary.negatives.length > 0 && "Ooh, negative prices predicted! (Still just an estimate.)"}
           {!loading && !noData && !hasOfficial && summary.negatives.length === 0 && "Hmm, nothing dramatic spotted. Treat this as a friendly guess."}

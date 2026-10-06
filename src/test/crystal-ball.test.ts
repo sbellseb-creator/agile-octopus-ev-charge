@@ -53,11 +53,12 @@ describe("UK date helpers", () => {
 
 describe("notification windows & de-dup", () => {
   const at = (iso: string) => new Date(iso);
-  it("estimate window is 10:30-13:00 UK incl. BST", () => {
-    expect(isWithinNotificationWindow("estimate_ready", at("2026-07-15T09:29:00Z"))).toBe(false); // 10:29 BST
-    expect(isWithinNotificationWindow("estimate_ready", at("2026-07-15T09:30:00Z"))).toBe(true); // 10:30 BST
-    expect(isWithinNotificationWindow("estimate_ready", at("2026-01-15T10:30:00Z"))).toBe(true); // GMT
-    expect(isWithinNotificationWindow("estimate_ready", at("2026-01-15T13:00:00Z"))).toBe(false);
+  it("estimate window is 11:30-14:00 UK incl. BST", () => {
+    expect(isWithinNotificationWindow("estimate_ready", at("2026-07-15T10:29:00Z"))).toBe(false); // 11:29 BST
+    expect(isWithinNotificationWindow("estimate_ready", at("2026-07-15T10:30:00Z"))).toBe(true); // 11:30 BST
+    expect(isWithinNotificationWindow("estimate_ready", at("2026-07-15T09:30:00Z"))).toBe(false); // 10:30 BST, old window
+    expect(isWithinNotificationWindow("estimate_ready", at("2026-01-15T11:30:00Z"))).toBe(true); // GMT
+    expect(isWithinNotificationWindow("estimate_ready", at("2026-01-15T14:00:00Z"))).toBe(false);
   });
   it("official window starts 16:00 UK", () => {
     expect(isWithinNotificationWindow("official_released", at("2026-07-15T14:59:00Z"))).toBe(false);
@@ -67,7 +68,7 @@ describe("notification windows & de-dup", () => {
     expect(notificationTargetDate(at("2026-07-15T23:30:00Z"))).toBe("2026-07-17");
   });
   it("only sends with data, in window, and once per type/day", () => {
-    const now = at("2026-01-15T11:00:00Z");
+    const now = at("2026-01-15T11:45:00Z");
     const base = { type: "estimate_ready" as const, now, region: "F", alreadySentKeys: [] as string[] };
     expect(shouldSendNotification({ ...base, hasData: false })).toBe(false);
     expect(shouldSendNotification({ ...base, hasData: true })).toBe(true);

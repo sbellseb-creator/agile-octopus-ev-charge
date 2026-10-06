@@ -19,40 +19,61 @@ export interface WholesaleProvider {
 }
 
 /**
- * Elexon BMRS Market Index Data (free, public API, no key). It is the
- * published GB wholesale reference price by settlement period (APX provider),
- * used here as a proxy for the day-ahead auction result. This is an
- * approximation: verify it tracks the auction closely before relying on it,
- * or swap in another provider implementing WholesaleProvider.
+ * Nord Pool Data Portal: day-ahead auction results (GB/UK delivery area, GBP/MWh).
+ * Public API, no key. It returns HTTP 204 (no content) until the auction result
+ * has been published (around 11:30-11:42 UK time, after the ~11:00 auction
+ * close), in which case fetchDay returns [] and callers show a waiting state.
+ * Override the endpoint/area with NORDPOOL_API_URL / NORDPOOL_DELIVERY_AREA.
  */
-export class ElexonMidProvider implements WholesaleProvider {
-  readonly id = "elexon-mid";
-  readonly label = "Elexon BMRS Market Index (APX)";
+export class NordPoolDayAheadProvider implements WholesaleProvider {
+  readonly id = "nordpool-day-ahead";
+  readonly label = "Nord Pool GB day-ahead auction";
   readonly isMock = false;
 
+  constructor(
+    private readonly baseUrl = Deno.env.get("NORDPOOL_API_URL") ?? "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices",
+    private readonly area = Deno.env.get("NORDPOOL_DELIVERY_AREA") ?? "UK",
+  ) {}
+
   async fetchDay(ukDate: string): Promise<WholesaleSlot[]> {
-    const from = ukMidnightUtc(ukDate);
-    const to = ukMidnightUtc(addDays(ukDate, 1));
-    const url = `https://data.elexon.co.uk/bmrs/api/v1/balancing/pricing/market-index?from=${from.toISOString()}&to=${to.toISOString()}&format=json`;
+    const url = `${this.baseUrl}?${new URLSearchParams({ date: ukDate, market: "DayAhead", deliveryArea: this.area, currency: "GBP" })}`;
     const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`Elexon API error [${res.status}]`);
+    if (res.status === 204 || res.status === 404) return [];
+    if (!res.ok) throw new Error(`Nord Pool API error [${res.status}]`);
     const json = await res.json();
-    const rows: Array<{ startTime: string; dataProvider: string; price: number; volume?: number }> = json?.data ?? [];
-    const byStart = new Map<string, WholesaleSlot>();
-    for (const r of rows) {
-      if (r.dataProvider !== "APXMIDP" || typeof r.price !== "number") continue;
-      const start = new Date(r.startTime);
-      byStart.set(start.toISOString(), {
-        valid_from: start.toISOString(),
-        valid_to: new Date(start.getTime() + 30 * 60_000).toISOString(),
-        pence_per_kwh: poundsPerMwhToPencePerKwh(r.price),
-      });
-    }
-    return [...byStart.values()].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    return parseNordPoolDayAhead(json, this.area, ukDate);
   }
 }
 
-/** PLACEHOLDER: deterministic fake prices for UI testing. Never real data. */
+const SLOT_MS = 30 * 60_000;
+
+/** Convert a Nord Pool DayAheadPrices payload to half-hourly p/kWh slots within the UK delivery day. */
+export function parseNordPoolDayAhead(json: unknown, area: string, ukDate: string): WholesaleSlot[] {
+  const entries = (json as { multiAreaEntries?: Array<{ deliveryStart: string; deliveryEnd: string; entryPerArea?: Record<string, number> }> })?.multiAreaEntries ?? [];
+  const dayStart = ukMidnightUtc(ukDate).getTime();
+  const dayEnd = ukMidnightUtc(addDays(ukDate, 1)).getTime();
+  const acc = new Map<number, { sum: number; n: number }>();
+  for (const e of entries) {
+    const price = e.entryPerArea?.[area];
+    const start = Date.parse(e.deliveryStart);
+    const end = Date.parse(e.deliveryEnd);
+    if (typeof price !== "number" || !Number.isFinite(price) || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    for (let t = Math.floor(start / SLOT_MS) * SLOT_MS; t < end; t += SLOT_MS) {
+      if (t < dayStart || t >= dayEnd) continue;
+      const cur = acc.get(t) ?? { sum: 0, n: 0 };
+      cur.sum += price;
+      cur.n += 1;
+      acc.set(t, cur);
+    }
+  }
+  return [...acc.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => ({
+    valid_from: new Date(t).toISOString(),
+    valid_to: new Date(t + SLOT_MS).toISOString(),
+    pence_per_kwh: poundsPerMwhToPencePerKwh(v.sum / v.n),
+  }));
+}
+
+/** PLACEHOLDER: deterministic fake prices for UI testing only; opt-in via CRYSTAL_PROVIDER=mock, never the default. */
 export class MockProvider implements WholesaleProvider {
   readonly id = "mock";
   readonly label = "MOCK data (placeholder, not real prices)";
@@ -76,7 +97,7 @@ export class MockProvider implements WholesaleProvider {
 }
 
 export function getProvider(id: string | undefined): WholesaleProvider {
-  return id === "mock" ? new MockProvider() : new ElexonMidProvider();
+  return id === "mock" ? new MockProvider() : new NordPoolDayAheadProvider();
 }
 
 export async function estimateAgileDay(

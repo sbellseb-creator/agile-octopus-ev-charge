@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AGILE_REGION } from "@/lib/agile-config";
+import type { PushDiagnostics } from "@/lib/push-status";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
 
@@ -76,8 +77,35 @@ export async function disablePush(): Promise<void> {
   await sub.unsubscribe();
 }
 
+const LAST_TEST_KEY = "push-last-test";
+
+export function loadLastTest(): PushDiagnostics["lastTest"] {
+  try { return JSON.parse(localStorage.getItem(LAST_TEST_KEY) ?? "null"); } catch { return null; }
+}
+
+function recordTest(ok: boolean, message?: string) {
+  try { localStorage.setItem(LAST_TEST_KEY, JSON.stringify({ ok, at: new Date().toISOString(), message })); } catch { /* ignore */ }
+}
+
+export async function getPushDiagnostics(): Promise<PushDiagnostics> {
+  const supported = pushSupported();
+  return {
+    supported,
+    configured: pushConfigured(),
+    permission: supported ? Notification.permission : "unsupported",
+    subscribed: supported ? !!(await getCurrentSubscription().catch(() => null)) : false,
+    lastTest: loadLastTest(),
+  };
+}
+
 export async function sendTestNotification(): Promise<void> {
-  const { data, error } = await supabase.functions.invoke("push-notify", { method: "POST", body: { test: true } });
-  if (error) throw new Error(String((error as { message?: string }).message ?? error));
-  if (!data || data.sent < 1) throw new Error("No notification was delivered. Check your subscription.");
+  try {
+    const { data, error } = await supabase.functions.invoke("push-notify", { method: "POST", body: { test: true } });
+    if (error) throw new Error(String((error as { message?: string }).message ?? error));
+    if (!data || data.sent < 1) throw new Error(data?.error ?? "No notification was delivered. Check your subscription.");
+    recordTest(true);
+  } catch (e) {
+    recordTest(false, e instanceof Error ? e.message : "error");
+    throw e;
+  }
 }

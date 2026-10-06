@@ -182,7 +182,7 @@ export interface NotificationWindow {
 
 export const NOTIFICATION_WINDOWS: Record<NotificationType, NotificationWindow> = {
   // Day-ahead auction closes ~11:00 UK; results publish ~11:30-11:42 UK.
-  estimate_ready: { startMinutes: 11 * 60 + 30, endMinutes: 14 * 60 },
+  estimate_ready: { startMinutes: 11 * 60 + 30, endMinutes: 13 * 60 },
   official_released: { startMinutes: 16 * 60, endMinutes: 19 * 60 },
 };
 

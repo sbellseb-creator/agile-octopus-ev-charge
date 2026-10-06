@@ -4,10 +4,10 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getAuthedUserId, logEvent, serviceClient } from "../_shared/auth.ts";
 import {
   type NotificationType, type PriceSlot, addDays, averagePrice, buildNotificationMessage,
-  notificationKey, notificationTargetDate, parseFormulaOverrides, shouldSendNotification,
+  notificationKey, notificationTargetDate, shouldSendNotification,
   slotsForUkDate, ukDate, ukMidnightUtc,
 } from "../_shared/agile-core.ts";
-import { estimateAgileDay, getProvider } from "../_shared/crystal-provider.ts";
+import { estimateAgileDay, formulaFromEnv, getProvider } from "../_shared/crystal-provider.ts";
 import { fetchOfficialRates } from "../_shared/octopus-official.ts";
 
 const json = (body: unknown, status = 200) =>
@@ -37,11 +37,7 @@ async function loadDay(type: NotificationType, today: string, tomorrow: string) 
   if (type === "official_released") {
     tomorrowSlots = await fetchOfficialRates(tf, tt, REGION);
   } else {
-    const cfg = parseFormulaOverrides({
-      AGILE_MULTIPLIER: Deno.env.get("AGILE_MULTIPLIER"), AGILE_PEAK_ADDER: Deno.env.get("AGILE_PEAK_ADDER"),
-      AGILE_CAP: Deno.env.get("AGILE_CAP"), AGILE_FLOOR: Deno.env.get("AGILE_FLOOR"),
-    });
-    tomorrowSlots = await estimateAgileDay(getProvider(Deno.env.get("CRYSTAL_PROVIDER")), tomorrow, cfg);
+    tomorrowSlots = await estimateAgileDay(getProvider(Deno.env.get("CRYSTAL_PROVIDER"), tomorrow, today), tomorrow, formulaFromEnv());
   }
   tomorrowSlots = slotsForUkDate(tomorrowSlots, tomorrow);
   return { tomorrowSlots, todayAverage: averagePrice(slotsForUkDate(todayOfficial, today)) };
@@ -78,11 +74,13 @@ serve(async (req) => {
     if (body?.test === true) {
       const userId = await getAuthedUserId(req);
       if (!userId) return json({ error: "Unauthorized" }, 401);
-      configureVapid();
+      try { configureVapid(); } catch (e) {
+        return json({ sent: 0, error: e instanceof Error ? e.message : "VAPID not configured" });
+      }
       const { data: subs } = await db.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", userId);
-      if (!subs?.length) return json({ error: "No push subscription on this account" }, 404);
-      const sent = await sendToSubs(subs, { title: "Test notification", body: "Crystal Ball notifications are working.", tag: "crystal-ball-test" });
-      return json({ sent });
+      if (!subs?.length) return json({ sent: 0, error: "No push subscription on this account" });
+      const sent = await sendToSubs(subs, { title: "Test notification", body: "Crystal Ball notifications are working.", tag: "crystal-ball-test", url: "?tab=crystal" });
+      return json(sent > 0 ? { sent } : { sent, error: "The push service rejected the delivery (subscription may be stale; turn off and on again)" });
     }
 
     // Scheduled run: shared secret. Safe to call every few minutes.
@@ -117,7 +115,7 @@ serve(async (req) => {
 
       const { data: subs } = await db.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("region", REGION).eq(PREF_COLUMN[type], true);
       const msg = buildNotificationMessage({ type, tomorrow: day.tomorrowSlots, todayAverage: day.todayAverage });
-      const sent = await sendToSubs(subs ?? [], { ...msg, tag: key, url: "/?tab=crystal" });
+      const sent = await sendToSubs(subs ?? [], { ...msg, tag: key, url: "?tab=crystal" });
       results[type] = `sent:${sent}`;
     }
     return json({ results });

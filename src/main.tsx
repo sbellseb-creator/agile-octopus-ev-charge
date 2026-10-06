@@ -34,7 +34,9 @@ if ("serviceWorker" in navigator) {
     const migrationKey = "ev-cache-migrated-20260818-v3";
     if (window.localStorage.getItem(migrationKey) === "1") return;
     void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
-      await Promise.all(registrations.map((registration) => registration.unregister()));
+      // Keep the push-only worker (push-sw.js); it has no caching.
+      const legacy = registrations.filter((r) => !(r.active?.scriptURL ?? r.waiting?.scriptURL ?? r.installing?.scriptURL ?? "").endsWith("/push-sw.js"));
+      await Promise.all(legacy.map((registration) => registration.unregister()));
       if ("caches" in window) {
         const names = await caches.keys();
         await Promise.all(names.map((name) => caches.delete(name)));

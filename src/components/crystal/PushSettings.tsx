@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
+import { formatInTimeZone } from "date-fns-tz";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
-  disablePush, enablePush, loadPrefs, pushConfigured, pushSupported, sendTestNotification, updatePrefs,
+  disablePush, enablePush, getPushDiagnostics, loadPrefs, pushConfigured, pushSupported, sendTestNotification, updatePrefs,
   type PushPrefs,
 } from "@/lib/push";
+import { pushStatusLine, type PushDiagnostics } from "@/lib/push-status";
 
 export default function PushSettings() {
   const [prefs, setPrefs] = useState<PushPrefs | null>(null);
   const [busy, setBusy] = useState(false);
+  const [diag, setDiag] = useState<PushDiagnostics | null>(null);
   const supported = pushSupported();
+  const refreshDiag = () => { void getPushDiagnostics().then(setDiag); };
+
+  useEffect(refreshDiag, [prefs]);
 
   useEffect(() => {
     if (!supported) return;
@@ -27,6 +33,7 @@ export default function PushSettings() {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
+      refreshDiag();
     }
   };
 
@@ -49,7 +56,10 @@ export default function PushSettings() {
         </p>
       )}
       {supported && !pushConfigured() && (
-        <p className="text-[11px] text-amber-300">Push is not configured yet (VAPID public key missing).</p>
+        <p className="text-[11px] text-amber-300">
+          Push isn't set up yet: this build has no <code>VITE_VAPID_PUBLIC_KEY</code>. Generate keys with <code>npx web-push generate-vapid-keys</code>,
+          add the public key as the <code>VITE_VAPID_PUBLIC_KEY</code> build variable, set the function secrets, then redeploy (see README).
+        </p>
       )}
       {supported && pushConfigured() && (
         <>
@@ -71,8 +81,12 @@ export default function PushSettings() {
               </Button>
             )}
           </div>
+          {diag?.permission === "denied" && (
+            <p className="text-[11px] text-amber-300">Notifications are blocked for this site. Allow them in your browser/OS settings, then try again.</p>
+          )}
         </>
       )}
+      {diag && <p className="text-[10px] text-slate-400" data-testid="push-diagnostics">{pushStatusLine(diag, (iso) => formatInTimeZone(new Date(iso), "Europe/London", "HH:mm"))}</p>}
     </div>
   );
 }

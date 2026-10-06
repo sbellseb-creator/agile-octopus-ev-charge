@@ -120,6 +120,15 @@ export function estimateAgilePrice(pricePerMwh: number, start: Date): number {
   return Math.min(PRICE_CAP_P, Math.max(PRICE_FLOOR_P, incVat));
 }
 
+/** Hour (UK local) at which the target day rolls over to the next calendar day. */
+export const ROLLOVER_HOUR_UK = 16;
+
+/** Target UK date key: today until the UK-time cutoff, then tomorrow. */
+export function targetDayKey(now: Date = new Date()): string {
+  const today = ukDateKey(now);
+  return ukHourMinute(now).hour >= ROLLOVER_HOUR_UK ? addDaysToDateKey(today, 1) : today;
+}
+
 /** Build tomorrow's priced slots from wholesale points. Missing slots get price null. */
 export function buildEstimate(dateKey: string, wholesale: WholesalePoint[]): PricedSlot[] {
   const byStart = new Map<number, number>();

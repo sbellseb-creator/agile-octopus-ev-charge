@@ -24,3 +24,11 @@ describe("vehicleModelLine", () => {
     expect(vehicleModelLine({ make: "Polestar", model: "2", car_type: "" })).toBe("Polestar 2");
   });
 });
+
+describe("vehicleModelLine placeholders", () => {
+  it("never leaks template placeholders", () => {
+    const line = vehicleModelLine(base, { car_type: "modely", trim_badging: "Long Range AWD" });
+    expect(line).toBe("Tesla Model Y Long Range All-Wheel Drive");
+    expect(line).not.toMatch(/[$]\(|[$]\{/);
+  });
+});

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Zap, Car, TrendingDown, CalendarClock, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -167,8 +167,8 @@ export default function Index() {
       
 
       <main className="container py-3 sm:py-4">
-        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 grid-rows-2 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
+        <Tabs value={tab === "planner" ? "charging" : tab} onValueChange={setTab} className="space-y-4">
+          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
             <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <HomeIcon className="h-4 w-4 shrink-0" /> Home
             </TabsTrigger>
@@ -180,9 +180,6 @@ export default function Index() {
             </TabsTrigger>
             <TabsTrigger value="tracker" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Gauge className="h-4 w-4 shrink-0" /> Tracker
-            </TabsTrigger>
-            <TabsTrigger value="planner" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <CalendarClock className="h-4 w-4 shrink-0" /> Planner
             </TabsTrigger>
             <TabsTrigger value="vehicles" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Car className="h-4 w-4 shrink-0" /> Vehicles
@@ -212,6 +209,8 @@ export default function Index() {
 
           {/* ⚡ RESTORED COMPLETELY BUG-FREE CHARGING CONTENT MODULE WITH PROP INJECTORS */}
           <TabsContent value="charging" className="space-y-6">
+            <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
+            <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Log a past session manually</h2>
             <ChargeForm onSessionAdded={handleAddSession} vehicles={vehicles} />
             <ChargeStats sessions={sessions || []} />
             <ChargeTable sessions={sessions || []} onDeleteSession={handleDeleteSession} />
@@ -219,10 +218,6 @@ export default function Index() {
 
           <TabsContent value="tracker" className="space-y-6">
             <TrackerRates />
-          </TabsContent>
-
-          <TabsContent value="planner" className="space-y-6">
-            <ChargePlanner vehicles={vehicles} />
           </TabsContent>
 
           <TabsContent value="vehicles" className="space-y-6">

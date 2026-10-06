@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, Sparkles, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -13,6 +13,7 @@ import ChargeStats from "@/components/ChargeStats";
 import VehicleManager from "@/components/VehicleManager";
 import AgileRates from "@/components/AgileRates";
 import ChargePlanner from "@/components/ChargePlanner";
+import AgileCrystalBall from "@/components/AgileCrystalBall";
 import TrackerRates from "@/components/TrackerRates";
 import WeatherForecast from "@/components/WeatherForecast";
 import FuelComparison from "@/components/FuelComparison";
@@ -192,6 +193,9 @@ export default function Index() {
             <TabsTrigger value="work" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Briefcase className="h-4 w-4 shrink-0" /> Work
             </TabsTrigger>
+            <TabsTrigger value="crystal" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
+              <Sparkles className="h-4 w-4 shrink-0" /> Crystal Ball
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">
@@ -248,6 +252,10 @@ export default function Index() {
               {vehicles && vehicles.length > 0 ? <WorkCosts sessions={sessions || []} vehicles={vehicles} /> : <div className="text-xs text-slate-400 p-4">Loading business profile data...</div>}
               <WorkMileageCard vehicles={vehicles} />
             </div>
+          </TabsContent>
+
+          <TabsContent value="crystal" className="space-y-6">
+            <AgileCrystalBall />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

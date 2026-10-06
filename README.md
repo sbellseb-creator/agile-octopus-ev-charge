@@ -33,3 +33,7 @@ The push service worker (`public/push-sw.js`) registers at `${BASE_URL}push-sw.j
 ### Not included (follow-ups)
 - "Provisional" Charge planner preview using estimated prices (nothing is ever sent to Tesla from estimates).
 - The older static placeholder card `AgileCrystalBall` on the Agile tab still shows hard-coded sample numbers; consider replacing it with real data.
+
+## Agile Crystal Ball
+
+Client-side tab that estimates tomorrow's Octopus Agile rates (region F) from Elexon day-ahead/market-index wholesale prices, and switches to the official Octopus rates once published (~16:00 UK). Formula constants live at the top of `src/lib/agileForecast.ts`. Estimates may differ from official rates.

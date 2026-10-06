@@ -150,6 +150,13 @@ export default function CrystalBallTab() {
                   <XAxis dataKey="t" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={5} />
                   <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} unit="p" />
                   <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 11 }} formatter={(v: number) => [`${v}p/kWh`, hasOfficial ? "Official" : "Estimate"]} />
+                  <Tooltip
+                   contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 11, color: "#ffffff" }}
+                   labelStyle={{ color: "#ffffff", fontWeight: 700 }}
+                  itemStyle={{ color: "#ffffff" }}
+                  cursor={{ fill: "rgba(255,255,255,0.08)" }}
+                   formatter={(v: number) => [`${v}p/kWh`, hasOfficial ? "Official" : "Estimate"]}
+                 />
                   <ReferenceLine y={0} stroke="#64748b" />
                   <Bar dataKey="price" radius={[2, 2, 0, 0]}>
                     {chartData.map((d, i) => <Cell key={i} fill={d.kind === "neg" ? NEG : d.kind === "cheap" ? CHEAP : NORMAL} fillOpacity={hasOfficial ? 1 : 0.7} />)}

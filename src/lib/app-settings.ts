@@ -7,6 +7,7 @@
  * Nothing here changes existing calculations — the planner, sessions and the
  * future optimiser simply read the same numbers from one place.
  */
+import { AGILE_REGION } from "@/lib/agile-config";
 import { supabase } from "@/integrations/supabase/client";
 import { readJSON, writeJSON } from "@/lib/safe-storage";
 
@@ -56,7 +57,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   charging_location: "Home · NE34 0HN",
   home_latitude: 54.971197,
   home_longitude: -1.422019,
-  region: "F",
+  region: AGILE_REGION,
   tariff: "agile",
   petrol_price_ppl: 134.9,
   diesel_price_ppl: 142.9,
@@ -158,7 +159,7 @@ export async function loadSettingsFromCloud(): Promise<AppSettings> {
       charging_location: data.charging_location ?? "Home",
       home_latitude: coord((data as Record<string, unknown>).home_latitude, 90),
       home_longitude: coord((data as Record<string, unknown>).home_longitude, 180),
-      region: data.region ?? "F",
+      region: data.region ?? AGILE_REGION,
       tariff: data.tariff ?? "agile",
       petrol_price_ppl: Number(data.petrol_price_ppl),
       diesel_price_ppl: Number(data.diesel_price_ppl),

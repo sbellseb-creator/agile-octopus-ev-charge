@@ -14,6 +14,7 @@ import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } f
 import PriceList from "@/components/PriceList";
 import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
 import { toast } from "sonner";
+import { AGILE_REGION } from "@/lib/agile-config";
 import AgileCrystalBall from "@/components/AgileCrystalBall";
 
 function rateColor(p: number): string {
@@ -179,7 +180,7 @@ export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSa
     return tomorrow.toISOString();
   }, [now]);
 
-  const [region, setRegion] = useState("F");
+  const [region, setRegion] = useState(AGILE_REGION);
   const [saveNotes, setSaveNotes] = useState("");
   const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
 

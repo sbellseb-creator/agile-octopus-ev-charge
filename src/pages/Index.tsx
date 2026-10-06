@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, LogOut, Home as HomeIcon, Settings as Cog, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -26,13 +26,14 @@ import { loadSettingsFromCloud } from "@/lib/app-settings";
 import { startAutoSync } from "@/lib/cloud-sync";
 import { recalculateHistoricalSessions } from "@/lib/recalc-historical";
 import HomeDashboard from "@/components/HomeDashboard";
+import CrystalBallTab from "@/components/crystal/CrystalBallTab";
 
 export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
   const [sessionsCloudConfirmed, setSessionsCloudConfirmed] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editingSession, setEditingSession] = useState<any>(null);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get("tab") === "crystal" ? "crystal" : "home"));
   const historicalSessionsRecalculated = useRef(false);
   const { signOut } = useAuth();
 
@@ -180,6 +181,9 @@ export default function Index() {
             <TabsTrigger value="charging" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Zap className="h-4 w-4 shrink-0" /> Charge
             </TabsTrigger>
+            <TabsTrigger value="crystal" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
+              <Sparkles className="h-4 w-4 shrink-0" /> Crystal Ball
+            </TabsTrigger>
             <TabsTrigger value="tracker" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
               <Gauge className="h-4 w-4 shrink-0" /> Tracker
             </TabsTrigger>
@@ -224,6 +228,10 @@ export default function Index() {
             <ChargeTable sessions={sessions || []} onDeleteSession={handleDeleteSession}
               onEditSession={(s) => { setEditingSession(s); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             />
+          </TabsContent>
+
+          <TabsContent value="crystal" className="space-y-6">
+            <CrystalBallTab />
           </TabsContent>
 
           <TabsContent value="tracker" className="space-y-6">

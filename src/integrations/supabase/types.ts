@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      notification_log: {
+        Row: { key: string; type: string; region: string; target_date: string; sent_at: string }
+        Insert: { key: string; type: string; region: string; target_date: string; sent_at?: string }
+        Update: { key?: string; type?: string; region?: string; target_date?: string; sent_at?: string }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          region: string
+          notify_estimate: boolean
+          notify_official: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          region?: string
+          notify_estimate?: boolean
+          notify_official?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          region?: string
+          notify_estimate?: boolean
+          notify_official?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       charge_schedules: {
         Row: {
           avg_pence_per_kwh: number

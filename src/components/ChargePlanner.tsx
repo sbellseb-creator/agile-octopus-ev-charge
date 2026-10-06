@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   Zap, Clock, TrendingDown, Activity,
-  CheckCircle2, Loader2, Save, X, Plug,
+  CheckCircle2, Loader2, Save, X, Plug, ChevronDown,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatUK, getUKDayKey, ukClockToIso } from "@/lib/timezone";
 import { buildPlan, clampPercent, expandToMinutes, simulateMinutes, type ChargeParams, type PlanStrategy } from "@/lib/charge-plan";
@@ -71,6 +72,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
   const [pluggedAt, setPluggedAt] = useState<string>(() => toLocalInput(new Date()));
   const [unplugAt, setUnplugAt] = useState("");
   const [notes, setNotes] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [removedWindows, setRemovedWindows] = useState<Set<number>>(new Set());
   const [selectedVehicleId, setSelectedVehicleId] = useState(
     () => (vehicles.find((v) => v.is_default) || vehicles[0])?.id || ""
@@ -205,143 +207,148 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
     onSessionSaved?.();
   };
 
-  const ModeIcon = MODE_INFO[mode].icon;
+  const selectView = (v: "now" | "plan") => {
+    if (v === "now") setMode("immediate");
+    else if (mode === "immediate") setMode("target_time");
+  };
   const minuteCount = estimates?.windows.reduce((n, w) => n + Math.round(w.minutes), 0) ?? 0;
 
   return (
     <div className="space-y-4">
-      {/* Session bar */}
+      {/* One focused card: pick Charge now or Plan, set the essentials, advanced is tucked away. */}
       <Card className="neon-border">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Plug className="h-5 w-5 text-primary" /> Plug-in session
+            <Plug className="h-5 w-5 text-primary" /> Charge
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Set when you plugged in and (optionally) when you'll unplug — to the minute.
-          </p>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            {(["now", "plan"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => selectView(v)}
+                className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all ${
+                  (v === "now") === (mode === "immediate")
+                    ? "border-primary bg-primary/10 text-primary neon-border"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {v === "now" ? <Zap className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                {v === "now" ? "Charge now" : "Plan charge"}
+              </button>
+            ))}
+          </div>
+          <p className="pt-1 text-sm text-muted-foreground">{MODE_INFO[mode].desc}</p>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Plugged in at</Label>
-            <div className="flex gap-2">
-              <Input type="datetime-local" value={pluggedAt} onChange={(e) => setPluggedAt(e.target.value)} />
-              <Button type="button" variant="outline" onClick={() => setPluggedAt(toLocalInput(new Date()))}>
-                Now
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Unplug at (optional)</Label>
-            <div className="flex gap-2">
-              <Input type="datetime-local" value={unplugAt} onChange={(e) => setUnplugAt(e.target.value)} />
-              {unplugAt && (
-                <Button type="button" variant="outline" onClick={() => setUnplugAt("")}>
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Tesla</Label>
-            <p className="text-sm text-muted-foreground">
-              Planning works without a Tesla connection. Use Review below to connect and send the plan to the car.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Strategy selector */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        {(Object.keys(MODE_INFO) as ChargeMode[]).map((m) => {
-          const Icon = MODE_INFO[m].icon;
-          const active = mode === m;
-          return (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-all ${
-                active
-                  ? "border-primary bg-primary/10 text-primary neon-border"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/40"
-              }`}
-            >
-              <Icon className="h-6 w-6" />
-              <span className="text-sm font-medium">{CHARGE_MODE_LABELS[m]}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Config */}
-      <Card className="neon-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ModeIcon className="h-5 w-5 text-primary" />
-            {CHARGE_MODE_LABELS[mode]} Settings
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">{MODE_INFO[mode].desc}</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {vehicles.length > 0 && (
-              <div className="space-y-2">
-                <Label>Vehicle</Label>
-                <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {vehicles.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{vehicleModelLine(v)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Start SoC %</Label>
               <Input type="number" min={0} max={100} value={startSoc} onChange={(e) => setStartSoc(e.target.value)} />
             </div>
-
             <div className="space-y-2">
               <Label>Target SoC %</Label>
               <Input type="number" min={0} max={100} value={endSoc} onChange={(e) => setEndSoc(e.target.value)} />
             </div>
-
             {mode === "target_time" && (
               <div className="space-y-2">
                 <Label>Ready By</Label>
                 <Input type="time" value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
               </div>
             )}
-
             {mode === "realtime" && (
               <div className="space-y-2">
                 <Label>Price Threshold (p/kWh)</Label>
                 <Input type="number" step="0.5" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label>Charger kW</Label>
-              <Input type="number" step="0.1" min={0.1} value={chargerKw} onChange={(e) => setChargerKw(e.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Efficiency %</Label>
-              <Input type="number" min={1} max={100} value={efficiencyPct} onChange={(e) => setEfficiencyPct(e.target.value)} />
-            </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-6 text-sm text-muted-foreground">
-            <label className="flex items-center gap-2">
-              <Checkbox checked={taper} onCheckedChange={(v) => setTaper(v === true)} />
-              Slow down above 80% SoC
-            </label>
-            <label className="flex items-center gap-2">
-              <Checkbox checked={extendNegative} onCheckedChange={(v) => setExtendNegative(v === true)} />
-              Keep charging past target while prices are negative
-            </label>
-          </div>
+          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="gap-1 px-0 text-muted-foreground">
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+                Advanced
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-3">
+              {mode !== "immediate" && (
+                <div className="space-y-2">
+                  <Label>Strategy</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(["target_time", "agile_cheapest", "realtime"] as ChargeMode[]).map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        size="sm"
+                        variant={mode === m ? "default" : "outline"}
+                        onClick={() => setMode(m)}
+                      >
+                        {CHARGE_MODE_LABELS[m]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {vehicles.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Vehicle</Label>
+                    <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {vehicles.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{vehicleModelLine(v)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Plugged in at</Label>
+                  <div className="flex gap-2">
+                    <Input type="datetime-local" value={pluggedAt} onChange={(e) => setPluggedAt(e.target.value)} />
+                    <Button type="button" variant="outline" onClick={() => setPluggedAt(toLocalInput(new Date()))}>
+                      Now
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Unplug at (optional)</Label>
+                  <div className="flex gap-2">
+                    <Input type="datetime-local" value={unplugAt} onChange={(e) => setUnplugAt(e.target.value)} />
+                    {unplugAt && (
+                      <Button type="button" variant="outline" onClick={() => setUnplugAt("")}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Charger kW</Label>
+                  <Input type="number" step="0.1" min={0.1} value={chargerKw} onChange={(e) => setChargerKw(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Efficiency %</Label>
+                  <Input type="number" min={1} max={100} value={efficiencyPct} onChange={(e) => setEfficiencyPct(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
+                <label className="flex items-center gap-2">
+                  <Checkbox checked={taper} onCheckedChange={(v) => setTaper(v === true)} />
+                  Slow down above 80% SoC
+                </label>
+                <label className="flex items-center gap-2">
+                  <Checkbox checked={extendNegative} onCheckedChange={(v) => setExtendNegative(v === true)} />
+                  Keep charging past target while prices are negative
+                </label>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 
@@ -448,10 +455,6 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-            </div>
             <Button onClick={handleSave} className="w-full gap-2">
               <Save className="h-4 w-4" /> Save as Charge Session
             </Button>
@@ -469,6 +472,7 @@ export default function ChargePlanner({ vehicles, onSessionSaved }: Props) {
           estimatedCostGbp={estimates.costGbp}
           avgPencePerKwh={estimates.avgPence}
           targetSoc={params.endSoc || 80}
+          compact
         />
       )}
     </div>

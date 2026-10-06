@@ -48,6 +48,8 @@ interface Props {
   avgPencePerKwh: number;
   /** Planner target SoC — offered as an optional charge limit. */
   targetSoc: number;
+  /** Hide vehicle/charging/cost groups already shown in the parent's summary. */
+  compact?: boolean;
   /** Optional live Tesla snapshot for a richer vehicle line. Never fetched here. */
   live?: { car_type?: string | null; trim_badging?: string | null; exterior_color?: string | null } | null;
 }
@@ -68,6 +70,7 @@ const Pair = ({ label, value, strong }: { label: string; value: React.ReactNode;
 );
 
 export default function ScheduleReviewCard({
+  compact = false,
   vehicle,
   startIso,
   endIso,
@@ -224,13 +227,13 @@ export default function ScheduleReviewCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Group title="Vehicle">
+        {!compact && <Group title="Vehicle">
           <p className="break-all font-mono text-lg font-bold uppercase tracking-wider">
             {formatRegistration(vehicle.registration) || vehicle.name || "Vehicle"}
           </p>
           <p className="break-words text-xs text-muted-foreground">{vehicleModelLine(vehicle, live)}</p>
           {colour && <p className="text-xs text-muted-foreground">{colour}</p>}
-        </Group>
+        </Group>}
 
         <Group title="Schedule">
           <div className="grid grid-cols-2 gap-3">
@@ -242,21 +245,21 @@ export default function ScheduleReviewCard({
           <p className="mt-2 text-[10px] text-muted-foreground">All times are UK time, wherever you are.</p>
         </Group>
 
-        <Group title="Charging">
+        {!compact && <Group title="Charging">
           <div className="grid grid-cols-2 gap-3">
             <Pair label="Charge limit" value={`${targetSoc}%`} />
             <Pair label="Charger" value={`${settings.charger_amps} A · ${settings.charger_kw} kW`} />
           </div>
-        </Group>
+        </Group>}
 
-        <Group title="Cost estimate">
+        {!compact && <Group title="Cost estimate">
           <div className="grid grid-cols-2 gap-3">
             <Pair label="Estimated cost" value={`£${estimatedCostGbp.toFixed(2)}`} strong />
             <Pair label="Energy" value={`${estimatedKwh.toFixed(1)} kWh`} />
             <Pair label="Average price" value={`${avgPencePerKwh.toFixed(2)}p/kWh`} />
             {plan?.tesla_schedule_id ? <Pair label="Tesla schedule" value={`#${plan.tesla_schedule_id}`} /> : <Pair label="On the car" value="Not sent yet" />}
           </div>
-        </Group>
+        </Group>}
 
         <p className="flex items-start gap-1.5 rounded-lg border border-border bg-background/60 p-2 text-[11px] text-muted-foreground">
           <Lock className="mt-0.5 h-3 w-3 shrink-0" />

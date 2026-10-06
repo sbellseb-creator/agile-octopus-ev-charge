@@ -18,13 +18,13 @@ export default function AgileCrystalBall() {
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
   const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
 
-  const wholesale = useQuery({ queryKey: ["acb-wholesale", dateKey], queryFn: () => fetchWholesale(fromIso, toIso), ...opts });
+  const wholesale = useQuery({ queryKey: ["acb-wholesale", dateKey], queryFn: () => fetchWholesale(dateKey, fromIso, toIso), ...opts });
   const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
 
   const { slots, source } = useMemo(() => {
     const off = buildOfficial(dateKey, official.data ?? []);
     if (hasFullData(off)) return { slots: off, source: "official" as const };
-    const est = buildEstimate(dateKey, wholesale.data ?? []);
+    const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
     if (est.some((s) => s.price !== null)) return { slots: est, source: "estimate" as const };
     return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
   }, [dateKey, official.data, wholesale.data]);
@@ -55,6 +55,13 @@ export default function AgileCrystalBall() {
               Auction results for tomorrow are not available yet. Day-ahead results are typically published around
               midday UK time and official Octopus rates at about 16:00 – check back then.
             </p>
+          )}
+          {!loading && source === "none" && (
+            <ul className="text-xs text-muted-foreground list-disc pl-4">
+              {(wholesale.data?.attempts ?? []).map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
+              {wholesale.isError && <li>Wholesale lookup failed: {String((wholesale.error as Error)?.message ?? "unknown error")}</li>}
+              <li>Official Octopus rates: {official.isError ? `request failed: ${String((official.error as Error)?.message ?? "unknown")}` : "not published yet"}</li>
+            </ul>
           )}
           {source !== "none" && (
             <div className="flex flex-wrap gap-2 text-xs">

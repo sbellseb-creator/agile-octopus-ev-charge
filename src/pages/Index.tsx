@@ -31,6 +31,7 @@ export default function Index() {
   const [sessions, setSessions] = useState(loadSessions);
   const [sessionsCloudConfirmed, setSessionsCloudConfirmed] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [editingSession, setEditingSession] = useState<any>(null);
   const [tab, setTab] = useState("home");
   const historicalSessionsRecalculated = useRef(false);
   const { signOut } = useAuth();
@@ -108,6 +109,7 @@ export default function Index() {
     try {
       if (!id) return;
       const updated = deleteSession(id);
+      setEditingSession((cur: any) => (cur?.id === id ? null : cur));
       if (Array.isArray(updated)) setSessions(updated);
     } catch (e) {
       console.error("Session drop error handled silently:", e);
@@ -211,9 +213,17 @@ export default function Index() {
           <TabsContent value="charging" className="space-y-6">
             <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
             <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Log a past session manually</h2>
-            <ChargeForm onSessionAdded={handleAddSession} vehicles={vehicles} />
+            <ChargeForm
+              onSessionAdded={handleAddSession}
+              onSessionUpdated={(id, updates) => { handleUpdateSession(id, updates); setEditingSession(null); }}
+              onCancelEdit={() => setEditingSession(null)}
+              editingSession={editingSession}
+              vehicles={vehicles}
+            />
             <ChargeStats sessions={sessions || []} />
-            <ChargeTable sessions={sessions || []} onDeleteSession={handleDeleteSession} />
+            <ChargeTable sessions={sessions || []} onDeleteSession={handleDeleteSession}
+              onEditSession={(s) => { setEditingSession(s); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            />
           </TabsContent>
 
           <TabsContent value="tracker" className="space-y-6">

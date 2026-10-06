@@ -1,15 +1,16 @@
 import React, { useMemo } from "react";
 import { formatUK } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
-import { Trash2, Calendar } from "lucide-react";
+import { Trash2, Calendar, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ChargeTableProps {
   sessions: any[];
   onDeleteSession?: (id: string) => void;
+  onEditSession?: (session: any) => void;
 }
 
-export default function ChargeTable({ sessions = [], onDeleteSession }: ChargeTableProps) {
+export default function ChargeTable({ sessions = [], onDeleteSession, onEditSession }: ChargeTableProps) {
   const safeSessions = useMemo(() => {
     if (!Array.isArray(sessions)) return [];
     return [...sessions]
@@ -58,10 +59,22 @@ export default function ChargeTable({ sessions = [], onDeleteSession }: ChargeTa
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-extrabold text-emerald-400">£{displayCost}</span>
+                  {onEditSession && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Edit session"
+                      className="h-7 w-7 text-slate-500 hover:text-amber-400"
+                      onClick={() => onEditSession(session)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   {onDeleteSession && (
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Delete session"
                       className="h-7 w-7 text-slate-500 hover:text-rose-400"
                       onClick={() => onDeleteSession(session.id)}
                     >

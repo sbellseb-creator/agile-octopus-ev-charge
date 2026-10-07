@@ -1,37 +1,49 @@
 /**
  * Agile Crystal Ball – pure forecasting helpers (no I/O, no React).
  *
- * DATA SOURCES (both public, keyless and CORS-enabled; fetched client-side):
- *  - Wholesale: Elexon Insights API "MID" (Market Index Data), £/MWh per
- *    half-hour settlement period, provider APXMIDP (EPEX SPOT GB).
- *    https://data.elexon.co.uk/bmrs/api/v1/datasets/MID
+ * DATA SOURCES (public, keyless, CORS-enabled; fetched client-side):
+ *  - Wholesale: Nord Pool day-ahead (GBP/MWh, one request for the whole day), Elexon MID as fallback.
  *  - Official: Octopus public API, Agile product for region F (North East).
  *
- * FORMULA (Agile, ex VAT then VAT then cap; NO flat -3.5p deduction):
- *   W = wholesale £/MWh / 10                      (p/kWh)
- *   P = PEAK_ADDER_P for 16:00-19:00 Europe/London, else 0
- *   price = min((W * D) + P) * 1.05, cap)         (cap applied inc VAT)
- *   D = regional multiplier (REGION_MULTIPLIERS[region])
- * All tunable constants live in this block. They could not be calibrated against live
- * official rates in the build sandbox (no network) - adjust here if the Agile tab differs.
+ * WORKING FORMULA (see AGILE_ESTIMATE_CONFIG; constants are NOT confirmed):
+ *   W = wholesale GBP/MWh / 10                              (p/kWh)
+ *   P = peakAdderP for 16:00-19:00 Europe/London, else 0
+ *   price = min(W * D + P, capP) * vat + offsetP            (offset applied after VAT)
+ *   D = regional multiplier (regionMultipliers[region])
+ * Calibrate the values per region against the official Agile rates (Agile tab) and keep only what matches.
+ * They could not be calibrated in the build sandbox (no network access).
  */
 
-// ---- Tunable constants -----------------------------------------------------
+/** Single, documented home for every tunable estimate constant. Working values, not confirmed. */
+export const AGILE_ESTIMATE_CONFIG = {
+  /** Default multiplier D when a region has no entry (typical range 2.0-2.4). */
+  defaultMultiplier: 2.2,
+  /** Regional multiplier D per Agile region code. Calibrate each against official rates. */
+  regionMultipliers: {
+    A: 2.2, B: 2.2, C: 2.2, D: 2.2, E: 2.2, F: 2.2, G: 2.2, H: 2.2, J: 2.2, K: 2.2, L: 2.2, M: 2.2, N: 2.2, P: 2.2,
+  } as Record<string, number>,
+  /** p/kWh (pre-VAT) added only for 16:00-19:00 Europe/London (start inclusive, end exclusive). */
+  peakAdderP: 12,
+  /** Cap in p/kWh applied to (W * D + P), before VAT. */
+  capP: 95,
+  /** VAT multiplier (5%). */
+  vat: 1.05,
+  /** Flat p/kWh offset applied AFTER VAT. */
+  offsetP: -3.5,
+} as const;
+
+// ---- Other constants -------------------------------------------------------
 export const AGILE_REGION_CODE = "F"; // North East England
 export const UK_TZ = "Europe/London";
-export const WHOLESALE_TO_P_PER_KWH = 1 / 10; // £/MWh -> p/kWh
+export const WHOLESALE_TO_P_PER_KWH = 1 / 10; // GBP/MWh -> p/kWh
 export const PEAK_START_HOUR = 16; // peak window start, UK local (inclusive)
 export const PEAK_END_HOUR = 19; // peak window end, UK local (exclusive)
-export const DEFAULT_MULTIPLIER = 2.2;
-/** Regional multiplier D per Agile region code (current Agile product uses 2.2 for all regions). */
-export const REGION_MULTIPLIERS: Record<string, number> = {
-  A: 2.2, B: 2.2, C: 2.2, D: 2.2, E: 2.2, F: 2.2, G: 2.2, H: 2.2, J: 2.2, K: 2.2, L: 2.2, M: 2.2, N: 2.2, P: 2.2,
-};
-export const PEAK_ADDER_P = 12; // p/kWh ex VAT added in the peak window
-export const OFF_PEAK_ADDER_P = 0; // p/kWh ex VAT added outside the peak window
-export const VAT_MULTIPLIER = 1.05;
-export const PRICE_CAP_P = 100; // p/kWh inc VAT
-export const PRICE_FLOOR_P = -100; // sanity floor only; Agile can go negative
+export const DEFAULT_MULTIPLIER = AGILE_ESTIMATE_CONFIG.defaultMultiplier;
+export const REGION_MULTIPLIERS = AGILE_ESTIMATE_CONFIG.regionMultipliers;
+export const PEAK_ADDER_P = AGILE_ESTIMATE_CONFIG.peakAdderP;
+export const VAT_MULTIPLIER = AGILE_ESTIMATE_CONFIG.vat;
+export const PRICE_CAP_P = AGILE_ESTIMATE_CONFIG.capP;
+export const PRICE_OFFSET_P = AGILE_ESTIMATE_CONFIG.offsetP;
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 export const CACHE_PREFIX = "acb-slots-v1";
 export const SLOT_MS = 30 * 60 * 1000;
@@ -124,9 +136,9 @@ export function mwhToPencePerKwh(pricePerMwh: number): number {
 export function estimateAgilePrice(pricePerMwh: number, start: Date, region: string = AGILE_REGION_CODE): number {
   const wholesale = mwhToPencePerKwh(pricePerMwh);
   const d = REGION_MULTIPLIERS[region] ?? DEFAULT_MULTIPLIER;
-  const adder = isPeak(start) ? PEAK_ADDER_P : OFF_PEAK_ADDER_P;
-  const incVat = (wholesale * d + adder) * VAT_MULTIPLIER;
-  return Math.min(PRICE_CAP_P, Math.max(PRICE_FLOOR_P, incVat));
+  const adder = isPeak(start) ? PEAK_ADDER_P : 0;
+  const capped = Math.min(wholesale * d + adder, PRICE_CAP_P);
+  return capped * VAT_MULTIPLIER + PRICE_OFFSET_P;
 }
 
 /** Hour (UK local) at which the target day rolls over to the next calendar day. */
@@ -140,6 +152,18 @@ export function targetDayKey(now: Date = new Date()): string {
 
 /** Build tomorrow's priced slots from wholesale points. Missing slots get price null. */
 export function buildEstimate(dateKey: string, wholesale: WholesalePoint[]): PricedSlot[] {
+  const memoKey = `${dateKey}|${wholesale?.length ?? 0}|${wholesale?.[0]?.start}|${wholesale?.[0]?.pricePerMwh}|${wholesale?.[wholesale.length - 1]?.start}|${wholesale?.[wholesale.length - 1]?.pricePerMwh}`;
+  const hit = estimateMemo.get(memoKey);
+  if (hit) return hit;
+  const result = computeEstimate(dateKey, wholesale);
+  if (estimateMemo.size >= 16) estimateMemo.clear();
+  estimateMemo.set(memoKey, result);
+  return result;
+}
+
+const estimateMemo = new Map<string, PricedSlot[]>();
+
+function computeEstimate(dateKey: string, wholesale: WholesalePoint[]): PricedSlot[] {
   const byStart = new Map<number, number>();
   for (const w of wholesale ?? []) {
     const t = new Date(w.start).getTime();

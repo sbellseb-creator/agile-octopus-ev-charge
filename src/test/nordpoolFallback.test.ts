@@ -54,7 +54,7 @@ describe("Nord Pool parsing", () => {
 describe("fallback chain", () => {
   const date = "2026-01-15";
   const np = parseNordPoolPayload(payload(date));
-  const midPoints = np.slice(0, 10).map((p) => ({ ...p, pricePerMwh: 100 }));
+  const midPoints = np.map((p) => ({ ...p, pricePerMwh: 100 }));
   const cached: PricedSlot[] = buildEstimate(date, np.map((p) => ({ ...p, pricePerMwh: 50 })));
 
   it("prefers Nord Pool, then cache, then MID, then empty", () => {

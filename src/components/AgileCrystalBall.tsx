@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
 import {
   buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
-  targetDayKey, ukMidnightUtc, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
 } from "@/lib/agileForecast";
 
 const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
@@ -24,15 +24,21 @@ export default function AgileCrystalBall() {
   const { slots, source } = useMemo(() => {
     const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
     if (est.some((s) => s.price !== null)) return { slots: est, source: "estimate" as const };
+    const cached = wholesale.data ? null : loadCachedSlots(dateKey);
+    if (cached) return { slots: cached, source: "estimate" as const };
     const off = buildOfficial(dateKey, official.data ?? []);
     if (hasFullData(off)) return { slots: off, source: "official" as const };
     return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
   }, [dateKey, official.data, wholesale.data]);
 
+  useEffect(() => {
+    if (source === "estimate" && wholesale.data?.points.length) saveCachedSlots(dateKey, slots);
+  }, [source, slots, dateKey, wholesale.data]);
+
   const cheapest = cheapestSlot(slots);
   const window = cheapestWindow(slots, CHEAP_WINDOW_SLOTS);
   const inWindow = (i: number) => !!window && i >= window.startIndex && i < window.startIndex + window.length;
-  const loading = wholesale.isLoading && official.isLoading;
+  const loading = wholesale.isLoading && official.isLoading && source === "none";
   const bothFailed = wholesale.isError && official.isError;
   const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
 

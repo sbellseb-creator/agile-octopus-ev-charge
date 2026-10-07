@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   mwhToPencePerKwh, estimateAgilePrice, isPeak, generateDaySlots, buildEstimate,
-  cheapestWindow, cheapestSlot, REGION_MULTIPLIERS, PEAK_ADDER_P, VAT_MULTIPLIER, AGILE_ESTIMATE_CONFIG, loadCachedSlots, saveCachedSlots,
+  cheapestWindow, cheapestSlot, REGION_MULTIPLIERS, PEAK_ADDER_P, VAT_MULTIPLIER, AGILE_ESTIMATE_CONFIG, loadCachedSlots, saveCachedSlots, loadStaleCachedSlots, loadLatestCachedDay,
 } from "@/lib/agileForecast";
 
 describe("agileForecast", () => {
@@ -64,6 +64,22 @@ describe("agileForecast", () => {
     saveCachedSlots("2026-01-15", slots, "F", 1000);
     expect(loadCachedSlots("2026-01-15", "F", 2000)).toHaveLength(48);
     expect(loadCachedSlots("2026-01-15", "F", 1000 + 7 * 3600 * 1000)).toBeNull();
+    delete (globalThis as any).localStorage;
+  });
+
+  it("serves expired cache via the stale loader and finds the latest cached day", () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; },
+      get length() { return Object.keys(store).length; }, key: (i: number) => Object.keys(store)[i] ?? null,
+    };
+    const full = (d: string) => generateDaySlots(d).map((s) => ({ ...s, price: 10, isNegative: false }));
+    saveCachedSlots("2026-01-14", full("2026-01-14"), "F", 1000);
+    saveCachedSlots("2026-01-15", full("2026-01-15"), "F", 1000);
+    expect(loadCachedSlots("2026-01-15", "F", 1000 + 7 * 3600 * 1000)).toBeNull();
+    expect(loadStaleCachedSlots("2026-01-15")).toHaveLength(48);
+    expect(loadLatestCachedDay()?.dateKey).toBe("2026-01-15");
+    expect(loadStaleCachedSlots("2026-01-16")).toBeNull();
     delete (globalThis as any).localStorage;
   });
 

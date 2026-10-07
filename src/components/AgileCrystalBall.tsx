@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
 import {
   buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
-  tomorrowKey, ukDateKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  tomorrowKey, ukDateKey, ukMidnightUtc, loadCachedSlots, loadStaleCachedSlots, loadLatestCachedDay, saveCachedSlots, cacheKey, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
   isPastPublishTime, RETRY_INTERVAL_MS, BAND_COLOURS, BAND_LABELS, dayThresholds, priceBand, type PriceBand,
 } from "@/lib/agileForecast";
 
@@ -18,6 +18,12 @@ interface DayData {
   source: "estimate" | "official" | "none";
   wholesale: ReturnType<typeof useWholesale>;
   official: ReturnType<typeof useOfficial>;
+  /** Date the slots actually belong to (differs from the requested date only for the "latest cached day" fallback). */
+  dataDateKey: string;
+  /** localStorage key the slots were read from, when they came from cache. */
+  usedCacheKey: string | null;
+  /** True when slots came from cache because the live fetch did not deliver a full day. */
+  fromCache: boolean;
 }
 
 function useWholesale(dateKey: string, enabled: boolean) {
@@ -48,21 +54,34 @@ function useOfficial(dateKey: string, enabled: boolean) {
 function useDayData(dateKey: string, enabled: boolean): DayData {
   const wholesale = useWholesale(dateKey, enabled);
   const official = useOfficial(dateKey, enabled);
-  const { slots, source } = useMemo(() => {
+  const { slots, source, dataDateKey, usedCacheKey, fromCache } = useMemo(() => {
+    const live = (slots: PricedSlot[], source: "estimate" | "official") =>
+      ({ slots, source, dataDateKey: dateKey, usedCacheKey: null as string | null, fromCache: false });
+    const cached = (slots: PricedSlot[], from: string) =>
+      ({ slots, source: "estimate" as const, dataDateKey: from, usedCacheKey: cacheKey(from), fromCache: true });
     const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
-    if (hasFullData(est)) return { slots: est, source: "estimate" as const };
-    const cached = loadCachedSlots(dateKey);
-    if (cached && hasFullData(cached)) return { slots: cached, source: "estimate" as const };
+    if (hasFullData(est)) return live(est, "estimate");
+    const fresh = loadCachedSlots(dateKey);
+    if (fresh && hasFullData(fresh)) return cached(fresh, dateKey);
     const off = buildOfficial(dateKey, official.data ?? []);
-    if (hasFullData(off)) return { slots: off, source: "official" as const };
-    return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
+    if (hasFullData(off)) return live(off, "official");
+    // Live sources failed: any cached copy (even past its TTL) beats a blank chart.
+    const stale = loadStaleCachedSlots(dateKey);
+    if (stale && hasFullData(stale)) return cached(stale, dateKey);
+    const latest = loadLatestCachedDay();
+    if (latest) return cached(latest.slots, latest.dateKey);
+    return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const, dataDateKey: dateKey, usedCacheKey: null as string | null, fromCache: false };
   }, [dateKey, official.data, wholesale.data]);
 
   useEffect(() => {
-    if (source === "estimate" && wholesale.data && hasFullData(slots)) saveCachedSlots(dateKey, slots);
-  }, [source, slots, dateKey, wholesale.data]);
+    if (source === "estimate" && !fromCache && wholesale.data && hasFullData(slots)) saveCachedSlots(dateKey, slots);
+  }, [source, fromCache, slots, dateKey, wholesale.data]);
 
-  return { slots, source, wholesale, official };
+  useEffect(() => {
+    console.info(`[CrystalBall] ${dateKey}: source=${source}${usedCacheKey ? `, cache key used=${usedCacheKey}` : `, cache key (write)=${cacheKey(dateKey)}`}`);
+  }, [dateKey, source, usedCacheKey]);
+
+  return { slots, source, wholesale, official, dataDateKey, usedCacheKey, fromCache };
 }
 
 export default function AgileCrystalBall() {
@@ -84,8 +103,9 @@ export default function AgileCrystalBall() {
   const shown = selectedKey === nextKey ? tomorrow : selectedKey === todayKey ? today : null;
   // Tomorrow not available (or selected date no longer today/tomorrow): keep showing the last successful day.
   const active: DayData = shown && shown.source !== "none" ? shown : today.source !== "none" ? today : shown ?? today;
-  const dateKey = active === tomorrow ? nextKey : todayKey;
-  const { slots, source, wholesale, official } = active;
+  const requestedKey = active === tomorrow ? nextKey : todayKey;
+  const { slots, source, wholesale, official, dataDateKey, usedCacheKey, fromCache } = active;
+  const dateKey = fromCache ? dataDateKey : requestedKey;
   const showingFallback = selectedKey === nextKey && active !== tomorrow;
 
   const cheapest = cheapestSlot(slots);
@@ -121,6 +141,12 @@ export default function AgileCrystalBall() {
           {source === "estimate" && <Badge className="bg-amber-500/20 text-amber-300">Estimated from Wholesale Auctions</Badge>}
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
+          {fromCache && !wholesale.isLoading && (
+            <p className="text-xs text-amber-300/80">
+              Showing cached prices for {dataDateKey}{dataDateKey !== requestedKey ? ` (latest available; ${requestedKey} could not be loaded)` : ""} – live refresh failed, retrying in the background.
+              <span className="ml-1 text-muted-foreground">Cache key: {usedCacheKey}</span>
+            </p>
+          )}
           {showingFallback && (
             <p className="text-xs text-muted-foreground">
               Tomorrow's prices are published around 11:00 UK time. Showing today's prices; checking quietly in the background.

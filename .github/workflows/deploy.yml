@@ -4,9 +4,6 @@ on:
   push:
     branches: ['main']
   workflow_dispatch:
-  schedule:
-    # Refresh the static Nord Pool snapshot around the ~11:00 UK auction publication and daily.
-    - cron: '15 0,10,11,12,13 * * *'
 
 permissions:
   contents: read
@@ -36,10 +33,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Snapshot Nord Pool day-ahead prices (CORS-free fallback for Crystal Ball)
-        continue-on-error: true
-        run: node scripts/fetch-nordpool.mjs
 
       - name: Build
         run: npm run build

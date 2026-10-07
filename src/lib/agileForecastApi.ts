@@ -2,8 +2,9 @@
  * Browser-side fetchers for Agile Crystal Ball. Public, keyless, CORS-enabled APIs only.
  */
 import type { WholesalePoint } from "@/lib/agileForecast";
-import { AGILE_REGION_CODE, addDaysToDateKey } from "@/lib/agileForecast";
+import { AGILE_REGION_CODE } from "@/lib/agileForecast";
 
+const ELEXON_MID = "https://data.elexon.co.uk/bmrs/api/v1/datasets/MID";
 const OCTOPUS = "https://api.octopus.energy/v1";
 
 async function getJson(url: string): Promise<any> {
@@ -21,7 +22,8 @@ export interface SourceAttempt {
   detail: string;
 }
 
-async function fetchNordPoolDate(dateKey: string): Promise<WholesalePoint[]> {
+/** Day-ahead auction prices (N2EX GB via Nord Pool), £/MWh, expanded to half-hour points. */
+export async function fetchDayAheadNordPool(dateKey: string): Promise<WholesalePoint[]> {
   const qs = new URLSearchParams({ date: dateKey, market: "DayAhead", deliveryArea: "UK", currency: "GBP" });
   const json = await getJson(`${NORDPOOL_DA}?${qs}`);
   const entries: any[] = Array.isArray(json?.multiAreaEntries) ? json.multiAreaEntries : [];
@@ -36,52 +38,41 @@ async function fetchNordPoolDate(dateKey: string): Promise<WholesalePoint[]> {
   return out;
 }
 
-/**
- * Day-ahead auction prices (N2EX GB via Nord Pool), £/MWh, expanded to half-hour points.
- * Nord Pool delivery days run on CET, so the final UK hour of a UK day sits in the following
- * delivery day: both are requested in parallel (two requests for the whole day, never per slot).
- */
-export async function fetchDayAheadNordPool(dateKey: string): Promise<WholesalePoint[]> {
-  const [main, next] = await Promise.all([
-    fetchNordPoolDate(dateKey),
-    fetchNordPoolDate(addDaysToDateKey(dateKey, 1)).catch(() => [] as WholesalePoint[]),
-  ]);
-  return [...main, ...next];
+/** Elexon MID (EPEX GB index). Only published for periods that have already happened, so a fallback. */
+export async function fetchElexonMid(fromIso: string, toIso: string): Promise<WholesalePoint[]> {
+  const qs = new URLSearchParams({ from: fromIso, to: toIso, format: "json" });
+  const json = await getJson(`${ELEXON_MID}?${qs}`);
+  const rows: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+  const apx = rows.filter((r) => r?.dataProvider === "APXMIDP");
+  return (apx.length > 0 ? apx : rows)
+    .filter((r) => r && typeof r.startTime === "string" && typeof r.price === "number")
+    .map((r) => ({ start: new Date(r.startTime).toISOString(), pricePerMwh: r.price as number }));
 }
 
-/**
- * Whole-day wholesale prices in one pass. Only the day-ahead auction is used: it publishes the full
- * day at once, whereas Elexon MID only exists for periods already elapsed and would make the chart
- * fill in slot by slot. Never throws.
- */
-export async function fetchWholesale(dateKey: string): Promise<{ points: WholesalePoint[]; attempts: SourceAttempt[] }> {
+/** Tries day-ahead sources in order; never throws. Returns points plus per-source diagnostics. */
+export async function fetchWholesale(
+  dateKey: string,
+  fromIso: string,
+  toIso: string,
+): Promise<{ points: WholesalePoint[]; attempts: SourceAttempt[] }> {
+  const sources: [string, () => Promise<WholesalePoint[]>][] = [
+    ["Nord Pool N2EX day-ahead", () => fetchDayAheadNordPool(dateKey)],
+    ["Elexon market index (MID)", () => fetchElexonMid(fromIso, toIso)],
+  ];
   const attempts: SourceAttempt[] = [];
-  try {
-    const points = await fetchDayAheadNordPool(dateKey);
-    attempts.push({
-      source: "Nord Pool N2EX day-ahead", ok: true, points: points.length,
-      detail: points.length ? "data returned" : "responded but no prices published for this date yet",
-    });
-    if (points.length) return { points, attempts };
-  } catch (e) {
-    attempts.push({ source: "Nord Pool N2EX day-ahead", ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
+  for (const [source, fn] of sources) {
+    try {
+      const points = await fn();
+      attempts.push({
+        source, ok: true, points: points.length,
+        detail: points.length ? "data returned" : "responded but no prices published for this date yet",
+      });
+      if (points.length) return { points, attempts };
+    } catch (e) {
+      attempts.push({ source, ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
+    }
   }
-  // Browser may be blocked from Nord Pool (CORS): try the same-origin snapshot written by CI.
-  try {
-    const points = await fetchStaticSnapshot(dateKey);
-    attempts.push({ source: "Static snapshot", ok: true, points: points.length, detail: points.length ? "data returned" : "no snapshot for this date" });
-    return { points, attempts };
-  } catch (e) {
-    attempts.push({ source: "Static snapshot", ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
-    return { points: [], attempts };
-  }
-}
-
-/** Same-origin JSON written by scripts/fetch-nordpool.mjs (scheduled GitHub Action). */
-async function fetchStaticSnapshot(dateKey: string): Promise<WholesalePoint[]> {
-  const json = await getJson(`${import.meta.env.BASE_URL}data/nordpool.json`);
-  const pts = json?.days?.[dateKey];
-  return Array.isArray(pts) ? (pts as WholesalePoint[]) : [];
+  return { points: [], attempts };
 }
 
 /** Discover the current (open-to-new-customers) Agile product code. */

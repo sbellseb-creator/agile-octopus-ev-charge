@@ -7,45 +7,47 @@ import { Badge } from "@/components/ui/badge";
 import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
 import {
   buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
-  tomorrowKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  tomorrowKey, ukDateKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
   isPastPublishTime, RETRY_INTERVAL_MS, BAND_COLOURS, BAND_LABELS, dayThresholds, priceBand, type PriceBand,
 } from "@/lib/agileForecast";
 
 const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
 
-export default function AgileCrystalBall() {
-  // Europe/London clock, re-evaluated every minute so day rollover and the ~11:00 publish check stay correct.
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
-  const dateKey = tomorrowKey(now);
-  const published = isPastPublishTime(now);
-  const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
-  const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
+interface DayData {
+  slots: PricedSlot[];
+  source: "estimate" | "official" | "none";
+  wholesale: ReturnType<typeof useWholesale>;
+  official: ReturnType<typeof useOfficial>;
+}
 
-  // One request for the whole day; retried every few minutes only while the full day is not yet available.
-  const wholesale = useQuery({
+function useWholesale(dateKey: string, enabled: boolean) {
+  return useQuery({
     queryKey: ["acb-wholesale", dateKey],
     queryFn: () => fetchWholesale(dateKey),
-    enabled: published,
+    enabled,
     retry: 1,
     staleTime: (q) => (q.state.data && hasFullData(buildEstimate(dateKey, q.state.data.points)) ? Infinity : 0),
     refetchInterval: (q) => (q.state.data && hasFullData(buildEstimate(dateKey, q.state.data.points)) ? false : RETRY_INTERVAL_MS),
     refetchOnWindowFocus: false,
   });
-  const official = useQuery({
+}
+
+function useOfficial(dateKey: string, enabled: boolean) {
+  return useQuery({
     queryKey: ["acb-official", dateKey],
-    queryFn: () => fetchOfficialRates(fromIso, toIso),
-    enabled: published,
+    queryFn: () => fetchOfficialRates(ukMidnightUtc(dateKey).toISOString(), ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString()),
+    enabled,
     retry: 1,
     staleTime: 10 * 60 * 1000,
     refetchInterval: (q) => (q.state.data && hasFullData(buildOfficial(dateKey, q.state.data)) ? false : RETRY_INTERVAL_MS),
     refetchOnWindowFocus: false,
   });
+}
 
-  // Only complete days are shown: partial or stale data is never rendered.
+/** One day's data, cached separately per date+region. Only complete days are returned; failures fall back to that date's cache. */
+function useDayData(dateKey: string, enabled: boolean): DayData {
+  const wholesale = useWholesale(dateKey, enabled);
+  const official = useOfficial(dateKey, enabled);
   const { slots, source } = useMemo(() => {
     const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
     if (hasFullData(est)) return { slots: est, source: "estimate" as const };
@@ -60,11 +62,37 @@ export default function AgileCrystalBall() {
     if (source === "estimate" && wholesale.data && hasFullData(slots)) saveCachedSlots(dateKey, slots);
   }, [source, slots, dateKey, wholesale.data]);
 
+  return { slots, source, wholesale, official };
+}
+
+export default function AgileCrystalBall() {
+  // Europe/London clock, re-evaluated every minute so the ~11:00 publish check stays correct.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const todayKey = ukDateKey(now);
+  const nextKey = tomorrowKey(now);
+  const published = isPastPublishTime(now);
+
+  // The displayed date only changes when the user picks it; it is never advanced automatically.
+  const [selectedKey, setSelectedKey] = useState<string>(() => ukDateKey(new Date()));
+  const today = useDayData(todayKey, true);
+  const tomorrow = useDayData(nextKey, published);
+  const tomorrowReady = tomorrow.source !== "none";
+  const shown = selectedKey === nextKey ? tomorrow : selectedKey === todayKey ? today : null;
+  // Tomorrow not available (or selected date no longer today/tomorrow): keep showing the last successful day.
+  const active: DayData = shown && shown.source !== "none" ? shown : today.source !== "none" ? today : shown ?? today;
+  const dateKey = active === tomorrow ? nextKey : todayKey;
+  const { slots, source, wholesale, official } = active;
+  const showingFallback = selectedKey === nextKey && active !== tomorrow;
+
   const cheapest = cheapestSlot(slots);
   const window = cheapestWindow(slots, CHEAP_WINDOW_SLOTS);
   const inWindow = (i: number) => !!window && i >= window.startIndex && i < window.startIndex + window.length;
-  const loading = published && wholesale.isLoading && official.isLoading && source === "none";
-  const bothFailed = published && wholesale.isError && official.isError;
+  const loading = (dateKey === nextKey ? published : true) && wholesale.isLoading && official.isLoading && source === "none";
+  const bothFailed = (dateKey === nextKey ? published : true) && wholesale.isError && official.isError;
   const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
 
   const thresholds = useMemo(() => dayThresholds(slots), [slots]);
@@ -76,20 +104,38 @@ export default function AgileCrystalBall() {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Agile Crystal Ball – {dateKey} (region F)</CardTitle>
+          <div className="flex gap-1" role="group" aria-label="Select day">
+            {[{ key: todayKey, label: "Today" }, { key: nextKey, label: "Tomorrow" }].map((d) => (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => setSelectedKey(d.key)}
+                aria-pressed={selectedKey === d.key}
+                className={`rounded px-2 py-1 text-xs border ${selectedKey === d.key ? "bg-white/15 border-white/30" : "border-white/10 text-muted-foreground"}`}
+              >
+                {d.label}{d.key === nextKey && !tomorrowReady ? " …" : ""}
+              </button>
+            ))}
+          </div>
           {source === "official" && <Badge className="bg-emerald-500/20 text-emerald-300">Official Octopus Rates</Badge>}
           {source === "estimate" && <Badge className="bg-amber-500/20 text-amber-300">Estimated from Wholesale Auctions</Badge>}
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
+          {showingFallback && (
+            <p className="text-xs text-muted-foreground">
+              Tomorrow's prices are published around 11:00 UK time. Showing today's prices; checking quietly in the background.
+            </p>
+          )}
           {loading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading prices…</div>}
           {bothFailed && <p className="text-chart-danger">Could not load prices. Please try again later.</p>}
           {!loading && !bothFailed && source === "none" && (
             <p className="text-muted-foreground">
-              {published
-                ? "Tomorrow's prices are not available yet. Checking again every 5 minutes until the full day is published (official Octopus rates follow at about 16:00)."
+              {dateKey === todayKey
+                ? "Today's prices are not available yet. Checking again every 5 minutes."
                 : "Prices for tomorrow are published around 11:00 (UK time). Check back then."}
             </p>
           )}
-          {!loading && published && source === "none" && (
+          {!loading && (dateKey === todayKey || published) && source === "none" && (
             <ul className="text-xs text-muted-foreground list-disc pl-4">
               {(wholesale.data?.attempts ?? []).map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
               {wholesale.isError && <li>Wholesale lookup failed: {String((wholesale.error as Error)?.message ?? "unknown error")}</li>}

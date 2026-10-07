@@ -4,6 +4,10 @@ on:
   push:
     branches: ['main']
   workflow_dispatch:
+  schedule:
+    # Refresh the static Nord Pool JSON: every 20 min 09:00-14:40 UTC (covers ~10:30-15:00 UK in GMT and BST) plus a daily run
+    - cron: '*/20 9-14 * * *'
+    - cron: '30 0 * * *'
 
 permissions:
   contents: read
@@ -33,6 +37,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Fetch Nord Pool data (written to public/data, only when the full day is available)
+        run: node scripts/fetch-nordpool.mjs
+        continue-on-error: true
 
       - name: Build
         run: npm run build

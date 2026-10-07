@@ -68,3 +68,23 @@ describe("fallback chain", () => {
     expect(none.slots).toHaveLength(48);
   });
 });
+
+describe("static snapshot generator", () => {
+  it("accepts a complete day and rejects partial days", async () => {
+    const { isCompleteDayPayload, expectedSlots } = await import("../../scripts/fetch-nordpool.mjs");
+    const full = payload("2026-01-15");
+    expect(expectedSlots("2026-01-15")).toBe(48);
+    expect(expectedSlots("2026-03-29")).toBe(46);
+    expect(expectedSlots("2026-10-25")).toBe(50);
+    expect(isCompleteDayPayload("2026-01-15", full)).toBe(true);
+    expect(isCompleteDayPayload("2026-01-15", { multiAreaEntries: full.multiAreaEntries.slice(0, 25) })).toBe(false);
+    expect(isCompleteDayPayload("2026-01-15", "<html>")).toBe(false);
+  });
+
+  it("rejects partial data and HTML in the chooser", () => {
+    const partial = parseNordPoolPayload({ multiAreaEntries: payload("2026-01-15").multiAreaEntries.slice(0, 25) });
+    const r = chooseSlots("2026-01-15", { nordPool: partial });
+    expect(r.source).toBe("none");
+    expect(r.partial).toBe(true);
+  });
+});

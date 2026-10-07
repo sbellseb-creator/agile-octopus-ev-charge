@@ -11,7 +11,11 @@ const OCTOPUS = "https://api.octopus.energy/v1";
 async function getJson(url: string): Promise<any> {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  const contentType = res.headers.get("content-type") ?? "";
   const text = await res.text();
+  if (!/json/i.test(contentType) || /^\s*</.test(text)) {
+    throw new Error(`Response was not JSON (${contentType || "unknown content-type"})`);
+  }
   try {
     return JSON.parse(text);
   } catch {

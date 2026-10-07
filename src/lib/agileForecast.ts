@@ -33,7 +33,7 @@ export const VAT_MULTIPLIER = 1.05;
 export const PRICE_CAP_P = 100; // p/kWh inc VAT
 export const PRICE_FLOOR_P = -100; // sanity floor only; Agile can go negative
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-export const CACHE_PREFIX = "acb-slots-v2";
+export const CACHE_PREFIX = "acb-slots-v3";
 export const SLOT_MS = 30 * 60 * 1000;
 export const CHEAP_WINDOW_SLOTS = 6; // 3 hours
 

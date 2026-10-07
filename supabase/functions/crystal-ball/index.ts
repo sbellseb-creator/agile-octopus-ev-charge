@@ -3,7 +3,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import {
   type FitSample, addDays, agilePriceFromWholesale, isPeakSlot, ukDate, ukMidnightUtc,
 } from "../_shared/agile-core.ts";
-import { estimateAgileDay, formulaFromEnv, getProvider } from "../_shared/crystal-provider.ts";
+import { estimateFromWholesale, formulaFromEnv, getProvider } from "../_shared/crystal-provider.ts";
 import {
   type DayCheck, ProviderError, checkDays, compareEstimateToOfficial, diagnosePreviousDays, fitFormula,
 } from "../_shared/crystal-status.ts";
@@ -86,9 +86,11 @@ serve(async (req) => {
       return json({ diagnostic: true, ...result });
     }
 
-    const provider = getProvider(Deno.env.get("CRYSTAL_PROVIDER"), date, today);
+    const choice = param("provider") === "neso" ? "neso" : Deno.env.get("CRYSTAL_PROVIDER");
+    const provider = getProvider(choice, date, today);
     const cfg = formulaFromEnv();
-    const estimates = await estimateAgileDay(provider, date, cfg);
+    const wholesale = await provider.fetchDay(date);
+    const estimates = estimateFromWholesale(wholesale, cfg);
     console.log(JSON.stringify({
       fn: "crystal-ball", provider: provider.id, date,
       range: [ukMidnightUtc(date).toISOString(), ukMidnightUtc(addDays(date, 1)).toISOString()],
@@ -96,7 +98,7 @@ serve(async (req) => {
     }));
     return json({
       date, status: estimates.length > 0 ? "available" : "waiting", available: estimates.length > 0, region, estimated: true,
-      source: provider.label, is_mock: provider.isMock, updated_at: now.toISOString(), formula: cfg, results: estimates,
+      source: provider.label, is_mock: provider.isMock, updated_at: now.toISOString(), formula: cfg, results: estimates, wholesale,
     });
   } catch (e) {
     const reason = e instanceof ProviderError ? e.reason : "internal_error";

@@ -3,3 +3,7 @@ project_id = "xrtpcohdyfyjmrxwhtjd"
 # push-notify authenticates itself (user JWT for tests, x-cron-secret for cron).
 [functions.push-notify]
 verify_jwt = false
+
+# crystal-ball serves public wholesale/estimate data only (no user data or secrets).
+[functions.crystal-ball]
+verify_jwt = false

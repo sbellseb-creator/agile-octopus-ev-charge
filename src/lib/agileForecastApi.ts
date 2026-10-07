@@ -23,10 +23,6 @@ async function getJson(url: string): Promise<any> {
   }
 }
 
-const NORDPOOL_DA = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices";
-/** Nord Pool market names tried for the GB half-hour auction (area UK, GBP). */
-export const NORDPOOL_MARKETS = ["DayAhead", "N2EX_DayAhead"];
-
 export interface SourceAttempt {
   source: string;
   ok: boolean;
@@ -51,48 +47,39 @@ export function parseNordPoolPayload(json: any): WholesalePoint[] {
   return [...byStart.entries()].sort((a, b) => a[0] - b[0]).map(([t, pricePerMwh]) => ({ start: new Date(t).toISOString(), pricePerMwh }));
 }
 
-/** Static JSON published by the scheduled "Fetch Nord Pool" workflow (served from the Pages base path). */
-export async function fetchNordPoolStatic(dateKey: string): Promise<WholesalePoint[]> {
-  const json = await getJson(`${import.meta.env.BASE_URL}data/nordpool-gb-${dateKey}.json`);
-  if (json?.date !== dateKey) throw new Error("snapshot is for a different date");
-  return parseNordPoolPayload(json.payload);
+/** Shape of the `wholesale` array returned by the crystal-ball Edge Function (p/kWh ex VAT). */
+export interface EdgeWholesaleSlot {
+  valid_from: string;
+  pence_per_kwh: number;
 }
 
-/** Live Nord Pool request (may be blocked by CORS in the browser). */
-export async function fetchNordPoolLive(dateKey: string): Promise<WholesalePoint[]> {
-  let lastError: unknown = new Error("no market responded");
-  for (const market of NORDPOOL_MARKETS) {
-    try {
-      const qs = new URLSearchParams({ date: dateKey, market, deliveryArea: "UK", currency: "GBP" });
-      const points = parseNordPoolPayload(await getJson(`${NORDPOOL_DA}?${qs}`));
-      if (points.length) return points;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  if (lastError instanceof Error && lastError.message !== "no market responded") throw lastError;
-  return [];
+/** Convert the Edge Function's half-hour wholesale slots (p/kWh) back to £/MWh points. */
+export function parseEdgeWholesale(body: any): WholesalePoint[] {
+  const rows: any[] = Array.isArray(body?.wholesale) ? body.wholesale : [];
+  return rows
+    .filter((r) => typeof r?.valid_from === "string" && typeof r?.pence_per_kwh === "number" && Number.isFinite(r.pence_per_kwh))
+    .map((r) => ({ start: new Date(r.valid_from).toISOString(), pricePerMwh: r.pence_per_kwh * 10 }));
 }
 
-/** Nord Pool day-ahead: static snapshot first, then a live request. Never throws. */
-export async function fetchNordPool(
+/**
+ * GB N2EX day-ahead prices (NESO Data Portal), fetched server-side by the `crystal-ball` Edge Function
+ * (no browser CORS, no token). Never throws; failures are reported as attempts.
+ */
+export async function fetchDayAhead(
   dateKey: string,
 ): Promise<{ points: WholesalePoint[]; attempts: SourceAttempt[]; source: string }> {
-  const sources: [string, () => Promise<WholesalePoint[]>][] = [
-    ["Nord Pool static snapshot", () => fetchNordPoolStatic(dateKey)],
-    ["Nord Pool N2EX day-ahead", () => fetchNordPoolLive(dateKey)],
-  ];
-  const attempts: SourceAttempt[] = [];
-  for (const [source, fn] of sources) {
-    try {
-      const points = await fn();
-      attempts.push({ source, ok: true, points: points.length, detail: points.length ? "data returned" : "no prices published for this date yet" });
-      if (points.length) return { points, attempts, source };
-    } catch (e) {
-      attempts.push({ source, ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
-    }
+  const source = "N2EX day-ahead (NESO, server-side)";
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase.functions.invoke("crystal-ball", { body: { date: dateKey, provider: "neso" } });
+    if (error) throw error;
+    if (data?.status === "error") throw new Error(data.error ?? "provider error");
+    const points = parseEdgeWholesale(data);
+    const detail = points.length ? "data returned" : "no prices published for this date yet";
+    return { points, attempts: [{ source, ok: true, points: points.length, detail }], source: points.length ? source : "" };
+  } catch (e) {
+    return { points: [], attempts: [{ source, ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` }], source: "" };
   }
-  return { points: [], attempts, source: "" };
 }
 
 /** Elexon MID (EPEX GB index). Only published for periods that have already happened, so a fallback. */

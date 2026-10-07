@@ -5,15 +5,15 @@ import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PRICE_BAND_ORDER, priceBand } from "@/lib/priceBands";
-import { fetchMidFallback, fetchNordPool, fetchOfficialRates } from "@/lib/agileForecastApi";
+import { fetchDayAhead, fetchMidFallback, fetchOfficialRates } from "@/lib/agileForecastApi";
 import {
   chooseSlots, cheapestSlot, cheapestWindow, cacheKey, purgeLegacyCaches,
   targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
 } from "@/lib/agileForecast";
 
 const sourceNote: Record<string, string> = {
-  nordpool: "Nord Pool GB half-hour auction",
-  cache: "last saved Nord Pool prices (cached)",
+  nordpool: "N2EX GB day-ahead auction (NESO)",
+  cache: "last saved N2EX day-ahead prices (cached)",
   mid: "Elexon market index (MID) fallback",
 };
 
@@ -25,7 +25,7 @@ export default function AgileCrystalBall() {
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
   const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
 
-  const nordPool = useQuery({ queryKey: ["acb-nordpool", dateKey], queryFn: () => fetchNordPool(dateKey), ...opts });
+  const nordPool = useQuery({ queryKey: ["acb-nordpool", dateKey], queryFn: () => fetchDayAhead(dateKey), ...opts });
   const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points.length;
   const mid = useQuery({
     queryKey: ["acb-mid", dateKey], queryFn: () => fetchMidFallback(fromIso, toIso), ...opts, enabled: nordPoolFailed,
@@ -87,7 +87,7 @@ export default function AgileCrystalBall() {
           {source !== "none" && source !== "official" && (
             <p className="text-xs text-muted-foreground">
               Source: {sourceNote[source]} [{source === "cache" ? cacheKey(dateKey) : source}]
-              {source !== "nordpool" && nordPoolFailed ? " (Nord Pool unavailable)" : ""}
+              {source !== "nordpool" && nordPoolFailed ? " (day-ahead data unavailable)" : ""}
             </p>
           )}
           {source !== "none" && (

@@ -3,10 +3,10 @@ import {
   agilePriceFromWholesale, parseFormulaOverrides, ukDate, ukMidnightUtc,
 } from "./agile-core.ts";
 import { ProviderError } from "./crystal-status.ts";
-import { type WholesaleSlot, parseElexonMarketIndex, parseNordPoolDayAhead } from "./wholesale-parsers.ts";
+import { type WholesaleSlot, parseElexonMarketIndex, parseNesoN2ex, parseNordPoolDayAhead } from "./wholesale-parsers.ts";
 
 export type { WholesaleSlot };
-export { parseElexonMarketIndex, parseNordPoolDayAhead };
+export { parseElexonMarketIndex, parseNesoN2ex, parseNordPoolDayAhead };
 
 export interface WholesaleProvider {
   readonly id: string;
@@ -28,8 +28,13 @@ async function fetchJson(url: string, headers: Record<string, string>): Promise<
     throw new ProviderError("auth_required", `The data source rejected the request [${res.status}]: an API token/subscription is required`);
   }
   if (!res.ok) throw new ProviderError("upstream_error", `Upstream API error [${res.status}]`);
+  const contentType = res.headers.get("content-type") ?? "";
+  const text = await res.text();
+  if (!/json/i.test(contentType) || /^\s*</.test(text)) {
+    throw new ProviderError("bad_response", `Upstream API response was not JSON (${contentType || "unknown content-type"})`);
+  }
   try {
-    return { status: res.status, json: await res.json() };
+    return { status: res.status, json: JSON.parse(text) };
   } catch {
     throw new ProviderError("bad_response", "Upstream API returned invalid JSON");
   }
@@ -58,6 +63,48 @@ export class NordPoolDayAheadProvider implements WholesaleProvider {
     const url = `${this.baseUrl}?${new URLSearchParams({ date: ukDate, market: "DayAhead", deliveryArea: this.area, currency: "GBP" })}`;
     const { json } = await fetchJson(url, this.token ? { Authorization: "Bearer " + this.token } : {});
     return json === undefined ? [] : parseNordPoolDayAhead(json, this.area, ukDate);
+  }
+}
+
+/**
+ * NESO Data Portal "N2EX GB Day-Ahead Price" (public CKAN datastore, no token). GBP/MWh,
+ * fetched server-side. Fields are discovered from the datastore schema, then recent rows
+ * are read newest-first and parsed for the delivery day. Returns [] while the day is not
+ * yet published; a partially published day throws "incomplete_data" (never shown).
+ * Override with NESO_API_URL / NESO_N2EX_RESOURCE_ID.
+ */
+export class NesoN2exProvider implements WholesaleProvider {
+  readonly id = "neso-n2ex";
+  readonly label = "NESO N2EX GB day-ahead price";
+  readonly isMock = false;
+
+  constructor(
+    private readonly baseUrl = Deno.env.get("NESO_API_URL") ?? "https://api.neso.energy/api/3/action/datastore_search",
+    private readonly resourceId = Deno.env.get("NESO_N2EX_RESOURCE_ID") ?? "4f27eea5-7038-4f73-9740-e3e4ad47c26a",
+  ) {}
+
+  private async query(params: Record<string, string>) {
+    const { json } = await fetchJson(`${this.baseUrl}?${new URLSearchParams({ resource_id: this.resourceId, ...params })}`, {});
+    const body = json as { success?: boolean; result?: { fields?: Array<{ id: string }>; records?: Array<Record<string, unknown>> } } | undefined;
+    if (!body?.success || !body.result) throw new ProviderError("bad_response", "NESO datastore returned an unexpected response");
+    return body.result;
+  }
+
+  async fetchDay(ukDate: string): Promise<WholesaleSlot[]> {
+    const fields = ((await this.query({ limit: "1" })).fields ?? []).map((f) => f.id);
+    const sortField = fields.find((f) => /^(settlement_?date|datetime|date)/i.test(f) || /datetime/i.test(f));
+    const records = (await this.query({ limit: "500", ...(sortField ? { sort: `${sortField} desc` } : {}) })).records ?? [];
+    let slots: WholesaleSlot[];
+    try {
+      slots = parseNesoN2ex(records, fields, ukDate);
+    } catch (e) {
+      throw new ProviderError("bad_response", e instanceof Error ? e.message : String(e));
+    }
+    const expected = (ukMidnightUtc(addDays(ukDate, 1)).getTime() - ukMidnightUtc(ukDate).getTime()) / (30 * 60_000);
+    if (slots.length > 0 && slots.length !== expected) {
+      throw new ProviderError("incomplete_data", `NESO returned ${slots.length} of ${expected} half-hour slots for ${ukDate}`);
+    }
+    return slots;
   }
 }
 
@@ -125,16 +172,17 @@ export class MockProvider implements WholesaleProvider {
 
 /**
  * Pick the provider for a delivery day. CRYSTAL_PROVIDER forces one of
- * mock | nordpool | elexon. Otherwise: Nord Pool whenever a token is set;
+ * mock | nordpool | neso | elexon. Otherwise: Nord Pool whenever a token is set;
  * without one, settled days (today and earlier) use Elexon and future days
- * report "not configured" rather than inventing numbers.
+ * use the public NESO N2EX day-ahead dataset.
  */
 export function getProvider(id: string | undefined, date: string = addDays(ukDate(new Date()), 1), today: string = ukDate(new Date())): WholesaleProvider {
   if (id === "mock") return new MockProvider();
   if (id === "nordpool") return new NordPoolDayAheadProvider();
   if (id === "elexon") return new ElexonMarketIndexProvider();
+  if (id === "neso") return new NesoN2exProvider();
   if (Deno.env.get("NORDPOOL_API_TOKEN")) return new NordPoolDayAheadProvider();
-  return date <= today ? new ElexonMarketIndexProvider() : new UnconfiguredDayAheadProvider();
+  return date <= today ? new ElexonMarketIndexProvider() : new NesoN2exProvider();
 }
 
 export function formulaFromEnv(): AgileFormulaConfig {
@@ -154,7 +202,10 @@ export async function estimateAgileDay(
   ukDate: string,
   cfg: AgileFormulaConfig = DEFAULT_AGILE_FORMULA,
 ): Promise<PriceSlot[]> {
-  const wholesale = await provider.fetchDay(ukDate);
+  return estimateFromWholesale(await provider.fetchDay(ukDate), cfg);
+}
+
+export function estimateFromWholesale(wholesale: WholesaleSlot[], cfg: AgileFormulaConfig = DEFAULT_AGILE_FORMULA): PriceSlot[] {
   return wholesale.map((w) => ({
     valid_from: w.valid_from,
     valid_to: w.valid_to,

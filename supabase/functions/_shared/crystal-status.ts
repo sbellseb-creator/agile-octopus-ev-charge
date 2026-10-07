@@ -5,7 +5,7 @@ import { type PriceSlot, addDays, ukDate, ukMinutes } from "./agile-core.ts";
 /** Day-ahead results are expected ~11:30 UK on the day before delivery. */
 export const EXPECTED_PUBLICATION = { hour: 11, minute: 30 } as const;
 
-export type ProviderFailureReason = "not_configured" | "auth_required" | "upstream_error" | "network_error" | "bad_response";
+export type ProviderFailureReason = "not_configured" | "auth_required" | "upstream_error" | "network_error" | "bad_response" | "incomplete_data";
 
 export class ProviderError extends Error {
   constructor(readonly reason: ProviderFailureReason, message: string) {

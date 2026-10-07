@@ -7,11 +7,13 @@
  *    https://data.elexon.co.uk/bmrs/api/v1/datasets/MID
  *  - Official: Octopus public API, Agile product for region F (North East).
  *
- * FORMULA (approximation of the published Agile formula - tune constants below):
- *   p/kWh = wholesale(£/MWh) / 10
- *   p/kWh = p/kWh * multiplier(peak or off-peak) + REGIONAL_ADJUSTMENT_P
- *   p/kWh = clamp(p/kWh, floor, cap)   (cap/floor applied to the VAT-inclusive price)
- *   inc VAT = ex VAT * 1.05
+ * FORMULA (Agile, ex VAT then VAT then cap; NO flat -3.5p deduction):
+ *   W = wholesale £/MWh / 10                      (p/kWh)
+ *   P = PEAK_ADDER_P for 16:00-19:00 Europe/London, else 0
+ *   price = min((W * D) + P) * 1.05, cap)         (cap applied inc VAT)
+ *   D = regional multiplier (REGION_MULTIPLIERS[region])
+ * All tunable constants live in this block. They could not be calibrated against live
+ * official rates in the build sandbox (no network) - adjust here if the Agile tab differs.
  */
 
 // ---- Tunable constants -----------------------------------------------------
@@ -20,12 +22,18 @@ export const UK_TZ = "Europe/London";
 export const WHOLESALE_TO_P_PER_KWH = 1 / 10; // £/MWh -> p/kWh
 export const PEAK_START_HOUR = 16; // peak window start, UK local (inclusive)
 export const PEAK_END_HOUR = 19; // peak window end, UK local (exclusive)
-export const PEAK_MULTIPLIER = 2.1; // applied to wholesale during the peak
-export const OFF_PEAK_MULTIPLIER = 1.0; // applied to wholesale outside the peak
-export const REGIONAL_ADJUSTMENT_P = 1.5; // p/kWh ex VAT, distribution/loss adjustment for region F (estimate)
+export const DEFAULT_MULTIPLIER = 2.2;
+/** Regional multiplier D per Agile region code (current Agile product uses 2.2 for all regions). */
+export const REGION_MULTIPLIERS: Record<string, number> = {
+  A: 2.2, B: 2.2, C: 2.2, D: 2.2, E: 2.2, F: 2.2, G: 2.2, H: 2.2, J: 2.2, K: 2.2, L: 2.2, M: 2.2, N: 2.2, P: 2.2,
+};
+export const PEAK_ADDER_P = 12; // p/kWh ex VAT added in the peak window
+export const OFF_PEAK_ADDER_P = 0; // p/kWh ex VAT added outside the peak window
 export const VAT_MULTIPLIER = 1.05;
 export const PRICE_CAP_P = 100; // p/kWh inc VAT
 export const PRICE_FLOOR_P = -100; // sanity floor only; Agile can go negative
+export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+export const CACHE_PREFIX = "acb-slots-v1";
 export const SLOT_MS = 30 * 60 * 1000;
 export const CHEAP_WINDOW_SLOTS = 6; // 3 hours
 
@@ -113,10 +121,11 @@ export function mwhToPencePerKwh(pricePerMwh: number): number {
 }
 
 /** Wholesale £/MWh for a slot starting at `start` -> estimated Agile p/kWh inc VAT. */
-export function estimateAgilePrice(pricePerMwh: number, start: Date): number {
+export function estimateAgilePrice(pricePerMwh: number, start: Date, region: string = AGILE_REGION_CODE): number {
   const wholesale = mwhToPencePerKwh(pricePerMwh);
-  const mult = isPeak(start) ? PEAK_MULTIPLIER : OFF_PEAK_MULTIPLIER;
-  const incVat = (wholesale * mult + REGIONAL_ADJUSTMENT_P) * VAT_MULTIPLIER;
+  const d = REGION_MULTIPLIERS[region] ?? DEFAULT_MULTIPLIER;
+  const adder = isPeak(start) ? PEAK_ADDER_P : OFF_PEAK_ADDER_P;
+  const incVat = (wholesale * d + adder) * VAT_MULTIPLIER;
   return Math.min(PRICE_CAP_P, Math.max(PRICE_FLOOR_P, incVat));
 }
 
@@ -185,4 +194,27 @@ export function cheapestWindow(
     if (best === null || avg < best.average) best = { startIndex: i, length, average: avg };
   }
   return best;
+}
+
+export const cacheKey = (dateKey: string, region: string = AGILE_REGION_CODE) => `${CACHE_PREFIX}:${dateKey}:${region}`;
+
+/** Read cached estimate slots (null if missing, expired or malformed). */
+export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_CODE, now: number = Date.now()): PricedSlot[] | null {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(cacheKey(dateKey, region));
+    if (!raw) return null;
+    const { savedAt, slots } = JSON.parse(raw);
+    if (typeof savedAt !== "number" || now - savedAt > CACHE_TTL_MS || !Array.isArray(slots) || slots.length === 0) return null;
+    return slots as PricedSlot[];
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: string = AGILE_REGION_CODE, now: number = Date.now()): void {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(cacheKey(dateKey, region), JSON.stringify({ savedAt: now, slots }));
+  } catch {
+    /* storage unavailable or full - ignore */
+  }
 }

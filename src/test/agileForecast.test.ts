@@ -87,3 +87,24 @@ describe("agileForecast", () => {
     expect(cheapestWindow([], 3)).toBeNull();
   });
 });
+
+import { isPastPublishTime, dayThresholds, priceBand, type PricedSlot } from "@/lib/agileForecast";
+
+describe("agileForecast refresh and colours", () => {
+  it("uses Europe/London for the 11:00 publish check", () => {
+    expect(isPastPublishTime(new Date("2026-07-01T09:59:00Z"))).toBe(false); // 10:59 BST
+    expect(isPastPublishTime(new Date("2026-07-01T10:00:00Z"))).toBe(true); // 11:00 BST
+    expect(isPastPublishTime(new Date("2026-01-01T10:59:00Z"))).toBe(false); // 10:59 GMT
+  });
+
+  it("bands prices relative to the day's range", () => {
+    const mk = (price: number): PricedSlot => ({ start: "", end: "", label: "", price, isNegative: price <= 0 });
+    const slots = [10, 11, 12, 20, 21, 22, 40, 41, 42].map(mk);
+    const t = dayThresholds(slots)!;
+    expect(priceBand(mk(10), t, false)).toBe("low");
+    expect(priceBand(mk(21), t, false)).toBe("mid");
+    expect(priceBand(mk(42), t, false)).toBe("high");
+    expect(priceBand(mk(10), t, true)).toBe("window");
+    expect(priceBand(mk(-1), t, true)).toBe("negative");
+  });
+});

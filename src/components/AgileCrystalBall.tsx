@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
@@ -7,43 +7,69 @@ import { Badge } from "@/components/ui/badge";
 import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
 import {
   buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
-  targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  tomorrowKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  isPastPublishTime, RETRY_INTERVAL_MS, BAND_COLOURS, BAND_LABELS, dayThresholds, priceBand, type PriceBand,
 } from "@/lib/agileForecast";
 
 const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
 
 export default function AgileCrystalBall() {
-  const dateKey = useMemo(() => targetDayKey(), []);
+  // Europe/London clock, re-evaluated every minute so day rollover and the ~11:00 publish check stay correct.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const dateKey = tomorrowKey(now);
+  const published = isPastPublishTime(now);
   const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
-  const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
 
-  const wholesale = useQuery({ queryKey: ["acb-wholesale", dateKey], queryFn: () => fetchWholesale(dateKey, fromIso, toIso), ...opts });
-  const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
+  // One request for the whole day; retried every few minutes only while the full day is not yet available.
+  const wholesale = useQuery({
+    queryKey: ["acb-wholesale", dateKey],
+    queryFn: () => fetchWholesale(dateKey),
+    enabled: published,
+    retry: 1,
+    staleTime: (q) => (q.state.data && hasFullData(buildEstimate(dateKey, q.state.data.points)) ? Infinity : 0),
+    refetchInterval: (q) => (q.state.data && hasFullData(buildEstimate(dateKey, q.state.data.points)) ? false : RETRY_INTERVAL_MS),
+    refetchOnWindowFocus: false,
+  });
+  const official = useQuery({
+    queryKey: ["acb-official", dateKey],
+    queryFn: () => fetchOfficialRates(fromIso, toIso),
+    enabled: published,
+    retry: 1,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: (q) => (q.state.data && hasFullData(buildOfficial(dateKey, q.state.data)) ? false : RETRY_INTERVAL_MS),
+    refetchOnWindowFocus: false,
+  });
 
+  // Only complete days are shown: partial or stale data is never rendered.
   const { slots, source } = useMemo(() => {
     const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
-    if (est.some((s) => s.price !== null)) return { slots: est, source: "estimate" as const };
-    const cached = wholesale.data ? null : loadCachedSlots(dateKey);
-    if (cached) return { slots: cached, source: "estimate" as const };
+    if (hasFullData(est)) return { slots: est, source: "estimate" as const };
+    const cached = loadCachedSlots(dateKey);
+    if (cached && hasFullData(cached)) return { slots: cached, source: "estimate" as const };
     const off = buildOfficial(dateKey, official.data ?? []);
     if (hasFullData(off)) return { slots: off, source: "official" as const };
     return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
   }, [dateKey, official.data, wholesale.data]);
 
   useEffect(() => {
-    if (source === "estimate" && wholesale.data?.points.length) saveCachedSlots(dateKey, slots);
+    if (source === "estimate" && wholesale.data && hasFullData(slots)) saveCachedSlots(dateKey, slots);
   }, [source, slots, dateKey, wholesale.data]);
 
   const cheapest = cheapestSlot(slots);
   const window = cheapestWindow(slots, CHEAP_WINDOW_SLOTS);
   const inWindow = (i: number) => !!window && i >= window.startIndex && i < window.startIndex + window.length;
-  const loading = wholesale.isLoading && official.isLoading && source === "none";
-  const bothFailed = wholesale.isError && official.isError;
+  const loading = published && wholesale.isLoading && official.isLoading && source === "none";
+  const bothFailed = published && wholesale.isError && official.isError;
   const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
 
-  const colour = (s: PricedSlot, i: number) =>
-    s.isNegative ? "#22d3ee" : inWindow(i) ? "#4ade80" : s.price !== null && s.price > 30 ? "#f87171" : "#a78bfa";
+  const thresholds = useMemo(() => dayThresholds(slots), [slots]);
+  const band = (s: PricedSlot, i: number): PriceBand => priceBand(s, thresholds, inWindow(i));
+  const colour = (s: PricedSlot, i: number) => BAND_COLOURS[band(s, i)];
 
   return (
     <div className="space-y-4">
@@ -58,11 +84,12 @@ export default function AgileCrystalBall() {
           {bothFailed && <p className="text-chart-danger">Could not load prices. Please try again later.</p>}
           {!loading && !bothFailed && source === "none" && (
             <p className="text-muted-foreground">
-              Auction results for this day are not available yet. Day-ahead results are typically published around
-              midday UK time and official Octopus rates at about 16:00 – check back then.
+              {published
+                ? "Tomorrow's prices are not available yet. Checking again every 5 minutes until the full day is published (official Octopus rates follow at about 16:00)."
+                : "Prices for tomorrow are published around 11:00 (UK time). Check back then."}
             </p>
           )}
-          {!loading && source === "none" && (
+          {!loading && published && source === "none" && (
             <ul className="text-xs text-muted-foreground list-disc pl-4">
               {(wholesale.data?.attempts ?? []).map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
               {wholesale.isError && <li>Wholesale lookup failed: {String((wholesale.error as Error)?.message ?? "unknown error")}</li>}
@@ -112,6 +139,21 @@ export default function AgileCrystalBall() {
           </Card>
 
           <Card>
+            <CardContent className="flex flex-wrap gap-x-4 gap-y-1 pt-4 text-xs text-foreground">
+              {(Object.keys(BAND_LABELS) as PriceBand[]).map((b) => (
+                <span key={b} className="flex items-center gap-1.5">
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: BAND_COLOURS[b] }} />
+                  {BAND_LABELS[b]}
+                </span>
+              ))}
+              <span className="w-full text-muted-foreground">
+                Colours are relative to this day's prices (33rd / 67th percentile
+                {thresholds ? `: below ${fmt(thresholds.low)}p low, ${fmt(thresholds.high)}p and above high` : ""}).
+              </span>
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardContent className="max-h-96 overflow-y-auto pt-4">
               <table className="w-full text-xs">
                 <thead>
@@ -120,7 +162,7 @@ export default function AgileCrystalBall() {
                 <tbody>
                   {slots.map((s, i) => (
                     <tr key={s.start} className={`border-t border-white/5 ${inWindow(i) ? "bg-emerald-500/10" : ""} ${s.isNegative ? "bg-cyan-500/10" : ""}`}>
-                      <td className="py-1">{s.label}</td>
+                      <td className="py-1"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: colour(s, i) }} />{s.label}</td>
                       <td className={s.isNegative ? "text-cyan-300" : ""}>{fmt(s.price)}</td>
                       <td className="text-[10px]">
                         {s.isNegative && <span className="text-cyan-300">Plunge ≤ 0p </span>}

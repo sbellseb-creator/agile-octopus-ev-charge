@@ -1,0 +1,44 @@
+name: Fetch Nord Pool prices
+
+on:
+  schedule:
+    # Every 30 min 09:00-14:30 UTC (covers ~10:30-14:00 UK in GMT and BST), then hourly
+    - cron: '*/30 9-14 * * *'
+    - cron: '0 0-8,15-23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: nordpool-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch Nord Pool data
+        run: node scripts/fetch-nordpool.mjs
+      - name: Commit and redeploy if changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add public/data
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update Nord Pool data"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh workflow run deploy.yml --ref main

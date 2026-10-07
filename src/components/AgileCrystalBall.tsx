@@ -4,11 +4,17 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchOfficialRates, fetchWholesale } from "@/lib/agileForecastApi";
+import { fetchMidFallback, fetchNordPool, fetchOfficialRates } from "@/lib/agileForecastApi";
 import {
-  buildEstimate, buildOfficial, cheapestSlot, cheapestWindow, generateDaySlots, hasFullData,
+  chooseSlots, cheapestSlot, cheapestWindow, hasAnyData,
   targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
 } from "@/lib/agileForecast";
+
+const sourceNote: Record<string, string> = {
+  nordpool: "Nord Pool GB half-hour auction",
+  cache: "last saved Nord Pool prices (cached)",
+  mid: "Elexon market index (MID) fallback",
+};
 
 const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
 
@@ -18,28 +24,32 @@ export default function AgileCrystalBall() {
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
   const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
 
-  const wholesale = useQuery({ queryKey: ["acb-wholesale", dateKey], queryFn: () => fetchWholesale(dateKey, fromIso, toIso), ...opts });
+  const nordPool = useQuery({ queryKey: ["acb-nordpool", dateKey], queryFn: () => fetchNordPool(dateKey), ...opts });
+  const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points.length;
+  const mid = useQuery({
+    queryKey: ["acb-mid", dateKey], queryFn: () => fetchMidFallback(fromIso, toIso), ...opts, enabled: nordPoolFailed,
+  });
   const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
 
-  const { slots, source } = useMemo(() => {
-    const est = buildEstimate(dateKey, wholesale.data?.points ?? []);
-    if (hasFullData(est)) return { slots: est, source: "estimate" as const };
-    const cached = wholesale.data ? null : loadCachedSlots(dateKey);
-    if (cached && hasFullData(cached)) return { slots: cached, source: "estimate" as const };
-    const off = buildOfficial(dateKey, official.data ?? []);
-    if (hasFullData(off)) return { slots: off, source: "official" as const };
-    return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" as const };
-  }, [dateKey, official.data, wholesale.data]);
+  const { slots, source } = useMemo(
+    () => chooseSlots(dateKey, {
+      nordPool: nordPool.data?.points,
+      cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
+      mid: mid.data?.points,
+      official: official.data,
+    }),
+    [dateKey, nordPool.data, mid.data, official.data],
+  );
 
   useEffect(() => {
-    if (source === "estimate" && wholesale.data?.points.length && hasFullData(slots)) saveCachedSlots(dateKey, slots);
-  }, [source, slots, dateKey, wholesale.data]);
+    if (source === "nordpool" && hasAnyData(slots)) saveCachedSlots(dateKey, slots);
+  }, [source, slots, dateKey]);
 
   const cheapest = cheapestSlot(slots);
   const window = cheapestWindow(slots, CHEAP_WINDOW_SLOTS);
   const inWindow = (i: number) => !!window && i >= window.startIndex && i < window.startIndex + window.length;
-  const loading = wholesale.isLoading && official.isLoading && source === "none";
-  const bothFailed = wholesale.isError && official.isError;
+  const loading = (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
+  const bothFailed = nordPool.isError && mid.isError && official.isError;
   const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
 
   const colour = (s: PricedSlot, i: number) =>
@@ -51,7 +61,7 @@ export default function AgileCrystalBall() {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Agile Crystal Ball – {dateKey} (region F)</CardTitle>
           {source === "official" && <Badge className="bg-emerald-500/20 text-emerald-300">Official Octopus Rates</Badge>}
-          {source === "estimate" && <Badge className="bg-amber-500/20 text-amber-300">Estimated from Wholesale Auctions</Badge>}
+          {source !== "official" && source !== "none" && <Badge className="bg-amber-500/20 text-amber-300">Estimated from Wholesale Auctions</Badge>}
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {loading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading prices…</div>}
@@ -64,10 +74,15 @@ export default function AgileCrystalBall() {
           )}
           {!loading && source === "none" && (
             <ul className="text-xs text-muted-foreground list-disc pl-4">
-              {(wholesale.data?.attempts ?? []).map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
-              {wholesale.isError && <li>Wholesale lookup failed: {String((wholesale.error as Error)?.message ?? "unknown error")}</li>}
+              {[...(nordPool.data?.attempts ?? []), ...(mid.data?.attempts ?? [])].map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
               <li>Official Octopus rates: {official.isError ? `request failed: ${String((official.error as Error)?.message ?? "unknown")}` : "not published yet"}</li>
             </ul>
+          )}
+          {source !== "none" && source !== "official" && (
+            <p className="text-xs text-muted-foreground">
+              Source: {sourceNote[source]}
+              {source !== "nordpool" && nordPoolFailed ? " (Nord Pool unavailable)" : ""}
+            </p>
           )}
           {source !== "none" && (
             <div className="flex flex-wrap gap-2 text-xs">

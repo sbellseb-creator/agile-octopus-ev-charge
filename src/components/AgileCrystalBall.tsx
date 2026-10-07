@@ -1,12 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PRICE_BAND_ORDER, priceBand } from "@/lib/priceBands";
 import { fetchMidFallback, fetchNordPool, fetchOfficialRates } from "@/lib/agileForecastApi";
 import {
-  chooseSlots, cheapestSlot, cheapestWindow, hasAnyData,
+  chooseSlots, cheapestSlot, cheapestWindow, cacheKey, purgeLegacyCaches,
   targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
 } from "@/lib/agileForecast";
 
@@ -31,7 +32,9 @@ export default function AgileCrystalBall() {
   });
   const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
 
-  const { slots, source } = useMemo(
+  useEffect(() => purgeLegacyCaches(), []);
+
+  const { slots, source, partial } = useMemo(
     () => chooseSlots(dateKey, {
       nordPool: nordPool.data?.points,
       cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
@@ -42,7 +45,7 @@ export default function AgileCrystalBall() {
   );
 
   useEffect(() => {
-    if (source === "nordpool" && hasAnyData(slots)) saveCachedSlots(dateKey, slots);
+    if (source === "nordpool") saveCachedSlots(dateKey, slots);
   }, [source, slots, dateKey]);
 
   const cheapest = cheapestSlot(slots);
@@ -52,8 +55,8 @@ export default function AgileCrystalBall() {
   const bothFailed = nordPool.isError && mid.isError && official.isError;
   const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
 
-  const colour = (s: PricedSlot, i: number) =>
-    s.isNegative ? "#22d3ee" : inWindow(i) ? "#4ade80" : s.price !== null && s.price > 30 ? "#f87171" : "#a78bfa";
+  const colour = (s: PricedSlot) => (s.price === null ? "#64748b" : priceBand(s.price).colour);
+  const rowVars = { "--r1": slots.length, "--r2": Math.ceil(slots.length / 2), "--r4": Math.ceil(slots.length / 4) } as CSSProperties;
 
   return (
     <div className="space-y-4">
@@ -66,7 +69,10 @@ export default function AgileCrystalBall() {
         <CardContent className="space-y-3 text-sm">
           {loading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading prices…</div>}
           {bothFailed && <p className="text-chart-danger">Could not load prices. Please try again later.</p>}
-          {!loading && !bothFailed && source === "none" && (
+          {!loading && source === "none" && partial && (
+            <p className="text-chart-danger">Incomplete data: only part of the day was returned, so no prices are shown.</p>
+          )}
+          {!loading && !bothFailed && source === "none" && !partial && (
             <p className="text-muted-foreground">
               Auction results for this day are not available yet. Day-ahead results are typically published around
               midday UK time and official Octopus rates at about 16:00 – check back then.
@@ -80,7 +86,7 @@ export default function AgileCrystalBall() {
           )}
           {source !== "none" && source !== "official" && (
             <p className="text-xs text-muted-foreground">
-              Source: {sourceNote[source]}
+              Source: {sourceNote[source]} [{source === "cache" ? cacheKey(dateKey) : source}]
               {source !== "nordpool" && nordPoolFailed ? " (Nord Pool unavailable)" : ""}
             </p>
           )}
@@ -105,7 +111,7 @@ export default function AgileCrystalBall() {
       {source !== "none" && (
         <>
           <Card>
-            <CardContent className="h-64 pt-4">
+            <CardContent className="pt-4"><div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -119,10 +125,24 @@ export default function AgileCrystalBall() {
                     formatter={(v: number | null) => [v === null || v === undefined ? "–" : `${Number(v).toFixed(2)}p/kWh`, "Price"]}
                   />
                   <Bar dataKey="price">
-                    {slots.map((s, i) => <Cell key={s.start} fill={colour(s, i)} />)}
+                    {slots.map((s, i) => (
+                      <Cell key={s.start} fill={colour(s)} stroke={inWindow(i) ? "#ffffff" : "none"} strokeWidth={inWindow(i) ? 1.5 : 0} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Price key">
+                {PRICE_BAND_ORDER.map((b) => (
+                  <span key={b.id} className="flex items-center gap-1">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: b.colour }} />
+                    <span style={{ color: b.colour }}>{b.label}</span>: {b.range}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-sm border border-white" /> Cheapest {CHEAP_WINDOW_SLOTS / 2}h window
+                </span>
+              </div>
             </CardContent>
           </Card>
 
@@ -131,17 +151,27 @@ export default function AgileCrystalBall() {
               <div className="mb-1 flex justify-between border-b border-white/10 pb-1 text-xs text-muted-foreground">
                 <span>Time</span><span>p/kWh inc VAT</span>
               </div>
-              <div className="columns-1 gap-x-6 text-xs sm:columns-2 lg:columns-4">
-                {slots.map((s, i) => (
-                  <div key={s.start} className={`flex break-inside-avoid items-center justify-between border-b border-white/5 px-1 py-1 ${inWindow(i) ? "bg-emerald-500/10" : ""} ${s.isNegative ? "bg-cyan-500/10" : ""}`}>
-                    <span>{s.label}</span>
-                    <span className="flex items-center gap-1">
-                      {s.isNegative && <span className="text-[10px] text-cyan-300">Plunge</span>}
-                      {cheapest && cheapest.start === s.start && <span className="text-[10px] text-emerald-300">Cheapest</span>}
-                      <span className={s.isNegative ? "text-cyan-300" : ""}>{fmt(s.price)}</span>
-                    </span>
-                  </div>
-                ))}
+              <div
+                className="grid grid-flow-col grid-rows-[repeat(var(--r1),auto)] gap-x-6 text-xs sm:grid-rows-[repeat(var(--r2),auto)] lg:grid-rows-[repeat(var(--r4),auto)]"
+                style={rowVars}
+              >
+                {slots.map((s, i) => {
+                  const c = colour(s);
+                  return (
+                    <div
+                      key={s.start}
+                      className={`flex items-center justify-between border-b border-white/5 border-l-4 px-1 py-1 ${inWindow(i) ? "bg-emerald-500/10" : ""}`}
+                      style={{ borderLeftColor: c }}
+                    >
+                      <span>{s.label}</span>
+                      <span className="flex items-center gap-1">
+                        {s.isNegative && <span className="text-[10px]" style={{ color: c }}>Negative</span>}
+                        {cheapest && cheapest.start === s.start && <span className="text-[10px] text-emerald-300">Cheapest</span>}
+                        {s.price === null ? <span className="text-muted-foreground">–</span> : <span className="font-medium" style={{ color: c }}>{fmt(s.price)}</span>}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

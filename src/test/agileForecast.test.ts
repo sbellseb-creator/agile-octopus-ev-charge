@@ -28,7 +28,7 @@ describe("agileForecast", () => {
   it("round-trips the slot cache and rejects expired entries", () => {
     const store: Record<string, string> = {};
     (globalThis as any).localStorage = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } };
-    const slots = buildEstimate("2026-01-15", []);
+    const slots = buildEstimate("2026-01-15", generateDaySlots("2026-01-15").map((s) => ({ start: s.start, pricePerMwh: 100 })));
     saveCachedSlots("2026-01-15", slots, "F", 1000);
     expect(loadCachedSlots("2026-01-15", "F", 2000)).toHaveLength(48);
     expect(loadCachedSlots("2026-01-15", "F", 1000 + 7 * 3600 * 1000)).toBeNull();

@@ -33,7 +33,7 @@ export const VAT_MULTIPLIER = 1.05;
 export const PRICE_CAP_P = 100; // p/kWh inc VAT
 export const PRICE_FLOOR_P = -100; // sanity floor only; Agile can go negative
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-export const CACHE_PREFIX = "acb-slots-v1";
+export const CACHE_PREFIX = "acb-slots-v2";
 export const SLOT_MS = 30 * 60 * 1000;
 export const CHEAP_WINDOW_SLOTS = 6; // 3 hours
 
@@ -176,11 +176,18 @@ export function hasFullData(slots: PricedSlot[]): boolean {
   return slots.length > 0 && slots.every((s) => s.price !== null);
 }
 
+/** True only when every expected slot for the UK day (48, or 46/50 on clock-change days) has a price. */
+export function isCompleteDay(dateKey: string, slots: PricedSlot[] | null | undefined): boolean {
+  if (!Array.isArray(slots) || slots.length !== generateDaySlots(dateKey).length) return false;
+  return slots.every((s) => typeof s?.price === "number" && Number.isFinite(s.price));
+}
+
 export type SlotSource = "nordpool" | "cache" | "mid" | "official" | "none";
 
 /**
- * Fallback chain: Nord Pool (live/static) -> cache -> Elexon MID -> official rates -> empty.
- * All slots for the day are computed in one pass; any source with data is rendered.
+ * Fallback chain: complete Nord Pool (live/static) -> last complete cache -> complete Elexon MID -> official rates -> empty.
+ * All slots for the day are computed in one pass; partial days are never rendered as complete.
+ * `partial` is true when some source returned data but not the full day.
  */
 export function chooseSlots(
   dateKey: string,
@@ -190,15 +197,16 @@ export function chooseSlots(
     mid?: WholesalePoint[];
     official?: { valid_from: string; value_inc_vat: number }[];
   },
-): { slots: PricedSlot[]; source: SlotSource } {
+): { slots: PricedSlot[]; source: SlotSource; partial: boolean } {
   const np = buildEstimate(dateKey, input.nordPool ?? []);
-  if (hasAnyData(np)) return { slots: np, source: "nordpool" };
-  if (input.cached && input.cached.length > 0 && hasAnyData(input.cached)) return { slots: input.cached, source: "cache" };
+  if (isCompleteDay(dateKey, np)) return { slots: np, source: "nordpool", partial: false };
+  if (isCompleteDay(dateKey, input.cached)) return { slots: input.cached as PricedSlot[], source: "cache", partial: false };
   const mid = buildEstimate(dateKey, input.mid ?? []);
-  if (hasAnyData(mid)) return { slots: mid, source: "mid" };
+  if (isCompleteDay(dateKey, mid)) return { slots: mid, source: "mid", partial: false };
   const off = buildOfficial(dateKey, input.official ?? []);
-  if (hasAnyData(off)) return { slots: off, source: "official" };
-  return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" };
+  if (isCompleteDay(dateKey, off)) return { slots: off, source: "official", partial: false };
+  const partial = hasAnyData(np) || hasAnyData(mid) || hasAnyData(off) || (input.cached?.length ?? 0) > 0;
+  return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none", partial };
 }
 
 export function cheapestSlot(slots: PricedSlot[]): PricedSlot | null {
@@ -233,17 +241,31 @@ export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_C
     const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(cacheKey(dateKey, region));
     if (!raw) return null;
     const { savedAt, slots } = JSON.parse(raw);
-    if (typeof savedAt !== "number" || (!ignoreTtl && now - savedAt > CACHE_TTL_MS) || !Array.isArray(slots) || slots.length === 0) return null;
-    return slots as PricedSlot[];
+    if (typeof savedAt !== "number" || (!ignoreTtl && now - savedAt > CACHE_TTL_MS)) return null;
+    return isCompleteDay(dateKey, slots) ? (slots as PricedSlot[]) : null;
   } catch {
     return null;
   }
 }
 
 export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: string = AGILE_REGION_CODE, now: number = Date.now()): void {
+  if (!isCompleteDay(dateKey, slots)) return;
   try {
     if (typeof localStorage !== "undefined") localStorage.setItem(cacheKey(dateKey, region), JSON.stringify({ savedAt: now, slots }));
   } catch {
     /* storage unavailable or full - ignore */
+  }
+}
+
+/** Remove cache entries written by older (possibly truncated) cache versions. */
+export function purgeLegacyCaches(): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("acb-slots-") && !k.startsWith(`${CACHE_PREFIX}:`)) localStorage.removeItem(k);
+    }
+  } catch {
+    /* ignore */
   }
 }

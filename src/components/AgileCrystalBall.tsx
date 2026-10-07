@@ -127,24 +127,22 @@ export default function AgileCrystalBall() {
           </Card>
 
           <Card>
-            <CardContent className="max-h-96 overflow-y-auto pt-4">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-muted-foreground"><th className="py-1">Time</th><th>p/kWh inc VAT</th><th /></tr>
-                </thead>
-                <tbody>
-                  {slots.map((s, i) => (
-                    <tr key={s.start} className={`border-t border-white/5 ${inWindow(i) ? "bg-emerald-500/10" : ""} ${s.isNegative ? "bg-cyan-500/10" : ""}`}>
-                      <td className="py-1">{s.label}</td>
-                      <td className={s.isNegative ? "text-cyan-300" : ""}>{fmt(s.price)}</td>
-                      <td className="text-[10px]">
-                        {s.isNegative && <span className="text-cyan-300">Plunge ≤ 0p </span>}
-                        {cheapest && cheapest.start === s.start && <span className="text-emerald-300">Cheapest</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <CardContent className="pt-4">
+              <div className="mb-1 flex justify-between border-b border-white/10 pb-1 text-xs text-muted-foreground">
+                <span>Time</span><span>p/kWh inc VAT</span>
+              </div>
+              <div className="columns-1 gap-x-6 text-xs sm:columns-2 lg:columns-4">
+                {slots.map((s, i) => (
+                  <div key={s.start} className={`flex break-inside-avoid items-center justify-between border-b border-white/5 px-1 py-1 ${inWindow(i) ? "bg-emerald-500/10" : ""} ${s.isNegative ? "bg-cyan-500/10" : ""}`}>
+                    <span>{s.label}</span>
+                    <span className="flex items-center gap-1">
+                      {s.isNegative && <span className="text-[10px] text-cyan-300">Plunge</span>}
+                      {cheapest && cheapest.start === s.start && <span className="text-[10px] text-emerald-300">Cheapest</span>}
+                      <span className={s.isNegative ? "text-cyan-300" : ""}>{fmt(s.price)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </>

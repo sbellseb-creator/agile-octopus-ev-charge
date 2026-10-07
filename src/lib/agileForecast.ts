@@ -242,3 +242,59 @@ export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: st
     /* storage unavailable or full - ignore */
   }
 }
+
+// ---- Refresh schedule ------------------------------------------------------
+/** Hour (Europe/London) from which tomorrow's day-ahead auction results are normally published. */
+export const PUBLISH_HOUR_UK = 11;
+/** Retry interval while tomorrow's data is not yet available. */
+export const RETRY_INTERVAL_MS = 5 * 60 * 1000;
+
+/** True once the UK clock (not the browser's) has passed the usual ~11:00 publication time. */
+export function isPastPublishTime(now: Date = new Date()): boolean {
+  return ukHourMinute(now).hour >= PUBLISH_HOUR_UK;
+}
+
+// ---- Bar colours (shared by chart, table and legend) -------------------------
+/**
+ * Colours are RELATIVE to the day's estimated prices (recomputed on every render from the current
+ * slots, never against fixed historic values): bottom third of the day's positive prices = "low",
+ * middle third = "mid", top third = "high". Negative prices and the cheapest charging window override.
+ */
+export type PriceBand = "negative" | "window" | "low" | "mid" | "high";
+
+export const BAND_COLOURS: Record<PriceBand, string> = {
+  negative: "#22d3ee",
+  window: "#4ade80",
+  low: "#a78bfa",
+  mid: "#fbbf24",
+  high: "#f87171",
+};
+
+export const BAND_LABELS: Record<PriceBand, string> = {
+  negative: "Negative / plunge (≤ 0p)",
+  window: "Cheapest charging window",
+  low: "Lowest third of the day",
+  mid: "Middle third of the day",
+  high: "Highest third of the day",
+};
+
+/** Day percentile thresholds (33rd / 67th) of the priced slots. */
+export function dayThresholds(slots: PricedSlot[]): { low: number; high: number } | null {
+  const v = (slots ?? []).filter((s) => s.price !== null && s.price > 0).map((s) => s.price as number).sort((a, b) => a - b);
+  if (v.length === 0) return null;
+  const at = (q: number) => v[Math.min(v.length - 1, Math.floor(q * v.length))];
+  return { low: at(1 / 3), high: at(2 / 3) };
+}
+
+export function priceBand(
+  slot: PricedSlot,
+  thresholds: { low: number; high: number } | null,
+  inCheapWindow: boolean,
+): PriceBand {
+  if (slot.isNegative) return "negative";
+  if (inCheapWindow) return "window";
+  if (slot.price === null || thresholds === null) return "mid";
+  if (slot.price < thresholds.low) return "low";
+  if (slot.price >= thresholds.high) return "high";
+  return "mid";
+}

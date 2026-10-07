@@ -55,21 +55,33 @@ export async function fetchDayAheadNordPool(dateKey: string): Promise<WholesaleP
  * fill in slot by slot. Never throws.
  */
 export async function fetchWholesale(dateKey: string): Promise<{ points: WholesalePoint[]; attempts: SourceAttempt[] }> {
+  const attempts: SourceAttempt[] = [];
   try {
     const points = await fetchDayAheadNordPool(dateKey);
-    return {
-      points,
-      attempts: [{
-        source: "Nord Pool N2EX day-ahead", ok: true, points: points.length,
-        detail: points.length ? "data returned" : "responded but no prices published for this date yet",
-      }],
-    };
+    attempts.push({
+      source: "Nord Pool N2EX day-ahead", ok: true, points: points.length,
+      detail: points.length ? "data returned" : "responded but no prices published for this date yet",
+    });
+    if (points.length) return { points, attempts };
   } catch (e) {
-    return {
-      points: [],
-      attempts: [{ source: "Nord Pool N2EX day-ahead", ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` }],
-    };
+    attempts.push({ source: "Nord Pool N2EX day-ahead", ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
   }
+  // Browser may be blocked from Nord Pool (CORS): try the same-origin snapshot written by CI.
+  try {
+    const points = await fetchStaticSnapshot(dateKey);
+    attempts.push({ source: "Static snapshot", ok: true, points: points.length, detail: points.length ? "data returned" : "no snapshot for this date" });
+    return { points, attempts };
+  } catch (e) {
+    attempts.push({ source: "Static snapshot", ok: false, points: 0, detail: `request failed: ${e instanceof Error ? e.message : String(e)}` });
+    return { points: [], attempts };
+  }
+}
+
+/** Same-origin JSON written by scripts/fetch-nordpool.mjs (scheduled GitHub Action). */
+async function fetchStaticSnapshot(dateKey: string): Promise<WholesalePoint[]> {
+  const json = await getJson(`${import.meta.env.BASE_URL}data/nordpool.json`);
+  const pts = json?.days?.[dateKey];
+  return Array.isArray(pts) ? (pts as WholesalePoint[]) : [];
 }
 
 /** Discover the current (open-to-new-customers) Agile product code. */

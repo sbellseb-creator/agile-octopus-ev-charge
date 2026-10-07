@@ -228,11 +228,37 @@ export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_C
     const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(cacheKey(dateKey, region));
     if (!raw) return null;
     const { savedAt, slots } = JSON.parse(raw);
-    if (typeof savedAt !== "number" || now - savedAt > CACHE_TTL_MS || !Array.isArray(slots) || slots.length === 0) return null;
+    if (typeof savedAt !== "number" || (now > 0 && now - savedAt > CACHE_TTL_MS) || !Array.isArray(slots) || slots.length === 0) return null;
     return slots as PricedSlot[];
   } catch {
     return null;
   }
+}
+
+/** Read cached slots for a date ignoring the TTL, so stale data can still be shown when live fetches fail. */
+export function loadStaleCachedSlots(dateKey: string, region: string = AGILE_REGION_CODE): PricedSlot[] | null {
+  return loadCachedSlots(dateKey, region, 0);
+}
+
+/** Most recent cached day (any date) for the region, or null. Used when the selected date has no cache. */
+export function loadLatestCachedDay(region: string = AGILE_REGION_CODE): { dateKey: string; slots: PricedSlot[] } | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const suffix = `:${region}`;
+    const prefix = `${CACHE_PREFIX}:`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix) && k.endsWith(suffix)) keys.push(k.slice(prefix.length, k.length - suffix.length));
+    }
+    for (const dateKey of keys.sort().reverse()) {
+      const slots = loadStaleCachedSlots(dateKey, region);
+      if (slots && hasFullData(slots)) return { dateKey, slots };
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return null;
 }
 
 export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: string = AGILE_REGION_CODE, now: number = Date.now()): void {

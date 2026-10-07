@@ -168,8 +168,37 @@ export function buildOfficial(
   });
 }
 
+export function hasAnyData(slots: PricedSlot[]): boolean {
+  return slots.some((s) => s.price !== null);
+}
+
 export function hasFullData(slots: PricedSlot[]): boolean {
   return slots.length > 0 && slots.every((s) => s.price !== null);
+}
+
+export type SlotSource = "nordpool" | "cache" | "mid" | "official" | "none";
+
+/**
+ * Fallback chain: Nord Pool (live/static) -> cache -> Elexon MID -> official rates -> empty.
+ * All slots for the day are computed in one pass; any source with data is rendered.
+ */
+export function chooseSlots(
+  dateKey: string,
+  input: {
+    nordPool?: WholesalePoint[];
+    cached?: PricedSlot[] | null;
+    mid?: WholesalePoint[];
+    official?: { valid_from: string; value_inc_vat: number }[];
+  },
+): { slots: PricedSlot[]; source: SlotSource } {
+  const np = buildEstimate(dateKey, input.nordPool ?? []);
+  if (hasAnyData(np)) return { slots: np, source: "nordpool" };
+  if (input.cached && input.cached.length > 0 && hasAnyData(input.cached)) return { slots: input.cached, source: "cache" };
+  const mid = buildEstimate(dateKey, input.mid ?? []);
+  if (hasAnyData(mid)) return { slots: mid, source: "mid" };
+  const off = buildOfficial(dateKey, input.official ?? []);
+  if (hasAnyData(off)) return { slots: off, source: "official" };
+  return { slots: generateDaySlots(dateKey).map((s): PricedSlot => ({ ...s, price: null, isNegative: false })), source: "none" };
 }
 
 export function cheapestSlot(slots: PricedSlot[]): PricedSlot | null {
@@ -199,12 +228,12 @@ export function cheapestWindow(
 export const cacheKey = (dateKey: string, region: string = AGILE_REGION_CODE) => `${CACHE_PREFIX}:${dateKey}:${region}`;
 
 /** Read cached estimate slots (null if missing, expired or malformed). */
-export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_CODE, now: number = Date.now()): PricedSlot[] | null {
+export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_CODE, now: number = Date.now(), ignoreTtl = false): PricedSlot[] | null {
   try {
     const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(cacheKey(dateKey, region));
     if (!raw) return null;
     const { savedAt, slots } = JSON.parse(raw);
-    if (typeof savedAt !== "number" || now - savedAt > CACHE_TTL_MS || !Array.isArray(slots) || slots.length === 0) return null;
+    if (typeof savedAt !== "number" || (!ignoreTtl && now - savedAt > CACHE_TTL_MS) || !Array.isArray(slots) || slots.length === 0) return null;
     return slots as PricedSlot[];
   } catch {
     return null;

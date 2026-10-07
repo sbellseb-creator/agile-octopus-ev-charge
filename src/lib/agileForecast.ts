@@ -1,49 +1,37 @@
 /**
  * Agile Crystal Ball – pure forecasting helpers (no I/O, no React).
  *
- * DATA SOURCES (public, keyless, CORS-enabled; fetched client-side):
- *  - Wholesale: Nord Pool day-ahead (GBP/MWh, one request for the whole day), Elexon MID as fallback.
+ * DATA SOURCES (both public, keyless and CORS-enabled; fetched client-side):
+ *  - Wholesale: Elexon Insights API "MID" (Market Index Data), £/MWh per
+ *    half-hour settlement period, provider APXMIDP (EPEX SPOT GB).
+ *    https://data.elexon.co.uk/bmrs/api/v1/datasets/MID
  *  - Official: Octopus public API, Agile product for region F (North East).
  *
- * WORKING FORMULA (see AGILE_ESTIMATE_CONFIG; constants are NOT confirmed):
- *   W = wholesale GBP/MWh / 10                              (p/kWh)
- *   P = peakAdderP for 16:00-19:00 Europe/London, else 0
- *   price = min(W * D + P, capP) * vat + offsetP            (offset applied after VAT)
- *   D = regional multiplier (regionMultipliers[region])
- * Calibrate the values per region against the official Agile rates (Agile tab) and keep only what matches.
- * They could not be calibrated in the build sandbox (no network access).
+ * FORMULA (Agile, ex VAT then VAT then cap; NO flat -3.5p deduction):
+ *   W = wholesale £/MWh / 10                      (p/kWh)
+ *   P = PEAK_ADDER_P for 16:00-19:00 Europe/London, else 0
+ *   price = min((W * D) + P) * 1.05, cap)         (cap applied inc VAT)
+ *   D = regional multiplier (REGION_MULTIPLIERS[region])
+ * All tunable constants live in this block. They could not be calibrated against live
+ * official rates in the build sandbox (no network) - adjust here if the Agile tab differs.
  */
 
-/** Single, documented home for every tunable estimate constant. Working values, not confirmed. */
-export const AGILE_ESTIMATE_CONFIG = {
-  /** Default multiplier D when a region has no entry (typical range 2.0-2.4). */
-  defaultMultiplier: 2.2,
-  /** Regional multiplier D per Agile region code. Calibrate each against official rates. */
-  regionMultipliers: {
-    A: 2.2, B: 2.2, C: 2.2, D: 2.2, E: 2.2, F: 2.2, G: 2.2, H: 2.2, J: 2.2, K: 2.2, L: 2.2, M: 2.2, N: 2.2, P: 2.2,
-  } as Record<string, number>,
-  /** p/kWh (pre-VAT) added only for 16:00-19:00 Europe/London (start inclusive, end exclusive). */
-  peakAdderP: 12,
-  /** Cap in p/kWh applied to (W * D + P), before VAT. */
-  capP: 95,
-  /** VAT multiplier (5%). */
-  vat: 1.05,
-  /** Flat p/kWh offset applied AFTER VAT. */
-  offsetP: -3.5,
-} as const;
-
-// ---- Other constants -------------------------------------------------------
+// ---- Tunable constants -----------------------------------------------------
 export const AGILE_REGION_CODE = "F"; // North East England
 export const UK_TZ = "Europe/London";
-export const WHOLESALE_TO_P_PER_KWH = 1 / 10; // GBP/MWh -> p/kWh
+export const WHOLESALE_TO_P_PER_KWH = 1 / 10; // £/MWh -> p/kWh
 export const PEAK_START_HOUR = 16; // peak window start, UK local (inclusive)
 export const PEAK_END_HOUR = 19; // peak window end, UK local (exclusive)
-export const DEFAULT_MULTIPLIER = AGILE_ESTIMATE_CONFIG.defaultMultiplier;
-export const REGION_MULTIPLIERS = AGILE_ESTIMATE_CONFIG.regionMultipliers;
-export const PEAK_ADDER_P = AGILE_ESTIMATE_CONFIG.peakAdderP;
-export const VAT_MULTIPLIER = AGILE_ESTIMATE_CONFIG.vat;
-export const PRICE_CAP_P = AGILE_ESTIMATE_CONFIG.capP;
-export const PRICE_OFFSET_P = AGILE_ESTIMATE_CONFIG.offsetP;
+export const DEFAULT_MULTIPLIER = 2.2;
+/** Regional multiplier D per Agile region code (current Agile product uses 2.2 for all regions). */
+export const REGION_MULTIPLIERS: Record<string, number> = {
+  A: 2.2, B: 2.2, C: 2.2, D: 2.2, E: 2.2, F: 2.2, G: 2.2, H: 2.2, J: 2.2, K: 2.2, L: 2.2, M: 2.2, N: 2.2, P: 2.2,
+};
+export const PEAK_ADDER_P = 12; // p/kWh ex VAT added in the peak window
+export const OFF_PEAK_ADDER_P = 0; // p/kWh ex VAT added outside the peak window
+export const VAT_MULTIPLIER = 1.05;
+export const PRICE_CAP_P = 100; // p/kWh inc VAT
+export const PRICE_FLOOR_P = -100; // sanity floor only; Agile can go negative
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 export const CACHE_PREFIX = "acb-slots-v1";
 export const SLOT_MS = 30 * 60 * 1000;
@@ -136,9 +124,9 @@ export function mwhToPencePerKwh(pricePerMwh: number): number {
 export function estimateAgilePrice(pricePerMwh: number, start: Date, region: string = AGILE_REGION_CODE): number {
   const wholesale = mwhToPencePerKwh(pricePerMwh);
   const d = REGION_MULTIPLIERS[region] ?? DEFAULT_MULTIPLIER;
-  const adder = isPeak(start) ? PEAK_ADDER_P : 0;
-  const capped = Math.min(wholesale * d + adder, PRICE_CAP_P);
-  return capped * VAT_MULTIPLIER + PRICE_OFFSET_P;
+  const adder = isPeak(start) ? PEAK_ADDER_P : OFF_PEAK_ADDER_P;
+  const incVat = (wholesale * d + adder) * VAT_MULTIPLIER;
+  return Math.min(PRICE_CAP_P, Math.max(PRICE_FLOOR_P, incVat));
 }
 
 /** Hour (UK local) at which the target day rolls over to the next calendar day. */
@@ -152,18 +140,6 @@ export function targetDayKey(now: Date = new Date()): string {
 
 /** Build tomorrow's priced slots from wholesale points. Missing slots get price null. */
 export function buildEstimate(dateKey: string, wholesale: WholesalePoint[]): PricedSlot[] {
-  const memoKey = `${dateKey}|${wholesale?.length ?? 0}|${wholesale?.[0]?.start}|${wholesale?.[0]?.pricePerMwh}|${wholesale?.[wholesale.length - 1]?.start}|${wholesale?.[wholesale.length - 1]?.pricePerMwh}`;
-  const hit = estimateMemo.get(memoKey);
-  if (hit) return hit;
-  const result = computeEstimate(dateKey, wholesale);
-  if (estimateMemo.size >= 16) estimateMemo.clear();
-  estimateMemo.set(memoKey, result);
-  return result;
-}
-
-const estimateMemo = new Map<string, PricedSlot[]>();
-
-function computeEstimate(dateKey: string, wholesale: WholesalePoint[]): PricedSlot[] {
   const byStart = new Map<number, number>();
   for (const w of wholesale ?? []) {
     const t = new Date(w.start).getTime();
@@ -228,37 +204,11 @@ export function loadCachedSlots(dateKey: string, region: string = AGILE_REGION_C
     const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(cacheKey(dateKey, region));
     if (!raw) return null;
     const { savedAt, slots } = JSON.parse(raw);
-    if (typeof savedAt !== "number" || (now > 0 && now - savedAt > CACHE_TTL_MS) || !Array.isArray(slots) || slots.length === 0) return null;
+    if (typeof savedAt !== "number" || now - savedAt > CACHE_TTL_MS || !Array.isArray(slots) || slots.length === 0) return null;
     return slots as PricedSlot[];
   } catch {
     return null;
   }
-}
-
-/** Read cached slots for a date ignoring the TTL, so stale data can still be shown when live fetches fail. */
-export function loadStaleCachedSlots(dateKey: string, region: string = AGILE_REGION_CODE): PricedSlot[] | null {
-  return loadCachedSlots(dateKey, region, 0);
-}
-
-/** Most recent cached day (any date) for the region, or null. Used when the selected date has no cache. */
-export function loadLatestCachedDay(region: string = AGILE_REGION_CODE): { dateKey: string; slots: PricedSlot[] } | null {
-  try {
-    if (typeof localStorage === "undefined") return null;
-    const suffix = `:${region}`;
-    const prefix = `${CACHE_PREFIX}:`;
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(prefix) && k.endsWith(suffix)) keys.push(k.slice(prefix.length, k.length - suffix.length));
-    }
-    for (const dateKey of keys.sort().reverse()) {
-      const slots = loadStaleCachedSlots(dateKey, region);
-      if (slots && hasFullData(slots)) return { dateKey, slots };
-    }
-  } catch {
-    /* storage unavailable */
-  }
-  return null;
 }
 
 export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: string = AGILE_REGION_CODE, now: number = Date.now()): void {
@@ -267,60 +217,4 @@ export function saveCachedSlots(dateKey: string, slots: PricedSlot[], region: st
   } catch {
     /* storage unavailable or full - ignore */
   }
-}
-
-// ---- Refresh schedule ------------------------------------------------------
-/** Hour (Europe/London) from which tomorrow's day-ahead auction results are normally published. */
-export const PUBLISH_HOUR_UK = 11;
-/** Retry interval while tomorrow's data is not yet available. */
-export const RETRY_INTERVAL_MS = 5 * 60 * 1000;
-
-/** True once the UK clock (not the browser's) has passed the usual ~11:00 publication time. */
-export function isPastPublishTime(now: Date = new Date()): boolean {
-  return ukHourMinute(now).hour >= PUBLISH_HOUR_UK;
-}
-
-// ---- Bar colours (shared by chart, table and legend) -------------------------
-/**
- * Colours are RELATIVE to the day's estimated prices (recomputed on every render from the current
- * slots, never against fixed historic values): bottom third of the day's positive prices = "low",
- * middle third = "mid", top third = "high". Negative prices and the cheapest charging window override.
- */
-export type PriceBand = "negative" | "window" | "low" | "mid" | "high";
-
-export const BAND_COLOURS: Record<PriceBand, string> = {
-  negative: "#22d3ee",
-  window: "#4ade80",
-  low: "#a78bfa",
-  mid: "#fbbf24",
-  high: "#f87171",
-};
-
-export const BAND_LABELS: Record<PriceBand, string> = {
-  negative: "Negative / plunge (≤ 0p)",
-  window: "Cheapest charging window",
-  low: "Lowest third of the day",
-  mid: "Middle third of the day",
-  high: "Highest third of the day",
-};
-
-/** Day percentile thresholds (33rd / 67th) of the priced slots. */
-export function dayThresholds(slots: PricedSlot[]): { low: number; high: number } | null {
-  const v = (slots ?? []).filter((s) => s.price !== null && s.price > 0).map((s) => s.price as number).sort((a, b) => a - b);
-  if (v.length === 0) return null;
-  const at = (q: number) => v[Math.min(v.length - 1, Math.floor(q * v.length))];
-  return { low: at(1 / 3), high: at(2 / 3) };
-}
-
-export function priceBand(
-  slot: PricedSlot,
-  thresholds: { low: number; high: number } | null,
-  inCheapWindow: boolean,
-): PriceBand {
-  if (slot.isNegative) return "negative";
-  if (inCheapWindow) return "window";
-  if (slot.price === null || thresholds === null) return "mid";
-  if (slot.price < thresholds.low) return "low";
-  if (slot.price >= thresholds.high) return "high";
-  return "mid";
 }

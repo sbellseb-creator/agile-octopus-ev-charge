@@ -22,12 +22,12 @@ import {
   type PricedSlot,
 } from "@/lib/agileForecast";
 
-const PRICE_CAP_RATE = 26.11; // Standard variable cap rate reference (p/kWh)
+const PRICE_CAP_RATE = 26.11; // Standard variable cap reference rate (p/kWh)
 
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
-// Fetch live auction market predictions directly from agileforecast.co.uk
+// Fetch live day-ahead auction rates directly from agile-rates.uk
 async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
   // 1. Check browser cache first
   const cached = loadCachedSlots(dateKey, undefined, Date.now(), true);
@@ -35,34 +35,45 @@ async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"):
     return cached;
   }
 
-  // 2. Query agileforecast.co.uk API directly (CORS enabled)
-  const response = await fetch(`https://agileforecast.co.uk/api/${regionCode}/?days=2&high_low=false`);
-  
+  // 2. Fetch directly from agile-rates.uk regional JSON feed
+  const response = await fetch(`https://agilerates.uk/api/agile_rates_region_${regionCode}.json`);
   if (!response.ok) {
-    throw new Error("Auction rates pending or unavailable");
+    throw new Error("Agile Rates feed unavailable");
   }
 
-  const data = await response.json();
-  if (!Array.isArray(data) || data.length === 0) {
-    throw new Error("No auction data returned");
+  const rawData = await response.json();
+  const ratesList = Array.isArray(rawData) ? rawData : rawData?.rates || [];
+
+  // Filter half-hourly slots for tomorrow's date key (e.g., "2026-10-09")
+  const targetSlots = ratesList.filter((slot: any) => {
+    const slotTime = slot.date_time || slot.valid_from || slot.start;
+    return slotTime && slotTime.startsWith(dateKey);
+  });
+
+  if (!targetSlots || targetSlots.length < 48) {
+    throw new Error("Tomorrow's auction rates are not published yet");
   }
 
-  // Locate slot list corresponding to the requested date key (e.g. 2026-10-09)
-  const targetDayData = data.find((day: any) => day.date === dateKey) || data[data.length - 1];
+  // Map slots with Europe/London timezone to prevent BST/UTC hour offsets
+  return targetSlots.map((slot: any) => {
+    const isoString = slot.date_time || slot.valid_from || slot.start;
+    const priceVal =
+      slot.agileRate?.result?.rate ??
+      slot.value_inc_vat ??
+      slot.price ??
+      slot.value;
 
-  if (!targetDayData || !Array.isArray(targetDayData.prices) || targetDayData.prices.length < 48) {
-    throw new Error("Predictions for target date are not published yet");
-  }
-
-  return targetDayData.prices.map((slot: any) => ({
-    start: slot.date_time,
-    label: new Date(slot.date_time).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }),
-    price: Number(slot.agile_pred.toFixed(2)),
-  }));
+    return {
+      start: isoString,
+      label: new Date(isoString).toLocaleTimeString("en-GB", {
+        timeZone: "Europe/London",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      price: Number(Number(priceVal).toFixed(2)),
+    };
+  });
 }
 
 export default function AgileCrystalBall() {
@@ -72,7 +83,7 @@ export default function AgileCrystalBall() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["agile-crystal-ball-live", dateKey],
+    queryKey: ["agile-rates-uk-feed", dateKey],
     queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
     retry: 2,
     staleTime: 5 * 60 * 1000,
@@ -84,14 +95,14 @@ export default function AgileCrystalBall() {
     return [...query.data].sort((a, b) => a.start.localeCompare(b.start));
   }, [query.data]);
 
-  // Save into local cache once full 48 slots arrive
+  // Persist into localStorage cache once full 48 slots arrive
   useEffect(() => {
     if (slots.length === 48) {
       saveCachedSlots(dateKey, slots);
     }
   }, [slots, dateKey]);
 
-  // Aggregate Metrics
+  // Calculate high-level metrics
   const stats = useMemo(() => {
     const valid = slots.filter((s) => s.price !== null && !isNaN(s.price));
     if (valid.length !== 48) return null;
@@ -105,7 +116,7 @@ export default function AgileCrystalBall() {
     return { minSlot, maxSlot, avg, vsCapPct };
   }, [slots]);
 
-  // Time groupings
+  // Group slots into time blocks
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
@@ -123,19 +134,44 @@ export default function AgileCrystalBall() {
     return { morning, afternoon, peak, evening };
   }, [slots]);
 
+  // UK Local Time check
+  const now = new Date();
+  const ukTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" }));
+  const ukHour = ukTime.getHours();
+
+  const isBefore10AM = ukHour < 10;
+  const isBetween10and4 = ukHour >= 10 && ukHour < 16;
+  const isPost4PM = ukHour >= 16;
+
   const isLoading = query.isLoading;
   const isError = query.isError || (!isLoading && slots.length < 48);
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
-          <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
-            Tomorrow's Predictions ({dateKey})
-          </Badge>
+      {/* Dynamic Time Banner */}
+      {isBefore10AM && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+          ⏳ Day-ahead wholesale auction predictions for tomorrow will publish around <strong>10:00 AM</strong>.
         </div>
+      )}
 
+      {isBetween10and4 && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          ⚡ Displaying 10:00 AM day-ahead market predictions sourced directly from <strong>agile-rates.uk</strong>.
+        </div>
+      )}
+
+      {isPost4PM && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
+          ✅ Tomorrow's official rates are live. You can view them on the main <strong>Rates</strong> tab.
+        </div>
+      )}
+
+      {/* Header Info */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
+          Tomorrow's Predictions ({dateKey})
+        </Badge>
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <span>
             Region: <strong className="text-white">North Eastern England (F)</strong>
@@ -144,7 +180,7 @@ export default function AgileCrystalBall() {
         </div>
       </div>
 
-      {/* Primary Summary Metric Cards */}
+      {/* Summary KPI Cards */}
       {!isLoading && stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
@@ -198,12 +234,10 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Hourly Rate Chart */}
+      {/* Hourly Rate Profile Chart */}
       {!isLoading && stats && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Predicted Rate Profile (p/kWh)</CardTitle>
-          </div>
+          <CardTitle className="text-sm font-semibold mb-4">Predicted Rate Profile (p/kWh)</CardTitle>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={slots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -217,11 +251,7 @@ export default function AgileCrystalBall() {
                 <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 10 }} interval={5} />
                 <YAxis tick={{ fill: "#64748b", fontSize: 10 }} unit="p" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0f172a",
-                    borderColor: "#334155",
-                    borderRadius: "8px",
-                  }}
+                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }}
                   formatter={(v: number) => [`${fmt(v)} p/kWh`, "Predicted Rate"]}
                 />
                 <ReferenceLine
@@ -244,14 +274,14 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading State */}
+      {/* Loading Indicator */}
       {isLoading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead auction rates…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead auction rates from agile-rates.uk…
         </div>
       )}
 
-      {/* Pending / Error Alert State */}
+      {/* Error / Pending Banner */}
       {isError && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
@@ -261,14 +291,14 @@ export default function AgileCrystalBall() {
                 Auction Rates Pending or Unavailable
               </h4>
               <p className="mt-1 text-xs text-rose-200/80">
-                Day-ahead market prices for {dateKey} publish around 12:30 UK time, and official Octopus rates arrive around 16:00.
+                Day-ahead wholesale auction prices publish around 10:00 AM UK time. Check back after 10:00 AM to see tomorrow's prediction.
               </p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* Detailed Half-Hourly Card Grid */}
+      {/* Detailed Half-Hourly Slots Grid */}
       {!isLoading && !isError && (
         <div className="space-y-4">
           {[

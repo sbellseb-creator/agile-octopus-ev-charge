@@ -14,11 +14,6 @@ const json = (body: unknown, status = 200) =>
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/**
- * Previous-days diagnostic: does the provider return data for settled days, and
- * how close is the formula to the official Agile rates? Also suggests formula
- * constants fitted to the official rates (never applied automatically).
- */
 async function diagnose(region: string, today: string, days: number) {
   const cfg = formulaFromEnv();
   const previousDates = Array.from({ length: days }, (_, i) => addDays(today, -(i + 1)));
@@ -28,7 +23,6 @@ async function diagnose(region: string, today: string, days: number) {
   const tomorrowProvider = getProvider(choice, tomorrow, today);
   const tomorrowCheck = (await checkDays((d) => tomorrowProvider.fetchDay(d), [tomorrow]))[0];
 
-  // Fetch each previous day once (in parallel) and reuse it for the check and the accuracy comparison.
   const fetched = await Promise.all(previousDates.map(async (date) => {
     try {
       return { date, wholesale: await provider.fetchDay(date), error: null as string | null };
@@ -62,9 +56,6 @@ async function diagnose(region: string, today: string, days: number) {
   return { provider: provider.label, region, formula: cfg, checks: [...previous, tomorrowCheck], verdict, accuracy: perDay, fitted_formula: fitted };
 }
 
-// Estimated (NOT official) Agile rates for one UK delivery day, computed from
-// wholesale data + the Agile formula. The browser only ever calls this function.
-// Always answers 200 with status "available" | "waiting" | "error" so the UI can show the real reason.
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -86,24 +77,68 @@ serve(async (req) => {
       return json({ diagnostic: true, ...result });
     }
 
-    const choice = param("provider") === "neso" ? "neso" : Deno.env.get("CRYSTAL_PROVIDER");
-    const provider = getProvider(choice, date, today);
-    const cfg = formulaFromEnv();
-    const wholesale = await provider.fetchDay(date);
-    const estimates = estimateFromWholesale(wholesale, cfg);
+    let estimates: any[] = [];
+    let providerLabel = "agile-rates.uk";
+    let isMock = false;
+
+    // Direct fetch from agilerates.uk
+    try {
+      const arRes = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" }
+      });
+      if (arRes.ok) {
+        const arData = await arRes.json();
+        const rawRates = Array.isArray(arData) ? arData : (arData?.rates || []);
+        
+        // Filter rates for the requested date
+        estimates = rawRates
+          .filter((r: any) => {
+            const validFrom = r.valid_from || r.time || r.from;
+            return validFrom && validFrom.startsWith(date);
+          })
+          .map((r: any) => ({
+            valid_from: r.valid_from || r.time || r.from,
+            valid_to: r.valid_to || r.to,
+            value_inc_vat: r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? 0,
+            value_exc_vat: r.value_exc_vat ?? ((r.agileRate?.result?.rate ?? 0) / 1.2),
+          }));
+      }
+    } catch (err) {
+      console.warn("agilerates.uk direct fetch failed, falling back to configured provider", err);
+    }
+
+    // Fallback to internal provider if agilerates.uk didn't return rows for this date
+    if (estimates.length === 0) {
+      const choice = param("provider") === "neso" ? "neso" : Deno.env.get("CRYSTAL_PROVIDER");
+      const provider = getProvider(choice, date, today);
+      const cfg = formulaFromEnv();
+      const wholesale = await provider.fetchDay(date);
+      estimates = estimateFromWholesale(wholesale, cfg);
+      providerLabel = provider.label;
+      isMock = provider.isMock;
+    }
+
     console.log(JSON.stringify({
-      fn: "crystal-ball", provider: provider.id, date,
-      range: [ukMidnightUtc(date).toISOString(), ukMidnightUtc(addDays(date, 1)).toISOString()],
+      fn: "crystal-ball", provider: providerLabel, date,
       rows: estimates.length, failure: null,
     }));
+
     return json({
-      date, status: estimates.length > 0 ? "available" : "waiting", available: estimates.length > 0, region, estimated: true,
-      source: provider.label, is_mock: provider.isMock, updated_at: now.toISOString(), formula: cfg, results: estimates, wholesale,
+      date, 
+      status: estimates.length > 0 ? "available" : "waiting", 
+      available: estimates.length > 0, 
+      region, 
+      estimated: true,
+      source: providerLabel, 
+      is_mock: isMock, 
+      updated_at: now.toISOString(), 
+      results: estimates,
+      rates: estimates
     });
   } catch (e) {
     const reason = e instanceof ProviderError ? e.reason : "internal_error";
     const message = e instanceof Error ? e.message : String(e);
     console.error(JSON.stringify({ fn: "crystal-ball", date, rows: 0, failure: reason, message }));
-    return json({ date, status: "error", available: false, region, estimated: true, error: message, error_reason: reason, updated_at: now.toISOString(), results: [] });
+    return json({ date, status: "error", available: false, region, estimated: true, error: message, error_reason: reason, updated_at: now.toISOString(), results: [], rates: [] });
   }
 });

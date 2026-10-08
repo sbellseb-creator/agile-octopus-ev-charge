@@ -1,8 +1,6 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { addDays, ukDate } from "../_shared/agile-core.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { 
@@ -12,32 +10,24 @@ const json = (body: unknown, status = 200) =>
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const now = new Date();
-  
-  // Calculate default target date (tomorrow)
-  const tomorrowObj = new Date(now.valueOf() + 86400000);
-  const defaultDate = tomorrowObj.toISOString().split("T")[0];
-
+  const today = ukDate(now);
   let body: Record<string, unknown> = {};
-  if (req.method === "POST") {
-    body = await req.json().catch(() => ({}));
-  }
+  if (req.method === "POST") body = await req.json().catch(() => ({}));
   const url = new URL(req.url);
   const param = (k: string) => (body[k] as string | undefined) ?? url.searchParams.get(k) ?? undefined;
   
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
-  const date = isDate(requested) ? requested : defaultDate;
+  const date = isDate(requested) ? requested : addDays(today, 1);
 
   try {
     const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
 
-    // Strict 5-second fetch timeout to prevent browser hanging
+    // Strict 5-second fetch timeout to stop browser hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 

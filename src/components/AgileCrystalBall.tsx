@@ -15,120 +15,96 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { priceBand } from "@/lib/priceBands";
 import {
-  fetchDayAhead,
-  fetchMidFallback,
-  fetchOfficialRates,
-} from "@/lib/agileForecastApi";
-import {
-  chooseSlots,
-  purgeLegacyCaches,
   targetDayKey,
-  ukMidnightUtc,
-  loadCachedSlots,
-  saveCachedSlots,
   addDaysToDateKey,
+  saveCachedSlots,
+  loadCachedSlots,
   type PricedSlot,
 } from "@/lib/agileForecast";
 
-const PRICE_CAP_RATE = 26.11; // Standard variable cap (p/kWh)
+const PRICE_CAP_RATE = 26.11; // Standard variable cap reference (p/kWh)
 
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
+// Fetch prediction slots directly or build fallback from official Octopus API
+async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
+  // 1. Try public CORS proxy / predictions API matching agile-rates.uk
+  try {
+    const res = await fetch(`https://agile-rates.uk/api/predictions?region=${regionCode}&date=${dateKey}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json) && json.length > 0) {
+        return json.map((item: any) => ({
+          start: item.valid_from || item.start,
+          label: item.label || new Date(item.valid_from || item.start).toISOString().substring(11, 16),
+          price: Number(item.value_inc_vat ?? item.price ?? item.rate),
+        }));
+      }
+    }
+  } catch {
+    // Fail silently to next fallback
+  }
+
+  // 2. Check local storage cache
+  const cached = loadCachedSlots(dateKey, undefined, Date.now(), true);
+  if (cached && cached.length === 48) {
+    return cached;
+  }
+
+  // 3. Fallback: Official Octopus rates API (if published)
+  const fromIso = `${dateKey}T00:00:00Z`;
+  const toIso = `${dateKey}T23:59:59Z`;
+  const octRes = await fetch(
+    `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-${regionCode}/standard-unit-rates/?period_from=${fromIso}&period_to=${toIso}`
+  );
+
+  if (octRes.ok) {
+    const octData = await octRes.json();
+    if (octData.results && octData.results.length > 0) {
+      return octData.results.map((item: any) => ({
+        start: item.valid_from,
+        label: new Date(item.valid_from).toISOString().substring(11, 16),
+        price: Number(item.value_inc_vat),
+      }));
+    }
+  }
+
+  throw new Error("Predictions pending");
+}
+
 export default function AgileCrystalBall() {
-  // Always target tomorrow's predictions
   const dateKey = useMemo(() => {
     const todayKey = targetDayKey();
     return addDaysToDateKey(todayKey, 1);
   }, []);
 
-  const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
-  const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
-
-  const opts = {
+  const predictionsQuery = useQuery({
+    queryKey: ["agile-crystal-ball-tomorrow", dateKey],
+    queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
     retry: 2,
     staleTime: 10 * 60 * 1000,
     refetchInterval: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
-  };
-
-  // Queries using existing API helpers
-  const official = useQuery({
-    queryKey: ["acb-official", dateKey],
-    queryFn: () => fetchOfficialRates(fromIso, toIso),
-    ...opts,
   });
 
-  const nordPool = useQuery({
-    queryKey: ["acb-nordpool", dateKey],
-    queryFn: () => fetchDayAhead(dateKey),
-    ...opts,
-  });
-
-  const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points?.length;
-
-  const mid = useQuery({
-    queryKey: ["acb-mid", dateKey],
-    queryFn: () => fetchMidFallback(fromIso, toIso),
-    ...opts,
-    enabled: nordPoolFailed,
-  });
-
-  useEffect(() => {
-    purgeLegacyCaches();
-  }, []);
-
-  // Selection logic matching agileForecast
-  const rawChoice = useMemo(() => {
-    return chooseSlots(dateKey, {
-      nordPool: nordPool.data?.points,
-      cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
-      mid: mid.data?.points,
-      official: official.data,
-    });
-  }, [dateKey, nordPool.data, mid.data, official.data]);
-
-  // Clean slot objects and ensure accurate HH:mm timestamps
+  // Ensure 48 half-hour slots sorted by start time
   const safeSlots: PricedSlot[] = useMemo(() => {
-    if (!rawChoice.slots || rawChoice.slots.length === 0) return [];
+    if (!predictionsQuery.data) return [];
 
-    return rawChoice.slots
-      .map((item: any) => {
-        const rawPrice = item.value_inc_vat ?? item.price ?? item.rate ?? null;
-        const price = rawPrice !== null && !isNaN(Number(rawPrice)) ? Number(rawPrice) : null;
+    return [...predictionsQuery.data].sort((a, b) =>
+      a.start.localeCompare(b.start)
+    );
+  }, [predictionsQuery.data]);
 
-        const startIso = item.valid_from ?? item.start ?? item.time ?? "";
-        let label = item.label || "";
-        
-        if (!label && startIso) {
-          try {
-            const dateObj = new Date(startIso);
-            const hours = String(dateObj.getUTCHours()).padStart(2, "0");
-            const minutes = String(dateObj.getUTCMinutes()).padStart(2, "0");
-            label = `${hours}:${minutes}`;
-          } catch {
-            label = "00:00";
-          }
-        }
-
-        return {
-          start: startIso,
-          label: label || "00:00",
-          price,
-        };
-      })
-      .sort((a, b) => a.start.localeCompare(b.start));
-  }, [rawChoice.slots]);
-
-  const source = rawChoice.source;
-
+  // Persist to local cache if valid dataset received
   useEffect(() => {
-    if (source === "nordpool" && safeSlots.length === 48) {
+    if (safeSlots.length === 48) {
       saveCachedSlots(dateKey, safeSlots);
     }
-  }, [source, safeSlots, dateKey]);
+  }, [safeSlots, dateKey]);
 
-  // Key performance indicators
+  // Summary Metrics matching agile-rates.uk
   const stats = useMemo(() => {
     const validSlots = safeSlots.filter((s) => s.price !== null && !isNaN(s.price));
     if (validSlots.length === 0) return null;
@@ -138,13 +114,13 @@ export default function AgileCrystalBall() {
     const maxSlot = validSlots.reduce((prev, curr) => (curr.price! > prev.price! ? curr : prev));
     const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
     
-    // Exact vs Price Cap formula
+    // Accurate vs Price Cap calculation (e.g. (14.63 - 26.11) / 26.11 = -44%)
     const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
 
     return { minSlot, maxSlot, avg, vsCapPct };
   }, [safeSlots]);
 
-  // Categorized grid sections
+  // Grouped periods
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
@@ -162,13 +138,12 @@ export default function AgileCrystalBall() {
     return { morning, afternoon, peak, evening };
   }, [safeSlots]);
 
-  // Don't show "Unavailable" while requests are actively fetching in the background
-  const isFetching = nordPool.isLoading || (nordPoolFailed && mid.isLoading) || official.isLoading;
-  const hasData = stats !== null && safeSlots.some((s) => s.price !== null);
+  const isLoading = predictionsQuery.isLoading;
+  const isError = predictionsQuery.isError || (!isLoading && safeSlots.length === 0);
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Header Info */}
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
@@ -180,17 +155,12 @@ export default function AgileCrystalBall() {
           <span>
             Region: <strong className="text-white">North Eastern England (F)</strong>
           </span>
-          {source === "official" && (
-            <Badge className="bg-emerald-500/20 text-emerald-300">Official Octopus Rates</Badge>
-          )}
-          {source !== "official" && source !== "none" && (
-            <Badge className="bg-amber-500/20 text-amber-300">Agile Market Predictions</Badge>
-          )}
+          <Badge className="bg-amber-500/20 text-amber-300">Agile Market Predictions</Badge>
         </div>
       </div>
 
-      {/* Primary KPI Cards */}
-      {hasData && stats && (
+      {/* Primary Summary Cards */}
+      {!isLoading && stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
             <CardContent className="p-4">
@@ -243,8 +213,8 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Prediction Chart */}
-      {hasData && (
+      {/* Chart */}
+      {!isLoading && stats && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Predicted Rate Profile (p/kWh)</CardTitle>
@@ -289,15 +259,15 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading state */}
-      {isFetching && !hasData && (
+      {/* Loading State */}
+      {isLoading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
           <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead prediction rates…
         </div>
       )}
 
-      {/* Pending Banner (Only shows when fetching finishes and no data is present) */}
-      {!isFetching && !hasData && (
+      {/* Pending / Error Banner */}
+      {isError && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
@@ -313,8 +283,8 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Grid view of prediction slots */}
-      {hasData && (
+      {/* 48 Half-Hourly Rate Slot Cards */}
+      {!isLoading && !isError && (
         <div className="space-y-4">
           {[
             { title: "MORNING · 00:00 – 12:00", items: groupedSlots.morning },

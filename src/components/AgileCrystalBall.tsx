@@ -41,7 +41,6 @@ const fmt = (p: number | null | undefined) => (p == null ? "–" : p.toFixed(2))
 export default function AgileCrystalBall() {
   const [activeTab, setActiveTab] = useState<"today" | "tomorrow">("today");
 
-  // Determine dateKey dynamically: Today vs Tomorrow
   const dateKey = useMemo(() => {
     const todayKey = targetDayKey();
     return activeTab === "tomorrow" ? addDaysToDateKey(todayKey, 1) : todayKey;
@@ -57,14 +56,12 @@ export default function AgileCrystalBall() {
     refetchOnWindowFocus: false,
   };
 
-  // Official Octopus Rates (Primary for Today, Fallback/Confirmation for Tomorrow)
   const official = useQuery({
     queryKey: ["acb-official", dateKey],
     queryFn: () => fetchOfficialRates(fromIso, toIso),
     ...opts,
   });
 
-  // Day-Ahead Wholesale (Only required for Tomorrow's predictions)
   const nordPool = useQuery({
     queryKey: ["acb-nordpool", dateKey],
     queryFn: () => fetchDayAhead(dateKey),
@@ -85,7 +82,6 @@ export default function AgileCrystalBall() {
     purgeLegacyCaches();
   }, []);
 
-  // Format slots depending on activeTab
   const { slots, source } = useMemo(() => {
     if (activeTab === "today" && official.data && official.data.length > 0) {
       return {
@@ -109,38 +105,45 @@ export default function AgileCrystalBall() {
     }
   }, [source, slots, dateKey]);
 
-  // Summary Metrics
+  // Safe formatting to ensure label property exists across all API responses
+  const safeSlots = useMemo(() => {
+    return slots.map((s) => {
+      const displayLabel = s.label || (s.start ? s.start.slice(11, 16) : "00:00");
+      return { ...s, label: displayLabel };
+    });
+  }, [slots]);
+
   const stats = useMemo(() => {
-    if (!slots || slots.length === 0) return null;
-    const validPrices = slots.map((s) => s.price).filter((p): p is number => p !== null);
+    if (!safeSlots || safeSlots.length === 0) return null;
+    const validPrices = safeSlots.map((s) => s.price).filter((p): p is number => p !== null);
     if (validPrices.length === 0) return null;
 
-    const minSlot = slots.reduce((prev, curr) =>
+    const minSlot = safeSlots.reduce((prev, curr) =>
       curr.price !== null && (prev.price === null || curr.price < prev.price) ? curr : prev
     );
-    const maxSlot = slots.reduce((prev, curr) =>
+    const maxSlot = safeSlots.reduce((prev, curr) =>
       curr.price !== null && (prev.price === null || curr.price > prev.price) ? curr : prev
     );
     const avg = validPrices.reduce((a, b) => a + b, 0) / validPrices.length;
     const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
 
-    const win1h = cheapestWindow(slots, 2);
-    const win2h = cheapestWindow(slots, 4);
-    const win3h = cheapestWindow(slots, 6);
-    const win4h = cheapestWindow(slots, 8);
+    const win1h = cheapestWindow(safeSlots, 2);
+    const win2h = cheapestWindow(safeSlots, 4);
+    const win3h = cheapestWindow(safeSlots, 6);
+    const win4h = cheapestWindow(safeSlots, 8);
 
     return { minSlot, maxSlot, avg, vsCapPct, win1h, win2h, win3h, win4h };
-  }, [slots]);
+  }, [safeSlots]);
 
-  // Groupings for Half-Hourly Grid
+  // Groupings with defensive parsing against undefined values
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
     const peak: PricedSlot[] = [];
     const evening: PricedSlot[] = [];
 
-    slots.forEach((s) => {
-      const hour = parseInt(s.label.split(":")[0], 10);
+    safeSlots.forEach((s) => {
+      const hour = parseInt((s.label || "00:00").split(":")[0], 10) || 0;
       if (hour >= 0 && hour < 12) morning.push(s);
       else if (hour >= 12 && hour < 16) afternoon.push(s);
       else if (hour >= 16 && hour < 19) peak.push(s);
@@ -148,7 +151,7 @@ export default function AgileCrystalBall() {
     });
 
     return { morning, afternoon, peak, evening };
-  }, [slots]);
+  }, [safeSlots]);
 
   const loading =
     activeTab === "today"
@@ -157,7 +160,6 @@ export default function AgileCrystalBall() {
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Top View Selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <Button
@@ -185,7 +187,6 @@ export default function AgileCrystalBall() {
         </div>
       </div>
 
-      {/* Overview Cards */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
@@ -235,7 +236,6 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Cheapest Windows Widgets */}
       {stats && (
         <div className="space-y-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Cheapest Windows ({dateKey})</h3>
@@ -253,7 +253,7 @@ export default function AgileCrystalBall() {
                   </div>
                   <div className="mt-1 text-lg font-black text-white">{fmt(win.average)}<span className="text-xs font-normal text-slate-400">p/kWh</span></div>
                   <div className="text-[11px] font-medium text-slate-300">
-                    {slots[win.startIndex]?.label} – {slots[win.startIndex + win.length - 1]?.label}
+                    {safeSlots[win.startIndex]?.label} – {safeSlots[win.startIndex + win.length - 1]?.label}
                   </div>
                 </Card>
               ) : null
@@ -262,15 +262,14 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Graph View */}
-      {!loading && slots.length > 0 && (
+      {!loading && safeSlots.length > 0 && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Import Rate Profile (p/kWh)</CardTitle>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={slots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={safeSlots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
@@ -292,14 +291,13 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading & Empty States */}
       {loading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching Agile rates from Octopus Energy…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading Agile energy rates…
         </div>
       )}
 
-      {!loading && slots.length === 0 && (
+      {!loading && safeSlots.length === 0 && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
@@ -315,8 +313,7 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Half-Hour Slot Cards */}
-      {!loading && slots.length > 0 && (
+      {!loading && safeSlots.length > 0 && (
         <div className="space-y-4">
           {[
             { title: "MORNING · 00:00 – 12:00", items: groupedSlots.morning },
@@ -329,11 +326,11 @@ export default function AgileCrystalBall() {
                 <div key={section.title} className="space-y-2">
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{section.title}</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-                    {section.items.map((s) => {
+                    {section.items.map((s, idx) => {
                       const band = priceBand(s.price ?? 0);
                       return (
                         <div
-                          key={s.start}
+                          key={s.start || idx}
                           className="flex flex-col justify-between rounded-lg border border-slate-800 bg-slate-900/80 p-2.5 shadow-sm"
                         >
                           <span className="text-[11px] text-slate-400">{s.label}</span>

@@ -1,181 +1,345 @@
-import { useEffect, useMemo, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Loader2 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ReferenceLine,
+} from "recharts";
+import { Loader2, Zap, ArrowDownRight, ArrowUpRight, ShieldCheck, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PRICE_BAND_ORDER, priceBand } from "@/lib/priceBands";
-import { fetchDayAhead, fetchMidFallback, fetchOfficialRates } from "@/lib/agileForecastApi";
+import { Button } from "@/components/ui/button";
 import {
-  chooseSlots, cheapestSlot, cheapestWindow, cacheKey, purgeLegacyCaches,
-  targetDayKey, ukMidnightUtc, loadCachedSlots, saveCachedSlots, addDaysToDateKey, CHEAP_WINDOW_SLOTS, type PricedSlot,
+  PRICE_BAND_ORDER,
+  priceBand,
+} from "@/lib/priceBands";
+import {
+  fetchDayAhead,
+  fetchMidFallback,
+  fetchOfficialRates,
+} from "@/lib/agileForecastApi";
+import {
+  chooseSlots,
+  cheapestSlot,
+  cheapestWindow,
+  cacheKey,
+  purgeLegacyCaches,
+  targetDayKey,
+  ukMidnightUtc,
+  loadCachedSlots,
+  saveCachedSlots,
+  addDaysToDateKey,
+  type PricedSlot,
 } from "@/lib/agileForecast";
 
-const sourceNote: Record<string, string> = {
-  nordpool: "N2EX GB day-ahead auction (NESO)",
-  cache: "last saved N2EX day-ahead prices (cached)",
-  mid: "Elexon market index (MID) fallback",
-};
+const PRICE_CAP_RATE = 26.11; // Standard variable price cap reference (p/kWh)
 
-const fmt = (p: number | null) => (p === null ? "–" : p.toFixed(2));
+const fmt = (p: number | null | undefined) => (p == null ? "–" : p.toFixed(2));
 
 export default function AgileCrystalBall() {
-  const dateKey = useMemo(() => targetDayKey(), []);
+  const [activeTab, setActiveTab] = useState<"today" | "tomorrow">("tomorrow");
+
+  const dateKey = useMemo(() => {
+    const today = targetDayKey();
+    return activeTab === "tomorrow" ? addDaysToDateKey(today, 1) : today;
+  }, [activeTab]);
+
   const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
-  const opts = { retry: 1, staleTime: 10 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnWindowFocus: false };
 
-  const nordPool = useQuery({ queryKey: ["acb-nordpool", dateKey], queryFn: () => fetchDayAhead(dateKey), ...opts });
-  const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points.length;
-  const mid = useQuery({
-    queryKey: ["acb-mid", dateKey], queryFn: () => fetchMidFallback(fromIso, toIso), ...opts, enabled: nordPoolFailed,
+  const opts = {
+    retry: 2,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  };
+
+  const nordPool = useQuery({
+    queryKey: ["acb-nordpool", dateKey],
+    queryFn: () => fetchDayAhead(dateKey),
+    ...opts,
   });
-  const official = useQuery({ queryKey: ["acb-official", dateKey], queryFn: () => fetchOfficialRates(fromIso, toIso), ...opts });
 
-  useEffect(() => purgeLegacyCaches(), []);
+  const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points?.length;
 
-  const { slots, source, partial } = useMemo(
-    () => chooseSlots(dateKey, {
+  const mid = useQuery({
+    queryKey: ["acb-mid", dateKey],
+    queryFn: () => fetchMidFallback(fromIso, toIso),
+    ...opts,
+    enabled: nordPoolFailed,
+  });
+
+  const official = useQuery({
+    queryKey: ["acb-official", dateKey],
+    queryFn: () => fetchOfficialRates(fromIso, toIso),
+    ...opts,
+  });
+
+  useEffect(() => {
+    purgeLegacyCaches();
+  }, []);
+
+  const { slots, source, partial } = useMemo(() => {
+    return chooseSlots(dateKey, {
       nordPool: nordPool.data?.points,
       cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
       mid: mid.data?.points,
       official: official.data,
-    }),
-    [dateKey, nordPool.data, mid.data, official.data],
-  );
+    });
+  }, [dateKey, nordPool.data, mid.data, official.data]);
 
   useEffect(() => {
-    if (source === "nordpool") saveCachedSlots(dateKey, slots);
+    if (source === "nordpool" && slots.length === 48) {
+      saveCachedSlots(dateKey, slots);
+    }
   }, [source, slots, dateKey]);
 
-  const cheapest = cheapestSlot(slots);
-  const window = cheapestWindow(slots, CHEAP_WINDOW_SLOTS);
-  const inWindow = (i: number) => !!window && i >= window.startIndex && i < window.startIndex + window.length;
+  // Analytical Calculations
+  const stats = useMemo(() => {
+    if (!slots || slots.length === 0) return null;
+    const validPrices = slots.map((s) => s.price).filter((p): p is number => p !== null);
+    if (validPrices.length === 0) return null;
+
+    const minSlot = slots.reduce((prev, curr) =>
+      curr.price !== null && (prev.price === null || curr.price < prev.price) ? curr : prev
+    );
+    const maxSlot = slots.reduce((prev, curr) =>
+      curr.price !== null && (prev.price === null || curr.price > prev.price) ? curr : prev
+    );
+    const avg = validPrices.reduce((a, b) => a + b, 0) / validPrices.length;
+    const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
+
+    const win1h = cheapestWindow(slots, 2);
+    const win2h = cheapestWindow(slots, 4);
+    const win3h = cheapestWindow(slots, 6);
+    const win4h = cheapestWindow(slots, 8);
+
+    return { minSlot, maxSlot, avg, vsCapPct, win1h, win2h, win3h, win4h };
+  }, [slots]);
+
+  // Groupings for Half-Hourly Grid
+  const groupedSlots = useMemo(() => {
+    const morning: PricedSlot[] = [];
+    const afternoon: PricedSlot[] = [];
+    const peak: PricedSlot[] = [];
+    const evening: PricedSlot[] = [];
+
+    slots.forEach((s) => {
+      const hour = parseInt(s.label.split(":")[0], 10);
+      if (hour >= 0 && hour < 12) morning.push(s);
+      else if (hour >= 12 && hour < 16) afternoon.push(s);
+      else if (hour >= 16 && hour < 19) peak.push(s);
+      else evening.push(s);
+    });
+
+    return { morning, afternoon, peak, evening };
+  }, [slots]);
+
   const loading = (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
   const bothFailed = nordPool.isError && mid.isError && official.isError;
-  const chartData = slots.map((s, i) => ({ label: s.label, price: s.price, i }));
-
-  const colour = (s: PricedSlot) => (s.price === null ? "#64748b" : priceBand(s.price).colour);
-  const rowVars = { "--r1": slots.length, "--r2": Math.ceil(slots.length / 2), "--r4": Math.ceil(slots.length / 4) } as CSSProperties;
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Agile Crystal Ball – {dateKey} (region F)</CardTitle>
-          {source === "official" && <Badge className="bg-emerald-500/20 text-emerald-300">Official Octopus Rates</Badge>}
-          {source !== "official" && source !== "none" && <Badge className="bg-amber-500/20 text-amber-300">Estimated from Wholesale Auctions</Badge>}
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {loading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading prices…</div>}
-          {bothFailed && <p className="text-chart-danger">Could not load prices. Please try again later.</p>}
-          {!loading && source === "none" && partial && (
-            <p className="text-chart-danger">Incomplete data: only part of the day was returned, so no prices are shown.</p>
-          )}
-          {!loading && !bothFailed && source === "none" && !partial && (
-            <p className="text-muted-foreground">
-              Auction results for this day are not available yet. Day-ahead results are typically published around
-              midday UK time and official Octopus rates at about 16:00 – check back then.
-            </p>
-          )}
-          {!loading && source === "none" && (
-            <ul className="text-xs text-muted-foreground list-disc pl-4">
-              {[...(nordPool.data?.attempts ?? []), ...(mid.data?.attempts ?? [])].map((a) => <li key={a.source}>{a.source}: {a.detail}</li>)}
-              <li>Official Octopus rates: {official.isError ? `request failed: ${String((official.error as Error)?.message ?? "unknown")}` : "not published yet"}</li>
-            </ul>
-          )}
-          {source !== "none" && source !== "official" && (
-            <p className="text-xs text-muted-foreground">
-              Source: {sourceNote[source]} [{source === "cache" ? cacheKey(dateKey) : source}]
-              {source !== "nordpool" && nordPoolFailed ? " (day-ahead data unavailable)" : ""}
-            </p>
-          )}
-          {source !== "none" && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              {cheapest && <Badge variant="outline">Cheapest slot: {cheapest.label} @ {fmt(cheapest.price)}p</Badge>}
-              {window && (
-                <Badge variant="outline">
-                  Cheapest {CHEAP_WINDOW_SLOTS / 2}h: {slots[window.startIndex].label}–{slots[window.startIndex + window.length - 1].label} (avg {fmt(window.average)}p)
-                </Badge>
-              )}
-              {slots.some((s) => s.isNegative) && <Badge className="bg-cyan-500/20 text-cyan-300">Negative/plunge prices</Badge>}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Estimates are derived from day-ahead wholesale prices using an approximation of the Agile formula and may
-            differ from the official Octopus rates.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="space-y-6 text-slate-100">
+      {/* View Switcher Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={activeTab === "today" ? "default" : "outline"}
+            onClick={() => setActiveTab("today")}
+            className="rounded-lg text-xs"
+          >
+            Today's Rates
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "tomorrow" ? "default" : "outline"}
+            onClick={() => setActiveTab("tomorrow")}
+            className="rounded-lg text-xs"
+          >
+            Tomorrow's Predictions
+          </Button>
+        </div>
 
-      {source !== "none" && (
-        <>
-          <Card>
-            <CardContent className="pt-4"><div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="label" interval={5} tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                  <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} unit="p" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
-                    cursor={{ fill: "rgba(255,255,255,0.08)" }}
-                    labelStyle={{ color: "#ffffff" }}
-                    itemStyle={{ color: "#ffffff" }}
-                    formatter={(v: number | null) => [v === null || v === undefined ? "–" : `${Number(v).toFixed(2)}p/kWh`, "Price"]}
-                  />
-                  <Bar dataKey="price">
-                    {slots.map((s, i) => (
-                      <Cell key={s.start} fill={colour(s)} stroke={inWindow(i) ? "#ffffff" : "none"} strokeWidth={inWindow(i) ? 1.5 : 0} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span>Region: <strong className="text-white">North Eastern England (F)</strong></span>
+          {source === "official" && <Badge className="bg-emerald-500/20 text-emerald-300">Official Octopus Rates</Badge>}
+          {source !== "official" && source !== "none" && <Badge className="bg-amber-500/20 text-amber-300">Wholesale Estimate</Badge>}
+        </div>
+      </div>
+
+      {/* Primary KPI Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <CardContent className="p-4">
+              <p className="text-[11px] font-medium text-slate-400">Min Import</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-2xl font-black text-emerald-400">{fmt(stats.minSlot.price)}p</span>
+                <span className="text-[10px] text-slate-400">/kWh</span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Price key">
-                {PRICE_BAND_ORDER.map((b) => (
-                  <span key={b.id} className="flex items-center gap-1">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: b.colour }} />
-                    <span style={{ color: b.colour }}>{b.label}</span>: {b.range}
-                  </span>
-                ))}
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2.5 w-2.5 rounded-sm border border-white" /> Cheapest {CHEAP_WINDOW_SLOTS / 2}h window
+              <p className="mt-1 text-[11px] font-semibold text-slate-300">{stats.minSlot.label}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <CardContent className="p-4">
+              <p className="text-[11px] font-medium text-slate-400">Max Import</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-2xl font-black text-rose-400">{fmt(stats.maxSlot.price)}p</span>
+                <span className="text-[10px] text-slate-400">/kWh</span>
+              </div>
+              <p className="mt-1 text-[11px] font-semibold text-slate-300">{stats.maxSlot.label}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <CardContent className="p-4">
+              <p className="text-[11px] font-medium text-slate-400">Predicted Avg</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-2xl font-black text-white">{fmt(stats.avg)}p</span>
+                <span className="text-[10px] text-slate-400">/kWh</span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">Across all slots</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <CardContent className="p-4">
+              <p className="text-[11px] font-medium text-slate-400">vs Price Cap</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className={`text-2xl font-black ${stats.vsCapPct <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {stats.vsCapPct}%
                 </span>
               </div>
+              <p className="mt-1 text-[11px] text-slate-400">Agile vs {PRICE_CAP_RATE}p cap</p>
             </CardContent>
           </Card>
+        </div>
+      )}
 
-          <Card>
-            <CardContent className="pt-4">
-              <div className="mb-1 flex justify-between border-b border-white/10 pb-1 text-xs text-muted-foreground">
-                <span>Time</span><span>p/kWh inc VAT</span>
-              </div>
-              <div
-                className="grid grid-flow-col grid-rows-[repeat(var(--r1),auto)] gap-x-6 text-xs sm:grid-rows-[repeat(var(--r2),auto)] lg:grid-rows-[repeat(var(--r4),auto)]"
-                style={rowVars}
-              >
-                {slots.map((s, i) => {
-                  const c = colour(s);
-                  return (
-                    <div
-                      key={s.start}
-                      className={`flex items-center justify-between border-b border-white/5 border-l-4 px-1 py-1 ${inWindow(i) ? "bg-emerald-500/10" : ""}`}
-                      style={{ borderLeftColor: c }}
-                    >
-                      <span>{s.label}</span>
-                      <span className="flex items-center gap-1">
-                        {s.isNegative && <span className="text-[10px]" style={{ color: c }}>Negative</span>}
-                        {cheapest && cheapest.start === s.start && <span className="text-[10px] text-emerald-300">Cheapest</span>}
-                        {s.price === null ? <span className="text-muted-foreground">–</span> : <span className="font-medium" style={{ color: c }}>{fmt(s.price)}</span>}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </>
+      {/* Cheapest Windows Widgets */}
+      {stats && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Cheapest Windows ({dateKey})</h3>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              { label: "1 hr", win: stats.win1h },
+              { label: "2 hr", win: stats.win2h },
+              { label: "3 hr", win: stats.win3h },
+              { label: "4 hr", win: stats.win4h },
+            ].map(({ label, win }) =>
+              win ? (
+                <Card key={label} className="border-slate-800 bg-slate-900/40 p-3">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="flex items-center gap-1 font-semibold text-emerald-400"><Zap className="h-3.5 w-3.5" /> {label}</span>
+                  </div>
+                  <div className="mt-1 text-lg font-black text-white">{fmt(win.average)}<span className="text-xs font-normal text-slate-400">p/kWh</span></div>
+                  <div className="text-[11px] font-medium text-slate-300">
+                    {slots[win.startIndex]?.label} – {slots[win.startIndex + win.length - 1]?.label}
+                  </div>
+                </Card>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Line Chart View */}
+      {source !== "none" && slots.length > 0 && (
+        <Card className="border-slate-800 bg-slate-900/60 p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">Import Rate Profile (p/kWh)</CardTitle>
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={slots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 10 }} interval={5} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 10 }} unit="p" />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }}
+                  formatter={(v: number) => [`${fmt(v)} p/kWh`, "Import Rate"]}
+                />
+                <ReferenceLine y={PRICE_CAP_RATE} stroke="#ef4444" strokeDasharray="3 3" label={{ value: "Cap", fill: "#ef4444", fontSize: 10 }} />
+                <Area type="monotone" dataKey="price" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#rateGradient)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {/* Status & Fallback Error Display */}
+      {loading && (
+        <div className="flex items-center justify-center p-12 text-slate-400">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching latest wholesale auction prices…
+        </div>
+      )}
+
+      {!loading && source === "none" && (
+        <Card className="border-rose-900/40 bg-rose-950/20 p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
+            <div>
+              <h4 className="text-sm font-semibold text-rose-300">Auction Rates Pending or Unavailable</h4>
+              <p className="mt-1 text-xs text-rose-200/80">
+                Day-ahead market prices for {dateKey} publish around 12:30 UK time, and official Octopus rates arrive around 16:00.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Interactive Half-Hour Slot Grid */}
+      {source !== "none" && (
+        <div className="space-y-4">
+          {[
+            { title: "MORNING · 00:00 – 12:00", items: groupedSlots.morning },
+            { title: "AFTERNOON · 12:00 – 16:00", items: groupedSlots.afternoon },
+            { title: "PEAK WINDOW · 16:00 – 19:00", items: groupedSlots.peak },
+            { title: "EVENING · 19:00 – 00:00", items: groupedSlots.evening },
+          ].map(
+            (section) =>
+              section.items.length > 0 && (
+                <div key={section.title} className="space-y-2">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{section.title}</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+                    {section.items.map((s) => {
+                      const band = priceBand(s.price ?? 0);
+                      return (
+                        <div
+                          key={s.start}
+                          className="flex flex-col justify-between rounded-lg border border-slate-800 bg-slate-900/80 p-2.5 shadow-sm"
+                        >
+                          <span className="text-[11px] text-slate-400">{s.label}</span>
+                          <div className="mt-1 flex items-baseline gap-0.5">
+                            <span className="text-base font-extrabold text-white">{fmt(s.price)}</span>
+                            <span className="text-[10px] text-slate-400">p</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between border-t border-slate-800/80 pt-1">
+                            <span className="text-[9px] font-semibold" style={{ color: band.colour }}>
+                              {band.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )
+          )}
+        </div>
       )}
     </div>
   );

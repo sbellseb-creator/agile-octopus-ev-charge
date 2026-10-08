@@ -1,59 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import {
-  type FitSample, addDays, agilePriceFromWholesale, isPeakSlot, ukDate, ukMidnightUtc,
-} from "../_shared/agile-core.ts";
-import { estimateFromWholesale, formulaFromEnv, getProvider } from "../_shared/crystal-provider.ts";
-import {
-  type DayCheck, ProviderError, checkDays, compareEstimateToOfficial, diagnosePreviousDays, fitFormula,
-} from "../_shared/crystal-status.ts";
-import { fetchOfficialRates } from "../_shared/octopus-official.ts";
+import { addDays, ukDate } from "../_shared/agile-core.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-async function diagnose(region: string, today: string, days: number) {
-  const cfg = formulaFromEnv();
-  const previousDates = Array.from({ length: days }, (_, i) => addDays(today, -(i + 1)));
-  const tomorrow = addDays(today, 1);
-  const choice = Deno.env.get("CRYSTAL_PROVIDER");
-  const provider = getProvider(choice, previousDates[0], today);
-  const tomorrowProvider = getProvider(choice, tomorrow, today);
-  const tomorrowCheck = (await checkDays((d) => tomorrowProvider.fetchDay(d), [tomorrow]))[0];
-
-  const fetched = await Promise.all(previousDates.map(async (date) => {
-    try {
-      return { date, wholesale: await provider.fetchDay(date), error: null as string | null };
-    } catch (e) {
-      return { date, wholesale: [], error: e instanceof Error ? e.message : String(e) };
-    }
-  }));
-  const previous = fetched.map((f): DayCheck => f.error
-    ? { date: f.date, rows: 0, status: "error", reason: f.error }
-    : { date: f.date, rows: f.wholesale.length, status: f.wholesale.length ? "data" : "empty" });
-  const verdict = diagnosePreviousDays(previous);
-
-  const samples: FitSample[] = [];
-  const perDay = await Promise.all(fetched.map(async (f) => {
-    if (f.error) return { date: f.date, error: f.error };
-    try {
-      const official = await fetchOfficialRates(ukMidnightUtc(f.date).toISOString(), ukMidnightUtc(addDays(f.date, 1)).toISOString(), region);
-      const est = f.wholesale.map((w) => ({ valid_from: w.valid_from, valid_to: w.valid_to, value_inc_vat: agilePriceFromWholesale(w.pence_per_kwh, new Date(w.valid_from), cfg) }));
-      const cmp = compareEstimateToOfficial(est, official);
-      const offMap = new Map(official.map((o) => [o.valid_from, o.value_inc_vat]));
-      for (const w of f.wholesale) {
-        const o = offMap.get(w.valid_from);
-        if (o !== undefined) samples.push({ wholesale: w.pence_per_kwh, official: o, peak: isPeakSlot(new Date(w.valid_from), cfg) });
-      }
-      return { date: f.date, wholesale_rows: f.wholesale.length, official_rows: official.length, compared: cmp.compared, average_diff: cmp.averageDiff, mean_abs_error: cmp.meanAbsDiff };
-    } catch (e) {
-      return { date: f.date, error: e instanceof Error ? e.message : String(e) };
-    }
-  }));
-  const fitted = fitFormula(samples, cfg.vatFactor, cfg.cap, cfg.floor);
-  return { provider: provider.label, region, formula: cfg, checks: [...previous, tomorrowCheck], verdict, accuracy: perDay, fitted_formula: fitted };
+// Fetch with an explicit 8-second timeout so it never hangs for a minute
+async function fetchWithTimeout(resource: string, options: RequestInit = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 serve(async (req) => {
@@ -70,75 +36,70 @@ serve(async (req) => {
   const date = isDate(requested) ? requested : addDays(today, 1);
 
   try {
-    if (param("diagnose")) {
-      const days = Math.min(7, Math.max(1, Number(param("days")) || 7));
-      const result = await diagnose(region, today, days);
-      console.log(JSON.stringify({ fn: "crystal-ball", event: "diagnose", provider: result.provider, verdict: result.verdict.verdict, checks: result.checks }));
-      return json({ diagnostic: true, ...result });
-    }
-
     let estimates: any[] = [];
     let providerLabel = "agile-rates.uk";
-    let isMock = false;
 
-    // Direct fetch from agilerates.uk
+    // 1. Primary Attempt: Direct fetch from agilerates.uk API
     try {
-      const arRes = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`, {
-        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" }
-      });
+      const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
+      const arRes = await fetchWithTimeout(targetUrl, {
+        headers: {
+          "Accept": "application/json, text/plain, */*",
+          "User-Agent": "AgileChargeApp/1.0",
+        },
+      }, 7000);
+
       if (arRes.ok) {
         const arData = await arRes.json();
         const rawRates = Array.isArray(arData) ? arData : (arData?.rates || []);
-        
-        // Filter rates for the requested date
+
         estimates = rawRates
           .filter((r: any) => {
-            const validFrom = r.valid_from || r.time || r.from;
+            const validFrom = r.valid_from || r.time || r.from || r.timestamp;
             return validFrom && validFrom.startsWith(date);
           })
-          .map((r: any) => ({
-            valid_from: r.valid_from || r.time || r.from,
-            valid_to: r.valid_to || r.to,
-            value_inc_vat: r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? 0,
-            value_exc_vat: r.value_exc_vat ?? ((r.agileRate?.result?.rate ?? 0) / 1.2),
-          }));
+          .map((r: any) => {
+            const validFrom = r.valid_from || r.time || r.from || r.timestamp;
+            const validTo = r.valid_to || r.to;
+            const rate = r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? 0;
+            return {
+              valid_from: validFrom,
+              valid_to: validTo,
+              value_inc_vat: Number(rate),
+              value_exc_vat: Number(rate) / 1.2,
+            };
+          });
       }
     } catch (err) {
-      console.warn("agilerates.uk direct fetch failed, falling back to configured provider", err);
+      console.warn("agilerates.uk fetch failed or timed out:", err);
     }
 
-    // Fallback to internal provider if agilerates.uk didn't return rows for this date
-    if (estimates.length === 0) {
-      const choice = param("provider") === "neso" ? "neso" : Deno.env.get("CRYSTAL_PROVIDER");
-      const provider = getProvider(choice, date, today);
-      const cfg = formulaFromEnv();
-      const wholesale = await provider.fetchDay(date);
-      estimates = estimateFromWholesale(wholesale, cfg);
-      providerLabel = provider.label;
-      isMock = provider.isMock;
-    }
-
-    console.log(JSON.stringify({
-      fn: "crystal-ball", provider: providerLabel, date,
-      rows: estimates.length, failure: null,
-    }));
-
+    // Return structured payload expected by AgileCrystalBall.tsx
     return json({
-      date, 
-      status: estimates.length > 0 ? "available" : "waiting", 
-      available: estimates.length > 0, 
-      region, 
+      date,
+      status: estimates.length > 0 ? "available" : "waiting",
+      available: estimates.length > 0,
+      region,
       estimated: true,
-      source: providerLabel, 
-      is_mock: isMock, 
-      updated_at: now.toISOString(), 
+      source: providerLabel,
+      is_mock: false,
+      updated_at: now.toISOString(),
       results: estimates,
-      rates: estimates
+      rates: estimates,
     });
   } catch (e) {
-    const reason = e instanceof ProviderError ? e.reason : "internal_error";
     const message = e instanceof Error ? e.message : String(e);
-    console.error(JSON.stringify({ fn: "crystal-ball", date, rows: 0, failure: reason, message }));
-    return json({ date, status: "error", available: false, region, estimated: true, error: message, error_reason: reason, updated_at: now.toISOString(), results: [], rates: [] });
+    return json({
+      date,
+      status: "error",
+      available: false,
+      region,
+      estimated: true,
+      error: message,
+      error_reason: "fetch_failed",
+      updated_at: now.toISOString(),
+      results: [],
+      rates: [],
+    });
   }
 });

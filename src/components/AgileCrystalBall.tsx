@@ -31,10 +31,13 @@ async function fetchTomorrowAgilePredictions(
   dateKey: string,
   regionCode = "F"
 ): Promise<PricedSlot[]> {
-  const directUrl = `https://agilerates.uk/api/agile_rates_region_${regionCode}.json`;
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
+ // Replace lines 34-37 with this:
+const edgeFunctionUrl = `https://xrtpcohdyfyjmrxwhtjd.supabase.co/functions/v1/crystal-ball?region=${regionCode}`;
+const response = await fetch(edgeFunctionUrl);
+const data = await response.json();
 
-  const response = await fetch(proxyUrl);
+// If the component expects an array of rates, use data.rates or data.results:
+const rawRates = data.rates || data.results || [];
   if (!response.ok) {
     throw new Error("Agile Rates feed unavailable");
   }

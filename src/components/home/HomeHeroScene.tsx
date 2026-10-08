@@ -322,7 +322,7 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-black/20" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
-      {/* Weather badge (Top-Left for all viewports) */}
+      {/* Weather badge (Top-Left across all viewports) */}
       <div className="absolute left-2 top-2 z-30 w-fit max-w-fit whitespace-nowrap flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:left-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
         <WeatherIcon scene={scene} />
 
@@ -339,8 +339,8 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card (Bottom-Left for all viewports) */}
-      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:bottom-4 sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+      {/* Charge Status Card (Placed below Weather Badge on top-left for desktop/tablet, bottom-left on small screens) */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:bottom-4 sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:top-[52px] md:bottom-auto md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -384,7 +384,7 @@ export default function HomeHeroScene({
       </div>
 
       {!charging && pluggedIn && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:left-1/2 lg:top-auto lg:translate-x-0">
           PLUGGED IN · WAITING
         </div>
       )}

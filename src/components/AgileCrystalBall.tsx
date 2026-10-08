@@ -27,58 +27,42 @@ const PRICE_CAP_RATE = 26.11; // Standard variable cap rate reference (p/kWh)
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
-// Generate half-hourly profile fallback matching Agile Region F formulas
-function generatePredictedSlots(dateKey: string): PricedSlot[] {
-  const slots: PricedSlot[] = [];
-  // Sample profile rates matching standard UK day-ahead distribution
-  const hourlyBase = [
-    8.5, 7.2, 6.1, 5.4, 4.8, 5.2, 7.8, 12.4, 18.2, 16.5, 14.1, 12.8,
-    11.9, 11.2, 10.5, 12.1, 19.8, 32.5, 34.19, 28.4, 21.0, 15.6, 9.8, 4.01
-  ];
-
-  for (let hour = 0; hour < 24; hour++) {
-    for (let min of [0, 30]) {
-      const hh = String(hour).padStart(2, "0");
-      const mm = String(min).padStart(2, "0");
-      const startIso = `${dateKey}T${hh}:${mm}:00Z`;
-      const basePrice = hourlyBase[hour];
-      // Add a slight variance for the half-hour mark
-      const price = min === 30 ? Number((basePrice * 0.96).toFixed(2)) : basePrice;
-
-      slots.push({
-        start: startIso,
-        label: `${hh}:${mm}`,
-        price,
-      });
-    }
-  }
-
-  return slots;
-}
-
-// Resilient data loader that guarantees a valid slot array
-async function loadTomorrowPredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
-  // 1. Check local browser cache
+// Fetch live auction market predictions directly from agileforecast.co.uk
+async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
+  // 1. Check browser cache first
   const cached = loadCachedSlots(dateKey, undefined, Date.now(), true);
   if (cached && cached.length === 48) {
     return cached;
   }
 
-  // 2. Attempt fetching from local app API route if configured
-  try {
-    const res = await fetch(`/api/predictions?date=${dateKey}&region=${regionCode}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length === 48) {
-        return data;
-      }
-    }
-  } catch {
-    // Ignore internal API failure
+  // 2. Query agileforecast.co.uk API directly (CORS enabled)
+  const response = await fetch(`https://agileforecast.co.uk/api/${regionCode}/?days=2&high_low=false`);
+  
+  if (!response.ok) {
+    throw new Error("Auction rates pending or unavailable");
   }
 
-  // 3. Fallback to generated Region F Agile market predictions
-  return generatePredictedSlots(dateKey);
+  const data = await response.json();
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error("No auction data returned");
+  }
+
+  // Locate slot list corresponding to the requested date key (e.g. 2026-10-09)
+  const targetDayData = data.find((day: any) => day.date === dateKey) || data[data.length - 1];
+
+  if (!targetDayData || !Array.isArray(targetDayData.prices) || targetDayData.prices.length < 48) {
+    throw new Error("Predictions for target date are not published yet");
+  }
+
+  return targetDayData.prices.map((slot: any) => ({
+    start: slot.date_time,
+    label: new Date(slot.date_time).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+    price: Number(slot.agile_pred.toFixed(2)),
+  }));
 }
 
 export default function AgileCrystalBall() {
@@ -88,10 +72,10 @@ export default function AgileCrystalBall() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["agile-crystal-ball-predictions", dateKey],
-    queryFn: () => loadTomorrowPredictions(dateKey, "F"),
-    retry: 1,
-    staleTime: 10 * 60 * 1000,
+    queryKey: ["agile-crystal-ball-live", dateKey],
+    queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -100,30 +84,28 @@ export default function AgileCrystalBall() {
     return [...query.data].sort((a, b) => a.start.localeCompare(b.start));
   }, [query.data]);
 
-  // Persist slots into local cache once available
+  // Save into local cache once full 48 slots arrive
   useEffect(() => {
     if (slots.length === 48) {
       saveCachedSlots(dateKey, slots);
     }
   }, [slots, dateKey]);
 
-  // Metrics calculation
+  // Aggregate Metrics
   const stats = useMemo(() => {
     const valid = slots.filter((s) => s.price !== null && !isNaN(s.price));
-    if (valid.length === 0) return null;
+    if (valid.length !== 48) return null;
 
     const prices = valid.map((s) => s.price as number);
     const minSlot = valid.reduce((prev, curr) => (curr.price! < prev.price! ? curr : prev));
     const maxSlot = valid.reduce((prev, curr) => (curr.price! > prev.price! ? curr : prev));
     const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-    
-    // Accurate vs Price Cap calculation
     const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
 
     return { minSlot, maxSlot, avg, vsCapPct };
   }, [slots]);
 
-  // Categorize half-hourly slots
+  // Time groupings
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
@@ -142,11 +124,11 @@ export default function AgileCrystalBall() {
   }, [slots]);
 
   const isLoading = query.isLoading;
-  const isError = query.isError || (!isLoading && slots.length === 0);
+  const isError = query.isError || (!isLoading && slots.length < 48);
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Header Info */}
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
@@ -162,7 +144,7 @@ export default function AgileCrystalBall() {
         </div>
       </div>
 
-      {/* Primary KPI Summary Cards */}
+      {/* Primary Summary Metric Cards */}
       {!isLoading && stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
@@ -216,7 +198,7 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Chart */}
+      {/* Hourly Rate Chart */}
       {!isLoading && stats && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-4 flex items-center justify-between">
@@ -262,14 +244,14 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading state */}
+      {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead prediction rates…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead auction rates…
         </div>
       )}
 
-      {/* Fallback Banner (only when data cannot be retrieved or generated) */}
+      {/* Pending / Error Alert State */}
       {isError && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
@@ -286,7 +268,7 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Detailed Half-Hourly Rates Grid */}
+      {/* Detailed Half-Hourly Card Grid */}
       {!isLoading && !isError && (
         <div className="space-y-4">
           {[

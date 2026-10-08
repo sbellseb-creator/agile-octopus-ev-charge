@@ -339,45 +339,42 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card (Bottom-left on small mobile screens; stacked below Weather Badge on top-left for large mobile, tablet, and desktop) */}
-      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:top-[58px] sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
-        <div className="flex items-center gap-2">
+      {/* Charge Status Card (Clean portrait-like constraints for small mobile to avoid crowding the car) */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[48%] min-w-[145px] rounded-xl border border-white/15 bg-slate-950/75 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:top-[58px] sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+        <div className="flex items-center gap-1.5 min-[430px]:gap-2">
           <BatteryCharging
             className={
               charging
-                ? "h-4 w-4 text-emerald-300 sm:h-5 sm:w-5"
-                : "h-4 w-4 text-white/80 sm:h-5 sm:w-5"
+                ? "h-4 w-4 shrink-0 text-emerald-300 sm:h-5 sm:w-5"
+                : "h-4 w-4 shrink-0 text-white/80 sm:h-5 sm:w-5"
             }
           />
 
-          <span className="text-lg font-black tracking-tight text-white min-[430px]:text-xl md:text-2xl">
+          <span className="text-base font-black tracking-tight text-white min-[430px]:text-xl md:text-2xl">
             {battery}
           </span>
         </div>
 
-        <div className="mt-1 text-[11px] font-semibold text-white/85 min-[430px]:text-xs">
+        <div className="mt-0.5 text-[10px] font-semibold text-white/85 min-[430px]:mt-1 min-[430px]:text-xs">
           {charging
-            ? `${chargerPowerKw != null
-                ? `${chargerPowerKw.toFixed(1)} kW${
-                    chargerAmps != null
-                      ? ` · ${Math.round(chargerAmps)} A ${
-                          chargerAmpsLive ? "live" : "max"
-                        }`
-                      : ""
-                  } · `
-                : ""
-              }Charging`
+            ? chargerPowerKw != null
+              ? `${chargerPowerKw.toFixed(1)} kW${
+                  chargerAmps != null
+                    ? ` · ${Math.round(chargerAmps)} A${chargerAmpsLive ? " live" : ""}`
+                    : ""
+                }`
+              : "Charging"
             : `${state || "Vehicle status"}${batteryIsLastKnown && !state?.toLowerCase().includes("last known") ? " · Last known" : ""}`}
         </div>
 
         {charging && remaining && (
-          <div className="mt-1 text-[11px] font-semibold text-emerald-200">
+          <div className="mt-0.5 text-[10px] font-semibold text-emerald-200 min-[430px]:mt-1 min-[430px]:text-[11px]">
             {remaining}
           </div>
         )}
 
         {!charging && chargeLimit != null && (
-          <div className="mt-1 text-[10px] text-white/65">
+          <div className="mt-0.5 text-[10px] text-white/65 min-[430px]:mt-1">
             Target {Math.round(chargeLimit)}%
           </div>
         )}

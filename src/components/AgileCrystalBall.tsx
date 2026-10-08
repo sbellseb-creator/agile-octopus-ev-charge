@@ -10,12 +10,11 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { Loader2, Zap, ArrowDownRight, ArrowUpRight, ShieldCheck, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Zap, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  PRICE_BAND_ORDER,
   priceBand,
 } from "@/lib/priceBands";
 import {
@@ -25,9 +24,7 @@ import {
 } from "@/lib/agileForecastApi";
 import {
   chooseSlots,
-  cheapestSlot,
   cheapestWindow,
-  cacheKey,
   purgeLegacyCaches,
   targetDayKey,
   ukMidnightUtc,
@@ -42,11 +39,12 @@ const PRICE_CAP_RATE = 26.11; // Standard variable price cap reference (p/kWh)
 const fmt = (p: number | null | undefined) => (p == null ? "–" : p.toFixed(2));
 
 export default function AgileCrystalBall() {
-  const [activeTab, setActiveTab] = useState<"today" | "tomorrow">("tomorrow");
+  const [activeTab, setActiveTab] = useState<"today" | "tomorrow">("today");
 
+  // Determine dateKey dynamically: Today vs Tomorrow
   const dateKey = useMemo(() => {
-    const today = targetDayKey();
-    return activeTab === "tomorrow" ? addDaysToDateKey(today, 1) : today;
+    const todayKey = targetDayKey();
+    return activeTab === "tomorrow" ? addDaysToDateKey(todayKey, 1) : todayKey;
   }, [activeTab]);
 
   const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
@@ -59,10 +57,19 @@ export default function AgileCrystalBall() {
     refetchOnWindowFocus: false,
   };
 
+  // Official Octopus Rates (Primary for Today, Fallback/Confirmation for Tomorrow)
+  const official = useQuery({
+    queryKey: ["acb-official", dateKey],
+    queryFn: () => fetchOfficialRates(fromIso, toIso),
+    ...opts,
+  });
+
+  // Day-Ahead Wholesale (Only required for Tomorrow's predictions)
   const nordPool = useQuery({
     queryKey: ["acb-nordpool", dateKey],
     queryFn: () => fetchDayAhead(dateKey),
     ...opts,
+    enabled: activeTab === "tomorrow",
   });
 
   const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points?.length;
@@ -71,27 +78,30 @@ export default function AgileCrystalBall() {
     queryKey: ["acb-mid", dateKey],
     queryFn: () => fetchMidFallback(fromIso, toIso),
     ...opts,
-    enabled: nordPoolFailed,
-  });
-
-  const official = useQuery({
-    queryKey: ["acb-official", dateKey],
-    queryFn: () => fetchOfficialRates(fromIso, toIso),
-    ...opts,
+    enabled: activeTab === "tomorrow" && nordPoolFailed,
   });
 
   useEffect(() => {
     purgeLegacyCaches();
   }, []);
 
-  const { slots, source, partial } = useMemo(() => {
+  // Format slots depending on activeTab
+  const { slots, source } = useMemo(() => {
+    if (activeTab === "today" && official.data && official.data.length > 0) {
+      return {
+        slots: official.data,
+        source: "official",
+        partial: false,
+      };
+    }
+
     return chooseSlots(dateKey, {
       nordPool: nordPool.data?.points,
       cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
       mid: mid.data?.points,
       official: official.data,
     });
-  }, [dateKey, nordPool.data, mid.data, official.data]);
+  }, [activeTab, dateKey, official.data, nordPool.data, mid.data]);
 
   useEffect(() => {
     if (source === "nordpool" && slots.length === 48) {
@@ -99,7 +109,7 @@ export default function AgileCrystalBall() {
     }
   }, [source, slots, dateKey]);
 
-  // Analytical Calculations
+  // Summary Metrics
   const stats = useMemo(() => {
     if (!slots || slots.length === 0) return null;
     const validPrices = slots.map((s) => s.price).filter((p): p is number => p !== null);
@@ -140,12 +150,14 @@ export default function AgileCrystalBall() {
     return { morning, afternoon, peak, evening };
   }, [slots]);
 
-  const loading = (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
-  const bothFailed = nordPool.isError && mid.isError && official.isError;
+  const loading =
+    activeTab === "today"
+      ? official.isLoading
+      : (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* View Switcher Bar */}
+      {/* Top View Selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <Button
@@ -173,7 +185,7 @@ export default function AgileCrystalBall() {
         </div>
       </div>
 
-      {/* Primary KPI Cards */}
+      {/* Overview Cards */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
@@ -200,7 +212,7 @@ export default function AgileCrystalBall() {
 
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
             <CardContent className="p-4">
-              <p className="text-[11px] font-medium text-slate-400">Predicted Avg</p>
+              <p className="text-[11px] font-medium text-slate-400">Average Rate</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-2xl font-black text-white">{fmt(stats.avg)}p</span>
                 <span className="text-[10px] text-slate-400">/kWh</span>
@@ -250,8 +262,8 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Line Chart View */}
-      {source !== "none" && slots.length > 0 && (
+      {/* Graph View */}
+      {!loading && slots.length > 0 && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Import Rate Profile (p/kWh)</CardTitle>
@@ -280,29 +292,31 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Status & Fallback Error Display */}
+      {/* Loading & Empty States */}
       {loading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching latest wholesale auction prices…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching Agile rates from Octopus Energy…
         </div>
       )}
 
-      {!loading && source === "none" && (
+      {!loading && slots.length === 0 && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
             <div>
-              <h4 className="text-sm font-semibold text-rose-300">Auction Rates Pending or Unavailable</h4>
+              <h4 className="text-sm font-semibold text-rose-300">Rates Unavailable</h4>
               <p className="mt-1 text-xs text-rose-200/80">
-                Day-ahead market prices for {dateKey} publish around 12:30 UK time, and official Octopus rates arrive around 16:00.
+                {activeTab === "tomorrow"
+                  ? "Tomorrow's wholesale rates publish around 12:30 UK time, and official rates arrive around 16:00."
+                  : "Unable to retrieve today's official rates. Check network connection."}
               </p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* Interactive Half-Hour Slot Grid */}
-      {source !== "none" && (
+      {/* Half-Hour Slot Cards */}
+      {!loading && slots.length > 0 && (
         <div className="space-y-4">
           {[
             { title: "MORNING · 00:00 – 12:00", items: groupedSlots.morning },

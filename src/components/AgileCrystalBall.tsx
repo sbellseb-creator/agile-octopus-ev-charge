@@ -17,7 +17,6 @@ import { priceBand } from "@/lib/priceBands";
 import {
   targetDayKey,
   addDaysToDateKey,
-  loadCachedSlots,
   saveCachedSlots,
   type PricedSlot,
 } from "@/lib/agileForecast";
@@ -27,16 +26,21 @@ const PRICE_CAP_RATE = 26.11; // Standard variable cap reference rate (p/kWh)
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
-// Fetch live day-ahead auction rates directly from agile-rates.uk
-async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
-  // 1. Check browser cache first
-  const cached = loadCachedSlots(dateKey, undefined, Date.now(), true);
-  if (cached && cached.length === 48) {
-    return cached;
-  }
+// Fetch live day-ahead auction rates from agile-rates.uk via CORS proxy
+async function fetchTomorrowAgilePredictions(
+  dateKey: string,
+  regionCode = "F"
+): Promise<PricedSlot[]> {
+  // NOTE: Local storage caching was removed from the fetcher to prevent 
+  // stale forecast data from locking up the UI across devices.
 
-  // 2. Fetch directly from agile-rates.uk regional JSON feed
-  const response = await fetch(`https://agilerates.uk/api/agile_rates_region_${regionCode}.json`);
+  const targetUrl = `https://agilerates.uk/api/agile_rates_region_${regionCode}.json`;
+
+  // Fetch through corsproxy.io to bypass browser CORS blocks on mobile/web
+  const response = await fetch(
+    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+  );
+
   if (!response.ok) {
     throw new Error("Agile Rates feed unavailable");
   }
@@ -44,7 +48,7 @@ async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"):
   const rawData = await response.json();
   const ratesList = Array.isArray(rawData) ? rawData : rawData?.rates || [];
 
-  // Filter half-hourly slots for tomorrow's date key (e.g., "2026-10-09")
+  // Filter half-hourly slots for tomorrow's date key (e.g. "2026-10-09")
   const targetSlots = ratesList.filter((slot: any) => {
     const slotTime = slot.date_time || slot.valid_from || slot.start;
     return slotTime && slotTime.startsWith(dateKey);
@@ -54,7 +58,7 @@ async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"):
     throw new Error("Tomorrow's auction rates are not published yet");
   }
 
-  // Map slots with Europe/London timezone to prevent BST/UTC hour offsets
+  // Map slots with Europe/London timezone formatting
   return targetSlots.map((slot: any) => {
     const isoString = slot.date_time || slot.valid_from || slot.start;
     const priceVal =
@@ -83,7 +87,7 @@ export default function AgileCrystalBall() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["agile-rates-uk-feed", dateKey],
+    queryKey: ["agile-rates-uk-feed-live", dateKey],
     queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
     retry: 2,
     staleTime: 5 * 60 * 1000,
@@ -95,14 +99,14 @@ export default function AgileCrystalBall() {
     return [...query.data].sort((a, b) => a.start.localeCompare(b.start));
   }, [query.data]);
 
-  // Persist into localStorage cache once full 48 slots arrive
+  // Persist into cache after a verified full set of 48 slots arrives
   useEffect(() => {
     if (slots.length === 48) {
       saveCachedSlots(dateKey, slots);
     }
   }, [slots, dateKey]);
 
-  // Calculate high-level metrics
+  // Calculate high-level summary metrics
   const stats = useMemo(() => {
     const valid = slots.filter((s) => s.price !== null && !isNaN(s.price));
     if (valid.length !== 48) return null;
@@ -116,7 +120,7 @@ export default function AgileCrystalBall() {
     return { minSlot, maxSlot, avg, vsCapPct };
   }, [slots]);
 
-  // Group slots into time blocks
+  // Group slots into standard time blocks
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
@@ -134,7 +138,7 @@ export default function AgileCrystalBall() {
     return { morning, afternoon, peak, evening };
   }, [slots]);
 
-  // UK Local Time check
+  // Check UK Local Time for status messaging
   const now = new Date();
   const ukTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" }));
   const ukHour = ukTime.getHours();
@@ -148,7 +152,7 @@ export default function AgileCrystalBall() {
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Dynamic Time Banner */}
+      {/* Dynamic Schedule Banner */}
       {isBefore10AM && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
           ⏳ Day-ahead wholesale auction predictions for tomorrow will publish around <strong>10:00 AM</strong>.
@@ -167,7 +171,7 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Header Info */}
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
           Tomorrow's Predictions ({dateKey})
@@ -234,7 +238,7 @@ export default function AgileCrystalBall() {
         </div>
       )}
 
-      {/* Hourly Rate Profile Chart */}
+      {/* Rate Profile Chart */}
       {!isLoading && stats && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <CardTitle className="text-sm font-semibold mb-4">Predicted Rate Profile (p/kWh)</CardTitle>

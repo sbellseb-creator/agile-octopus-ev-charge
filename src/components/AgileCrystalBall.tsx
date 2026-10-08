@@ -17,60 +17,59 @@ import { priceBand } from "@/lib/priceBands";
 import {
   targetDayKey,
   addDaysToDateKey,
-  saveCachedSlots,
   loadCachedSlots,
+  saveCachedSlots,
   type PricedSlot,
 } from "@/lib/agileForecast";
 
-const PRICE_CAP_RATE = 26.11; // Standard variable cap reference (p/kWh)
+const PRICE_CAP_RATE = 26.11; // Standard variable cap rate reference (p/kWh)
 
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
-// Fetch prediction slots directly or build fallback from official Octopus API
-async function fetchTomorrowAgilePredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
-  // 1. Try public CORS proxy / predictions API matching agile-rates.uk
-  try {
-    const res = await fetch(`https://agile-rates.uk/api/predictions?region=${regionCode}&date=${dateKey}`);
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json) && json.length > 0) {
-        return json.map((item: any) => ({
-          start: item.valid_from || item.start,
-          label: item.label || new Date(item.valid_from || item.start).toISOString().substring(11, 16),
-          price: Number(item.value_inc_vat ?? item.price ?? item.rate),
-        }));
-      }
-    }
-  } catch {
-    // Fail silently to next fallback
-  }
-
-  // 2. Check local storage cache
+// Direct internal data loader that avoids browser CORS issues
+async function loadTomorrowPredictions(dateKey: string, regionCode = "F"): Promise<PricedSlot[]> {
+  // 1. Try local cache first
   const cached = loadCachedSlots(dateKey, undefined, Date.now(), true);
   if (cached && cached.length === 48) {
     return cached;
   }
 
-  // 3. Fallback: Official Octopus rates API (if published)
-  const fromIso = `${dateKey}T00:00:00Z`;
-  const toIso = `${dateKey}T23:59:59Z`;
-  const octRes = await fetch(
-    `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-${regionCode}/standard-unit-rates/?period_from=${fromIso}&period_to=${toIso}`
-  );
-
-  if (octRes.ok) {
-    const octData = await octRes.json();
-    if (octData.results && octData.results.length > 0) {
-      return octData.results.map((item: any) => ({
-        start: item.valid_from,
-        label: new Date(item.valid_from).toISOString().substring(11, 16),
-        price: Number(item.value_inc_vat),
-      }));
+  // 2. Try fetching from internal API route if present
+  try {
+    const res = await fetch(`/api/predictions?date=${dateKey}&region=${regionCode}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
     }
+  } catch {
+    // Continue to fallback
   }
 
-  throw new Error("Predictions pending");
+  // 3. Try official Octopus rates endpoint as secondary source
+  try {
+    const fromIso = `${dateKey}T00:00:00Z`;
+    const toIso = `${dateKey}T23:59:59Z`;
+    const octRes = await fetch(
+      `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-${regionCode}/standard-unit-rates/?period_from=${fromIso}&period_to=${toIso}`
+    );
+    if (octRes.ok) {
+      const octData = await octRes.json();
+      if (octData.results && octData.results.length > 0) {
+        return octData.results.map((item: any) => ({
+          start: item.valid_from,
+          label: new Date(item.valid_from).toISOString().substring(11, 16),
+          price: Number(item.value_inc_vat),
+        }));
+      }
+    }
+  } catch {
+    // Continue to throw error if no data available
+  }
+
+  throw new Error("Auction rates pending or unavailable");
 }
 
 export default function AgileCrystalBall() {
@@ -79,55 +78,47 @@ export default function AgileCrystalBall() {
     return addDaysToDateKey(todayKey, 1);
   }, []);
 
-  const predictionsQuery = useQuery({
-    queryKey: ["agile-crystal-ball-tomorrow", dateKey],
-    queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
-    retry: 2,
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: 15 * 60 * 1000,
+  const query = useQuery({
+    queryKey: ["agile-crystal-ball", dateKey],
+    queryFn: () => loadTomorrowPredictions(dateKey, "F"),
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
-  // Ensure 48 half-hour slots sorted by start time
-  const safeSlots: PricedSlot[] = useMemo(() => {
-    if (!predictionsQuery.data) return [];
+  const slots: PricedSlot[] = useMemo(() => {
+    if (!query.data) return [];
+    return [...query.data].sort((a, b) => a.start.localeCompare(b.start));
+  }, [query.data]);
 
-    return [...predictionsQuery.data].sort((a, b) =>
-      a.start.localeCompare(b.start)
-    );
-  }, [predictionsQuery.data]);
-
-  // Persist to local cache if valid dataset received
   useEffect(() => {
-    if (safeSlots.length === 48) {
-      saveCachedSlots(dateKey, safeSlots);
+    if (slots.length === 48) {
+      saveCachedSlots(dateKey, slots);
     }
-  }, [safeSlots, dateKey]);
+  }, [slots, dateKey]);
 
-  // Summary Metrics matching agile-rates.uk
+  // Statistics calculation
   const stats = useMemo(() => {
-    const validSlots = safeSlots.filter((s) => s.price !== null && !isNaN(s.price));
-    if (validSlots.length === 0) return null;
+    const valid = slots.filter((s) => s.price !== null && !isNaN(s.price));
+    if (valid.length === 0) return null;
 
-    const prices = validSlots.map((s) => s.price as number);
-    const minSlot = validSlots.reduce((prev, curr) => (curr.price! < prev.price! ? curr : prev));
-    const maxSlot = validSlots.reduce((prev, curr) => (curr.price! > prev.price! ? curr : prev));
+    const prices = valid.map((s) => s.price as number);
+    const minSlot = valid.reduce((prev, curr) => (curr.price! < prev.price! ? curr : prev));
+    const maxSlot = valid.reduce((prev, curr) => (curr.price! > prev.price! ? curr : prev));
     const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-    
-    // Accurate vs Price Cap calculation (e.g. (14.63 - 26.11) / 26.11 = -44%)
     const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
 
     return { minSlot, maxSlot, avg, vsCapPct };
-  }, [safeSlots]);
+  }, [slots]);
 
-  // Grouped periods
+  // Group into time bands
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
     const peak: PricedSlot[] = [];
     const evening: PricedSlot[] = [];
 
-    safeSlots.forEach((s) => {
+    slots.forEach((s) => {
       const hour = parseInt((s.label || "00:00").split(":")[0], 10) || 0;
       if (hour >= 0 && hour < 12) morning.push(s);
       else if (hour >= 12 && hour < 16) afternoon.push(s);
@@ -136,14 +127,14 @@ export default function AgileCrystalBall() {
     });
 
     return { morning, afternoon, peak, evening };
-  }, [safeSlots]);
+  }, [slots]);
 
-  const isLoading = predictionsQuery.isLoading;
-  const isError = predictionsQuery.isError || (!isLoading && safeSlots.length === 0);
+  const isLoading = query.isLoading;
+  const isError = query.isError || (!isLoading && slots.length === 0);
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Header Bar */}
+      {/* Header Info */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
@@ -221,7 +212,7 @@ export default function AgileCrystalBall() {
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={safeSlots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={slots} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
@@ -259,14 +250,14 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading State */}
+      {/* Loading state */}
       {isLoading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
           <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" /> Fetching day-ahead prediction rates…
         </div>
       )}
 
-      {/* Pending / Error Banner */}
+      {/* Error / Pending Banner */}
       {isError && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
@@ -283,7 +274,7 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* 48 Half-Hourly Rate Slot Cards */}
+      {/* Half-hourly Slots Grid */}
       {!isLoading && !isError && (
         <div className="space-y-4">
           {[

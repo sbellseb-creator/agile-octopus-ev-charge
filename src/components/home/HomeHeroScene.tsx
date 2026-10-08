@@ -127,9 +127,6 @@ export default function HomeHeroScene({
   useEffect(() => {
     if (!import.meta.env.DEV) return;
 
-    // Temporary debug instrumentation: trace the forced-theme background
-    // pipeline so we can see exactly where an empty/invalid path would come
-    // from (scene.mode/theme -> homeSceneBackground() -> the inline style).
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
     console.log("[HomeHeroScene] background style ->", `url("${background}")`);
@@ -194,8 +191,6 @@ export default function HomeHeroScene({
             height="941"
             preserveAspectRatio="xMidYMid slice"
           />
-          {/* Rear-view mirror and a genuinely hanging selectable air
-              freshener.  It is separate from the information screen. */}
           {footballTeam !== "None" && <>
           <g filter="drop-shadow(0 7px 8px rgba(0,0,0,.65))">
             <rect x="760" y="74" width="152" height="46" rx="18" fill="#111827" stroke="#475569" strokeWidth="4" />
@@ -327,8 +322,25 @@ export default function HomeHeroScene({
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-black/20" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
-      {/* Top status */}
-      <div className="absolute left-2 top-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:right-auto min-[430px]:top-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:left-4 sm:top-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
+      {/* Weather badge (Top-Left for all viewports) */}
+      <div className="absolute left-2 top-2 z-30 w-fit max-w-fit whitespace-nowrap flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:left-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
+        <WeatherIcon scene={scene} />
+
+        <span className="capitalize inline">
+          {scene.mode === "forced"
+            ? `${scene.theme} · ${scene.weather.split("-").join(" ")}`
+            : scene.weather.split("-").join(" ")}
+        </span>
+
+        {scene.temperatureC != null && (
+          <span className="font-bold">
+            {Math.round(scene.temperatureC)}°
+          </span>
+        )}
+      </div>
+
+      {/* Charge Status Card (Bottom-Left for all viewports) */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:bottom-4 sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -370,26 +382,6 @@ export default function HomeHeroScene({
           </div>
         )}
       </div>
-
-      {/* Weather badge */}
-      <div className="absolute bottom-2 left-2 z-30 w-fit max-w-fit whitespace-nowrap flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:bottom-auto min-[430px]:left-[165px] min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:left-[175px] sm:top-4 sm:gap-2 sm:text-xs md:px-3">
-        <WeatherIcon scene={scene} />
-
-        <span className="capitalize inline">
-          {scene.mode === "forced"
-            ? `${scene.theme} · ${scene.weather.split("-").join(" ")}`
-            : scene.weather.split("-").join(" ")}
-        </span>
-
-        {scene.temperatureC != null && (
-          <span className="font-bold">
-            {Math.round(scene.temperatureC)}°
-          </span>
-        )}
-      </div>
-
-      {/* The installed sunset/night photographs contain the illuminated wall
-          lamp and its real light spill. No synthetic glow is needed. */}
 
       {!charging && pluggedIn && (
         <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:bottom-auto lg:left-4 lg:top-[112px] lg:translate-x-0">

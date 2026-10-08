@@ -339,8 +339,8 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card (Placed below Weather Badge on top-left for desktop/tablet, bottom-left on small screens) */}
-      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:bottom-3 min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:bottom-4 sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:top-[52px] md:bottom-auto md:max-w-[42%] md:px-4 md:py-3">
+      {/* Charge Status Card (Bottom-left on small mobile screens; stacked below Weather Badge on top-left for large mobile, tablet, and desktop) */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[62%] rounded-xl border border-white/15 bg-slate-950/70 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:top-[58px] sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <BatteryCharging
             className={
@@ -384,7 +384,7 @@ export default function HomeHeroScene({
       </div>
 
       {!charging && pluggedIn && (
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs lg:left-1/2 lg:top-auto lg:translate-x-0">
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs">
           PLUGGED IN · WAITING
         </div>
       )}

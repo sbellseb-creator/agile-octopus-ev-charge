@@ -22,14 +22,13 @@ serve(async (req) => {
   
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
-  const date = isDate(requested) ? requested : addDays(today, 1);
+  const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
 
   try {
     const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
 
-    // Strict 5-second fetch timeout to stop browser hanging
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const arRes = await fetch(targetUrl, {
       signal: controller.signal,
@@ -43,28 +42,49 @@ serve(async (req) => {
 
     if (arRes.ok) {
       const arData = await arRes.json();
-      const rawRates = Array.isArray(arData) ? arData : (arData?.rates || []);
+      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || []);
 
-      estimates = rawRates
-        .filter((r: any) => {
-          const validFrom = r.valid_from || r.time || r.from || r.timestamp;
-          return validFrom && validFrom.startsWith(date);
-        })
-        .map((r: any) => {
-          const validFrom = r.valid_from || r.time || r.from || r.timestamp;
-          const validTo = r.valid_to || r.to;
-          const rate = r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? 0;
-          return {
-            valid_from: validFrom,
-            valid_to: validTo,
-            value_inc_vat: Number(rate),
-            value_exc_vat: Number(rate) / 1.2,
-          };
-        });
+      // Parse boundaries for target date (e.g., 2026-10-09 00:00:00 to 2026-10-09 23:59:59)
+      const targetStart = new Date(`${targetDateStr}T00:00:00Z`).getTime();
+      const targetEnd = new Date(`${targetDateStr}T23:59:59Z`).getTime();
+
+      const parsed = rawRates.map((r: any) => {
+        const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
+        const validToRaw = r.valid_to || r.to;
+        const rate = r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? 0;
+        
+        const dateObj = validFromRaw ? new Date(validFromRaw) : null;
+        
+        return {
+          valid_from: validFromRaw,
+          valid_to: validToRaw,
+          value_inc_vat: Number(rate),
+          value_exc_vat: Number(rate) / 1.2,
+          timestampMs: dateObj && !isNaN(dateObj.getTime()) ? dateObj.getTime() : null,
+        };
+      });
+
+      // Match items within requested date timestamp range, or with string match
+      estimates = parsed.filter((r) => {
+        if (r.timestampMs !== null) {
+          // Allow 1-hour timezone offset buffer for BST/UTC shifts
+          return r.timestampMs >= (targetStart - 3600000) && r.timestampMs <= (targetEnd + 3600000);
+        }
+        return r.valid_from && String(r.valid_from).includes(targetDateStr);
+      });
+
+      // Fallback: If filtering produced 0 rows but rates exist in file, return all upcoming future rates
+      if (estimates.length === 0 && parsed.length > 0) {
+        const nowMs = now.getTime();
+        estimates = parsed.filter((r) => r.timestampMs === null || r.timestampMs >= (nowMs - 7200000));
+      }
+
+      // Clean up helper key before sending response
+      estimates = estimates.map(({ timestampMs, ...rest }) => rest);
     }
 
     return json({
-      date,
+      date: targetDateStr,
       status: estimates.length > 0 ? "available" : "waiting",
       available: estimates.length > 0,
       region,
@@ -77,7 +97,7 @@ serve(async (req) => {
     });
   } catch (err: any) {
     return json({
-      date,
+      date: targetDateStr,
       status: "waiting",
       available: false,
       region,

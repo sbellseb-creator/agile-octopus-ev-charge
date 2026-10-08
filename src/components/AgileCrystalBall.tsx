@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AreaChart,
@@ -10,10 +10,9 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { Loader2, Zap, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { priceBand } from "@/lib/priceBands";
 import {
   fetchDayAhead,
@@ -22,7 +21,6 @@ import {
 } from "@/lib/agileForecastApi";
 import {
   chooseSlots,
-  cheapestWindow,
   purgeLegacyCaches,
   targetDayKey,
   ukMidnightUtc,
@@ -32,18 +30,17 @@ import {
   type PricedSlot,
 } from "@/lib/agileForecast";
 
-const PRICE_CAP_RATE = 26.11; // Standard variable price cap reference (p/kWh)
+const PRICE_CAP_RATE = 26.11; // Standard variable cap (p/kWh)
 
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
 export default function AgileCrystalBall() {
-  const [activeTab, setActiveTab] = useState<"today" | "tomorrow">("today");
-
+  // Always target tomorrow for predictions
   const dateKey = useMemo(() => {
     const todayKey = targetDayKey();
-    return activeTab === "tomorrow" ? addDaysToDateKey(todayKey, 1) : todayKey;
-  }, [activeTab]);
+    return addDaysToDateKey(todayKey, 1);
+  }, []);
 
   const fromIso = useMemo(() => ukMidnightUtc(dateKey).toISOString(), [dateKey]);
   const toIso = useMemo(() => ukMidnightUtc(addDaysToDateKey(dateKey, 1)).toISOString(), [dateKey]);
@@ -55,29 +52,25 @@ export default function AgileCrystalBall() {
     refetchOnWindowFocus: false,
   };
 
-  // Official Octopus API
   const official = useQuery({
     queryKey: ["acb-official", dateKey],
     queryFn: () => fetchOfficialRates(fromIso, toIso),
     ...opts,
   });
 
-  // Wholesale NordPool
   const nordPool = useQuery({
     queryKey: ["acb-nordpool", dateKey],
     queryFn: () => fetchDayAhead(dateKey),
     ...opts,
-    enabled: activeTab === "tomorrow",
   });
 
   const nordPoolFailed = !nordPool.isLoading && !nordPool.data?.points?.length;
 
-  // Wholesale Elexon MID
   const mid = useQuery({
     queryKey: ["acb-mid", dateKey],
     queryFn: () => fetchMidFallback(fromIso, toIso),
     ...opts,
-    enabled: activeTab === "tomorrow" && nordPoolFailed,
+    enabled: nordPoolFailed,
   });
 
   useEffect(() => {
@@ -85,36 +78,26 @@ export default function AgileCrystalBall() {
   }, []);
 
   const rawChoice = useMemo(() => {
-    if (activeTab === "today" && official.data && official.data.length > 0) {
-      return {
-        slots: official.data,
-        source: "official",
-      };
-    }
-
     return chooseSlots(dateKey, {
       nordPool: nordPool.data?.points,
       cached: loadCachedSlots(dateKey, undefined, Date.now(), true),
       mid: mid.data?.points,
       official: official.data,
     });
-  }, [activeTab, dateKey, official.data, nordPool.data, mid.data]);
+  }, [dateKey, nordPool.data, mid.data, official.data]);
 
-  // Normalize API data to guarantee correct `price`, `label`, and `start` fields
+  // Parse and format half-hourly slots
   const safeSlots: PricedSlot[] = useMemo(() => {
     if (!rawChoice.slots || rawChoice.slots.length === 0) return [];
 
     return rawChoice.slots
       .map((item: any) => {
-        // Extract price from value_inc_vat, price, or rate
         const rawPrice = item.value_inc_vat ?? item.price ?? item.rate ?? null;
         const price = rawPrice !== null && !isNaN(Number(rawPrice)) ? Number(rawPrice) : null;
 
-        // Extract ISO start time
         const startIso = item.valid_from ?? item.start ?? item.time ?? "";
-        
-        // Format time label (HH:mm)
         let label = item.label || "";
+        
         if (!label && startIso) {
           try {
             const dateObj = new Date(startIso);
@@ -143,7 +126,7 @@ export default function AgileCrystalBall() {
     }
   }, [source, safeSlots, dateKey]);
 
-  // Analytical Metrics
+  // Metrics matching agile-rates.uk calculation standards
   const stats = useMemo(() => {
     const validSlots = safeSlots.filter((s) => s.price !== null && !isNaN(s.price));
     if (validSlots.length === 0) return null;
@@ -154,15 +137,10 @@ export default function AgileCrystalBall() {
     const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
     const vsCapPct = Math.round(((avg - PRICE_CAP_RATE) / PRICE_CAP_RATE) * 100);
 
-    const win1h = cheapestWindow(validSlots, 2);
-    const win2h = cheapestWindow(validSlots, 4);
-    const win3h = cheapestWindow(validSlots, 6);
-    const win4h = cheapestWindow(validSlots, 8);
-
-    return { minSlot, maxSlot, avg, vsCapPct, win1h, win2h, win3h, win4h };
+    return { minSlot, maxSlot, avg, vsCapPct };
   }, [safeSlots]);
 
-  // Categorized Slot Windows
+  // Categorized grid sections
   const groupedSlots = useMemo(() => {
     const morning: PricedSlot[] = [];
     const afternoon: PricedSlot[] = [];
@@ -180,34 +158,17 @@ export default function AgileCrystalBall() {
     return { morning, afternoon, peak, evening };
   }, [safeSlots]);
 
-  const loading =
-    activeTab === "today"
-      ? official.isLoading
-      : (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
-
+  const loading = (nordPool.isLoading || mid.isLoading || official.isLoading) && source === "none";
   const hasData = !loading && stats !== null && safeSlots.some((s) => s.price !== null);
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Tab Switcher */}
+      {/* Header Info */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={activeTab === "today" ? "default" : "outline"}
-            onClick={() => setActiveTab("today")}
-            className="rounded-lg text-xs"
-          >
-            Today's Rates
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === "tomorrow" ? "default" : "outline"}
-            onClick={() => setActiveTab("tomorrow")}
-            className="rounded-lg text-xs"
-          >
-            Tomorrow's Predictions
-          </Button>
+          <Badge className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1">
+            Tomorrow's Predictions ({dateKey})
+          </Badge>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -223,12 +184,12 @@ export default function AgileCrystalBall() {
         </div>
       </div>
 
-      {/* Primary Summary Cards */}
+      {/* KPI Cards */}
       {hasData && stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
             <CardContent className="p-4">
-              <p className="text-[11px] font-medium text-slate-400">Min Import</p>
+              <p className="text-[11px] font-medium text-slate-400">Tomorrow's Min Import</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-2xl font-black text-emerald-400">{fmt(stats.minSlot.price)}p</span>
                 <span className="text-[10px] text-slate-400">/kWh</span>
@@ -239,7 +200,7 @@ export default function AgileCrystalBall() {
 
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
             <CardContent className="p-4">
-              <p className="text-[11px] font-medium text-slate-400">Max Import</p>
+              <p className="text-[11px] font-medium text-slate-400">Tomorrow's Max Import</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-2xl font-black text-rose-400">{fmt(stats.maxSlot.price)}p</span>
                 <span className="text-[10px] text-slate-400">/kWh</span>
@@ -250,12 +211,12 @@ export default function AgileCrystalBall() {
 
           <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
             <CardContent className="p-4">
-              <p className="text-[11px] font-medium text-slate-400">Average Rate</p>
+              <p className="text-[11px] font-medium text-slate-400">Predicted Import Avg</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-2xl font-black text-white">{fmt(stats.avg)}p</span>
                 <span className="text-[10px] text-slate-400">/kWh</span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">Across all slots</p>
+              <p className="mt-1 text-[11px] text-slate-400">Across all predicted slots</p>
             </CardContent>
           </Card>
 
@@ -268,55 +229,20 @@ export default function AgileCrystalBall() {
                     stats.vsCapPct <= 0 ? "text-emerald-400" : "text-rose-400"
                   }`}
                 >
-                  {stats.vsCapPct}%
+                  {stats.vsCapPct > 0 ? `+${stats.vsCapPct}%` : `${stats.vsCapPct}%`}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">Agile vs {PRICE_CAP_RATE}p cap</p>
+              <p className="mt-1 text-[11px] text-slate-400">Agile avg vs {PRICE_CAP_RATE}p cap rate</p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Cheapest Windows Widgets */}
-      {hasData && stats && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Cheapest Windows ({dateKey})
-          </h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              { label: "1 hr", win: stats.win1h },
-              { label: "2 hr", win: stats.win2h },
-              { label: "3 hr", win: stats.win3h },
-              { label: "4 hr", win: stats.win4h },
-            ].map(({ label, win }) =>
-              win ? (
-                <Card key={label} className="border-slate-800 bg-slate-900/40 p-3">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="flex items-center gap-1 font-semibold text-emerald-400">
-                      <Zap className="h-3.5 w-3.5" /> {label}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-lg font-black text-white">
-                    {fmt(win.average)}
-                    <span className="text-xs font-normal text-slate-400">p/kWh</span>
-                  </div>
-                  <div className="text-[11px] font-medium text-slate-300">
-                    {safeSlots[win.startIndex]?.label} –{" "}
-                    {safeSlots[win.startIndex + win.length - 1]?.label}
-                  </div>
-                </Card>
-              ) : null
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Profile Graph */}
+      {/* Chart */}
       {hasData && (
         <Card className="border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-4 flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Import Rate Profile (p/kWh)</CardTitle>
+            <CardTitle className="text-sm font-semibold">Predicted Rate Profile (p/kWh)</CardTitle>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -336,7 +262,7 @@ export default function AgileCrystalBall() {
                     borderColor: "#334155",
                     borderRadius: "8px",
                   }}
-                  formatter={(v: number) => [`${fmt(v)} p/kWh`, "Import Rate"]}
+                  formatter={(v: number) => [`${fmt(v)} p/kWh`, "Predicted Rate"]}
                 />
                 <ReferenceLine
                   y={PRICE_CAP_RATE}
@@ -358,33 +284,31 @@ export default function AgileCrystalBall() {
         </Card>
       )}
 
-      {/* Loading Indicator */}
+      {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center p-12 text-slate-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching Agile energy rates…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Fetching day-ahead prediction rates…
         </div>
       )}
 
-      {/* Pending / Unavailable Rate Warning Banner */}
+      {/* Pending state */}
       {!loading && !hasData && (
         <Card className="border-rose-900/40 bg-rose-950/20 p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
             <div>
               <h4 className="text-sm font-semibold text-rose-300">
-                {activeTab === "tomorrow" ? "Auction Rates Pending or Unavailable" : "Rates Unavailable"}
+                Auction Rates Pending or Unavailable
               </h4>
               <p className="mt-1 text-xs text-rose-200/80">
-                {activeTab === "tomorrow"
-                  ? `Day-ahead market prices for ${dateKey} publish around 12:30 UK time, and official Octopus rates arrive around 16:00.`
-                  : "Unable to retrieve today's official rates. Check API response or network connection."}
+                Day-ahead market prices for {dateKey} publish around 12:30 UK time, and official Octopus rates arrive around 16:00.
               </p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* Interactive Slot Cards */}
+      {/* Slots grid */}
       {hasData && (
         <div className="space-y-4">
           {[

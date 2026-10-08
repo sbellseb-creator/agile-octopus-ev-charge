@@ -26,21 +26,15 @@ const PRICE_CAP_RATE = 26.11; // Standard variable cap reference rate (p/kWh)
 const fmt = (p: number | null | undefined) =>
   p == null || isNaN(p) ? "–" : p.toFixed(2);
 
-// Fetch live day-ahead auction rates from agile-rates.uk via CORS proxy
+// Fetch live day-ahead auction rates directly from agile-rates.uk via CORS proxy
 async function fetchTomorrowAgilePredictions(
   dateKey: string,
   regionCode = "F"
 ): Promise<PricedSlot[]> {
-  // NOTE: Local storage caching was removed from the fetcher to prevent 
-  // stale forecast data from locking up the UI across devices.
+  const directUrl = `https://agilerates.uk/api/agile_rates_region_${regionCode}.json`;
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
 
-  const targetUrl = `https://agilerates.uk/api/agile_rates_region_${regionCode}.json`;
-
-  // Fetch through corsproxy.io to bypass browser CORS blocks on mobile/web
-  const response = await fetch(
-    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
-  );
-
+  const response = await fetch(proxyUrl);
   if (!response.ok) {
     throw new Error("Agile Rates feed unavailable");
   }
@@ -48,7 +42,7 @@ async function fetchTomorrowAgilePredictions(
   const rawData = await response.json();
   const ratesList = Array.isArray(rawData) ? rawData : rawData?.rates || [];
 
-  // Filter half-hourly slots for tomorrow's date key (e.g. "2026-10-09")
+  // Filter half-hourly slots for tomorrow's date key (e.g., "2026-10-09")
   const targetSlots = ratesList.filter((slot: any) => {
     const slotTime = slot.date_time || slot.valid_from || slot.start;
     return slotTime && slotTime.startsWith(dateKey);
@@ -58,7 +52,7 @@ async function fetchTomorrowAgilePredictions(
     throw new Error("Tomorrow's auction rates are not published yet");
   }
 
-  // Map slots with Europe/London timezone formatting
+  // Map slots with Europe/London timezone to prevent BST/UTC hour offsets
   return targetSlots.map((slot: any) => {
     const isoString = slot.date_time || slot.valid_from || slot.start;
     const priceVal =
@@ -87,7 +81,7 @@ export default function AgileCrystalBall() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["agile-rates-uk-feed-live", dateKey],
+    queryKey: ["agile-rates-uk-feed-v2", dateKey],
     queryFn: () => fetchTomorrowAgilePredictions(dateKey, "F"),
     retry: 2,
     staleTime: 5 * 60 * 1000,

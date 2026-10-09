@@ -56,6 +56,7 @@ import { resolveHomeScene } from "@/lib/home-scene";
 import { supabase } from "@/integrations/supabase/client";
 
 import HomeHeroScene from "@/components/home/HomeHeroScene";
+import AgileCrystalBall from "@/components/AgileCrystalBall";
 
 interface Props {
   vehicles: Vehicle[];
@@ -1060,6 +1061,78 @@ export default function HomeDashboard({
         scheduleLabel={scheduleLabel}
         footballTeam={footballTeam}
       />
+
+      {/* Agile Crystal Ball Preview Component */}
+      <AgileCrystalBall />
+
+      {/* Summary Section */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-slate-300">Charging Summary</h3>
+          <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+            {(["week", "month", "year"] as const).map((period) => (
+              <button
+                key={period}
+                onClick={() => setSummaryPeriod(period)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${summaryPeriod === period ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"}`}
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Energy</p>
+            <p className="mt-1 text-xl font-black text-white">{summary.kwh.toFixed(1)} <span className="text-xs text-slate-400">kWh</span></p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Cost</p>
+            <p className="mt-1 text-xl font-black text-emerald-400">£{summary.cost.toFixed(2)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sessions</p>
+            <p className="mt-1 text-xl font-black text-white">{summary.count}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Charges List */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-slate-300">Recent Charges</h3>
+          <button
+            onClick={onReviewCharges}
+            className="text-xs font-bold text-emerald-400 hover:underline"
+          >
+            View all
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {trustedRecentCharges.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3 text-center">{lastChargeLabel}</p>
+          ) : (
+            trustedRecentCharges.map((session) => {
+              const energy = sessionEnergyKwh(session);
+              const cost = sessionCostGbp(session);
+              return (
+                <div key={session.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-white">{session.session_date} · {sessionClock(session, "start")} - {sessionClock(session, "finish")}</p>
+                    <p className="text-[10px] text-slate-400">{sessionDurationLabel(session)} · {session.vehicle_name || "Vehicle"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
+                    <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }

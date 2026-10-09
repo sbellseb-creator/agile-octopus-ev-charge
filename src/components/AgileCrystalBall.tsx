@@ -45,11 +45,16 @@ export const AgileCrystalBall: React.FC<CrystalBallProps> = ({ regionCode = 'F' 
             setIsPending(false);
             const rawRates = data.rates || data.results || [];
             
-            // Filter strictly for import rates and target date
+            // Filter strictly for import rates and target date using London time
             const filtered = rawRates.filter((slot: any) => {
               const timeStr = slot.valid_from || slot.time || slot.from || '';
               const isExport = slot.is_export || slot.direction === 'export' || String(slot.tariff_type || '').toLowerCase().includes('export');
-              const matchesDate = data.date ? timeStr.includes(data.date) : true;
+              
+              if (!timeStr) return false;
+
+              const slotDate = new Date(timeStr).toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
+              const matchesDate = data.date ? slotDate === data.date : true;
+
               return matchesDate && !isExport;
             });
 

@@ -25,58 +25,37 @@ serve(async (req) => {
   const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
 
   try {
-    const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
+    // Construct official Octopus Energy product & tariff codes for Agile
+    // Using current Agile tariff code structure
+    const productCode = "AGILE-24-10-01";
+    const tariffCode = `E-1R-${productCode}-${region}`;
+    
+    // Request period covering the target date
+    const periodFrom = `${targetDateStr}T00:00:00Z`;
+    const periodTo = `${targetDateStr}T23:59:59Z`;
+    
+    const targetUrl = `https://api.octopus.energy/v1/products/${productCode}/electricity-tariffs/${tariffCode}/standard-unit-rates/?period_from=${periodFrom}&period_to=${periodTo}`;
 
-    const arRes = await fetch(targetUrl, {
+    const ocRes = await fetch(targetUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "application/json",
       },
     });
 
-    if (!arRes.ok) {
-      throw new Error(`Failed to fetch region data: HTTP ${arRes.status}`);
+    if (!ocRes.ok) {
+      throw new Error(`Octopus API error: HTTP ${ocRes.status}`);
     }
 
-    const arData = await arRes.json();
-    
-    // Extract raw rates array securely from any response wrapper
-    let rawRates: any[] = [];
-    if (Array.isArray(arData)) {
-      rawRates = arData;
-    } else if (arData && typeof arData === 'object') {
-      rawRates = arData.rates || arData.results || arData.data || Object.values(arData).find(v => Array.isArray(v)) || [];
-    }
+    const ocData = await ocRes.json();
+    const results = ocData.results || [];
 
-    const parsed = rawRates.map((r: any) => {
-      const validFromRaw = r.valid_from || r.time || r.from || r.timestamp || r.start;
-      const validToRaw = r.valid_to || r.to || r.end;
-      
-      // Deep extraction supporting agile-rates.uk nested schema and flat fallbacks
-      const rateVal = 
-        r.agileRate?.result?.rate ?? 
-        r.rate?.value ?? 
-        r.value_inc_vat ?? 
-        r.rate ?? 
-        r.pence_per_kwh ?? 
-        r.value ?? 
-        0;
-
-      return {
-        valid_from: validFromRaw,
-        valid_to: validToRaw,
-        value_inc_vat: Number(rateVal),
-        value_exc_vat: Number(rateVal) / 1.2,
-      };
-    }).filter(r => r.valid_from);
-
-    // Filter for target date
-    let estimates = parsed.filter(r => String(r.valid_from).includes(targetDateStr));
-
-    // Fallback: If date filter is too strict, safely grab the next 48 slots block
-    if (estimates.length === 0 && parsed.length > 0) {
-      estimates = parsed.length >= 96 ? parsed.slice(48, 96) : parsed.slice(0, Math.min(48, parsed.length));
-    }
+    // Map Octopus results to the app's expected rate format
+    const estimates = results.map((r: any) => ({
+      valid_from: r.valid_from,
+      valid_to: r.valid_to,
+      value_inc_vat: Number(r.value_inc_vat),
+      value_exc_vat: Number(r.value_exc_vat),
+    }));
 
     return json({
       date: targetDateStr,
@@ -84,7 +63,7 @@ serve(async (req) => {
       available: estimates.length > 0,
       region,
       estimated: true,
-      source: "agile-rates.uk",
+      source: "octopus-energy-api",
       is_mock: false,
       updated_at: now.toISOString(),
       results: estimates,
@@ -97,7 +76,7 @@ serve(async (req) => {
       available: false,
       region,
       estimated: true,
-      error: err.message || "Unknown error",
+      error: err.message || "Failed to fetch from Octopus API",
       updated_at: now.toISOString(),
       results: [],
       rates: [],

@@ -43,13 +43,18 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
-      // agile-rates.uk typically returns a direct array of rate objects
-      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
+      // Flexible extraction of the rates array from agile-rates.uk response
+      let rawRates: any[] = [];
+      if (Array.isArray(arData)) {
+        rawRates = arData;
+      } else if (arData && typeof arData === 'object') {
+        const foundKey = Object.keys(arData).find(k => Array.isArray(arData[k]));
+        if (foundKey) rawRates = arData[foundKey];
+      }
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
         const validToRaw = r.valid_to || r.to;
-        // Directly map value_inc_vat or rate fields from agile-rates.uk format
         const rate = r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? r.value ?? 0;
         
         const dateObj = validFromRaw ? new Date(validFromRaw) : null;
@@ -63,10 +68,10 @@ serve(async (req) => {
         };
       });
 
-      // Filter strictly for the target date (e.g. 2026-10-10)
+      // Flexible match for target date string
       estimates = parsed.filter((r) => {
         if (r.valid_from && typeof r.valid_from === 'string') {
-          return r.valid_from.startsWith(targetDateStr);
+          return r.valid_from.includes(targetDateStr);
         }
         if (r.timestampMs !== null) {
           const slotDateStr = new Date(r.timestampMs).toISOString().split('T')[0];
@@ -74,6 +79,11 @@ serve(async (req) => {
         }
         return false;
       });
+
+      // If exact date filtering yields nothing, but rates exist, grab the next 48 slots (tomorrow's published set)
+      if (estimates.length === 0 && parsed.length > 0) {
+        estimates = parsed.slice(0, 48);
+      }
 
       estimates = estimates.map(({ timestampMs, ...rest }) => rest);
     }

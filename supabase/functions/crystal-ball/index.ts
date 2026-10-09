@@ -47,11 +47,16 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // agile-rates.uk returns an array of time slots directly in the JSON response or under data.rates / data.data
-    const rawSlots = Array.isArray(data) ? data : (data.rates || data.data || data.results || []);
+    // Extract the correct array from agile-rates.uk object structure
+    const rawSlots = 
+      data.import_predictions_tomorrow || 
+      data.import_actuals_tomorrow || 
+      data.import_predictions_today || 
+      data.import_actuals_today || 
+      data.rates || 
+      [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      // Each item has a `rates` object mapped by region (e.g. r.rates['F'])
       const rateVal = r.rates?.[region] ?? r.rate ?? 0;
       return {
         valid_from: r.start || r.valid_from,

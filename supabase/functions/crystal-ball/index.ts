@@ -25,7 +25,7 @@ serve(async (req) => {
   const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
 
   try {
-    // Fetch from agile-rates.uk API archive/current endpoints for predictions
+    // Pass the required query parameters correctly to agile-rates.uk
     const targetUrl = `https://agile-rates.uk/api/v2/archive?date=${targetDateStr}&region=${region}`;
 
     const res = await fetch(targetUrl, {
@@ -37,11 +37,10 @@ serve(async (req) => {
     }
 
     const data = await res.json();
-    // Extract rates / predictions from agile-rates response structure
-    const rawRates = data.rates || data.results || data || [];
+    const rawRates = data.rates || data.results || data.data || [];
 
     const estimates = Array.isArray(rawRates) ? rawRates.map((r: any) => ({
-      valid_from: r.valid_from || r.from,
+      valid_from: r.valid_from || r.from || r.time,
       valid_to: r.valid_to || r.to,
       value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? 0),
       value_exc_vat: Number((r.value_exc_vat ?? (Number(r.value_inc_vat ?? r.rate ?? 0) / 1.05)).toFixed(2)),

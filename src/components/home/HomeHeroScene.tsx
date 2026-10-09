@@ -5,7 +5,6 @@ import {
   CloudSnow,
   CloudSun,
   Moon,
-  Sparkles,
   Sun,
 } from "lucide-react";
 
@@ -389,11 +388,6 @@ export default function HomeHeroScene({
         <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-cyan-300/25 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black tracking-[0.12em] text-cyan-100 shadow-xl backdrop-blur-xl sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs">
           PLUGGED IN · WAITING
         </div>
-      )}
-
-      {/* Forced theme sparkle */}
-      {scene.mode === "forced" && (
-        <Sparkles className="absolute bottom-5 left-5 z-30 h-5 w-5 text-white/70" />
       )}
     </div>
   );

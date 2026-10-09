@@ -54,15 +54,17 @@ jobs:
       - name: Verify build output
         run: ls -la ./dist
 
-      - name: Setup Pages
+- name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: github-pages
-          path: './dist/'
+          path: './dist'
 
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

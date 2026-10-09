@@ -43,26 +43,20 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
-      let rawRates: any[] = [];
-      if (Array.isArray(arData)) {
-        rawRates = arData;
-      } else if (arData && typeof arData === 'object') {
-        const foundKey = Object.keys(arData).find(k => Array.isArray(arData[k]));
-        if (foundKey) rawRates = arData[foundKey];
-      }
+      // agile-rates.uk returns an object containing a "rates" array
+      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
         const validToRaw = r.valid_to || r.to;
         
-        // Comprehensive check for rate values across different API versions
+        // Correctly extract rate from agile-rates.uk nested structure (agileRate.result.rate)
         const rateVal = 
+          r.agileRate?.result?.rate ?? 
           r.value_inc_vat ?? 
           r.rate ?? 
           r.pence_per_kwh ?? 
           r.value ?? 
-          r.agileRate?.result?.rate ?? 
-          r.tariff_rate ?? 
           0;
 
         const dateObj = validFromRaw ? new Date(validFromRaw) : null;
@@ -76,7 +70,7 @@ serve(async (req) => {
         };
       });
 
-      // Filter strictly for the target date string
+      // Filter strictly for the target date string (e.g., 2026-10-10)
       estimates = parsed.filter((r) => {
         if (r.valid_from && typeof r.valid_from === 'string') {
           return r.valid_from.includes(targetDateStr);
@@ -88,7 +82,7 @@ serve(async (req) => {
         return false;
       });
 
-      // Fallback: If exact date match is empty, take the next 48 slots as the published tomorrow set
+      // Fallback: If exact date match is empty but rates exist, grab the next 48 slots
       if (estimates.length === 0 && parsed.length > 0) {
         estimates = parsed.slice(0, 48);
       }

@@ -43,24 +43,14 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
-      // Handle various root formats from agile-rates.uk API
-      let rawRates: any[] = [];
-      if (Array.isArray(arData)) {
-        rawRates = arData;
-      } else if (Array.isArray(arData?.rates)) {
-        rawRates = arData.rates;
-      } else if (Array.isArray(arData?.results)) {
-        rawRates = arData.results;
-      } else if (arData && typeof arData === 'object') {
-        // Find any array property inside the response object
-        const foundKey = Object.keys(arData).find(k => Array.isArray(arData[k]));
-        if (foundKey) rawRates = arData[foundKey];
-      }
+      // agile-rates.uk typically returns a direct array of rate objects
+      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
         const validToRaw = r.valid_to || r.to;
-        const rate = r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? r.value ?? 0;
+        // Directly map value_inc_vat or rate fields from agile-rates.uk format
+        const rate = r.value_inc_vat ?? r.rate ?? r.pence_per_kwh ?? r.value ?? 0;
         
         const dateObj = validFromRaw ? new Date(validFromRaw) : null;
         
@@ -73,10 +63,10 @@ serve(async (req) => {
         };
       });
 
-      // Filter for target date
+      // Filter strictly for the target date (e.g. 2026-10-10)
       estimates = parsed.filter((r) => {
         if (r.valid_from && typeof r.valid_from === 'string') {
-          return r.valid_from.includes(targetDateStr);
+          return r.valid_from.startsWith(targetDateStr);
         }
         if (r.timestampMs !== null) {
           const slotDateStr = new Date(r.timestampMs).toISOString().split('T')[0];
@@ -84,11 +74,6 @@ serve(async (req) => {
         }
         return false;
       });
-
-      // If exact date filtering is too strict but rates exist, fallback to returning the next 48 slots
-      if (estimates.length === 0 && parsed.length > 0) {
-        estimates = parsed.slice(0, 48);
-      }
 
       estimates = estimates.map(({ timestampMs, ...rest }) => rest);
     }

@@ -1064,6 +1064,12 @@ export default function HomeDashboard({
               }}
               className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] cursor-grab active:cursor-grabbing select-none"
             >
+              {ribbon.length > 0 && (
+          <div className="mt-4">
+            <div 
+              ref={priceStripRef} 
+              className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth"
+            >
               {ribbon.map((rate) => {
                 const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
                 const isCheapest = cheapestSlot && rate.valid_from === cheapestSlot.valid_from;
@@ -1089,6 +1095,36 @@ export default function HomeDashboard({
                     <div className={`absolute bottom-0 left-0 right-0 h-2 ${colourClass}`} />
                   </div>
                 );
+              })}
+            </div>
+            
+            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 font-semibold px-1">
+              <span>Swipe prices →</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    if (priceStripRef.current) {
+                      priceStripRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                    }
+                  }}
+                  className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  ←
+                </button>
+                <button
+                  onClick={() => {
+                    if (priceStripRef.current) {
+                      priceStripRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                    }
+                  }}
+                  className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
               })}
             </div>
             

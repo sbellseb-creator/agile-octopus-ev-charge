@@ -43,14 +43,14 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
-      // Extract the rates array from the agile-rates.uk JSON structure
+      // agile-rates.uk returns an object containing the "rates" array
       const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
         const validToRaw = r.valid_to || r.to;
         
-        // Correctly extract rate from the official agile-rates.uk nested path: agileRate.result.rate
+        // Target the official agile-rates.uk nested path first: r.agileRate.result.rate
         const rateVal = 
           r.agileRate?.result?.rate ?? 
           r.value_inc_vat ?? 
@@ -73,7 +73,7 @@ serve(async (req) => {
       // Filter strictly for the target date string (e.g., 2026-10-10)
       estimates = parsed.filter((r) => {
         if (r.valid_from && typeof r.valid_from === 'string') {
-          return r.valid_from.includes(targetDateStr);
+          return r.valid_from.startsWith(targetDateStr);
         }
         if (r.timestampMs !== null) {
           const slotDateStr = new Date(r.timestampMs).toISOString().split('T')[0];
@@ -81,11 +81,6 @@ serve(async (req) => {
         }
         return false;
       });
-
-      // Fallback: If exact date filtering is empty but rates exist, grab the next 48 slots
-      if (estimates.length === 0 && parsed.length > 0) {
-        estimates = parsed.slice(0, 48);
-      }
 
       estimates = estimates.map(({ timestampMs, ...rest }) => rest);
     }

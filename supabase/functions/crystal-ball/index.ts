@@ -25,21 +25,19 @@ serve(async (req) => {
   const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
 
   try {
-    // Construct official Octopus Energy product & tariff codes for Agile
-    // Using current Agile tariff code structure
     const productCode = "AGILE-24-10-01";
     const tariffCode = `E-1R-${productCode}-${region}`;
     
-    // Request period covering the target date
-    const periodFrom = `${targetDateStr}T00:00:00Z`;
-    const periodTo = `${targetDateStr}T23:59:59Z`;
+    // Widen the query window to safely capture all UK timezone slots in UTC
+    const prevDate = addDays(targetDateStr, -1);
+    const nextDate = addDays(targetDateStr, 1);
+    const periodFrom = `${prevDate}T22:00:00Z`;
+    const periodTo = `${nextDate}T02:00:00Z`;
     
-    const targetUrl = `https://api.octopus.energy/v1/products/${productCode}/electricity-tariffs/${tariffCode}/standard-unit-rates/?period_from=${periodFrom}&period_to=${periodTo}`;
+    const targetUrl = `https://api.octopus.energy/v1/products/${productCode}/electricity-tariffs/${tariffCode}/standard-unit-rates/?period_from=${periodFrom}&period_to=${periodTo}&page_size=150`;
 
     const ocRes = await fetch(targetUrl, {
-      headers: {
-        "Accept": "application/json",
-      },
+      headers: { "Accept": "application/json" },
     });
 
     if (!ocRes.ok) {
@@ -49,13 +47,15 @@ serve(async (req) => {
     const ocData = await ocRes.json();
     const results = ocData.results || [];
 
-    // Map Octopus results to the app's expected rate format
-    const estimates = results.map((r: any) => ({
-      valid_from: r.valid_from,
-      valid_to: r.valid_to,
-      value_inc_vat: Number(r.value_inc_vat),
-      value_exc_vat: Number(r.value_exc_vat),
-    }));
+    // Filter rates that fall within the target UK date string
+    const estimates = results
+      .filter((r: any) => r.valid_from && r.valid_from.startsWith(targetDateStr))
+      .map((r: any) => ({
+        valid_from: r.valid_from,
+        valid_to: r.valid_to,
+        value_inc_vat: Number(r.value_inc_vat),
+        value_exc_vat: Number(r.value_exc_vat),
+      }));
 
     return json({
       date: targetDateStr,

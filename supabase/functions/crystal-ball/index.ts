@@ -47,9 +47,14 @@ serve(async (req) => {
     const ocData = await ocRes.json();
     const results = ocData.results || [];
 
-    // Filter rates that fall within the target UK date string
+    // Filter rates using London local time to correctly capture midnight/evening boundary slots
     const estimates = results
-      .filter((r: any) => r.valid_from && r.valid_from.startsWith(targetDateStr))
+      .filter((r: any) => {
+        if (!r.valid_from) return false;
+        const slotDate = new Date(r.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
+        const isExport = r.is_export || r.direction === 'export' || String(r.tariff_type || '').toLowerCase().includes('export');
+        return slotDate === targetDateStr && !isExport;
+      })
       .map((r: any) => ({
         valid_from: r.valid_from,
         valid_to: r.valid_to,

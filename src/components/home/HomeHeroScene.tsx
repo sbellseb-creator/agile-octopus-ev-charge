@@ -83,21 +83,26 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
+  // Prioritize live vehicle telemetry for time to full (essential for DC rapid charging)
   const observedRemainingHours =
-    charging &&
-    batteryLevel != null &&
-    chargeLimit != null &&
-    batteryCapacityKwh != null &&
-    chargerPowerKw != null &&
-    Number.isFinite(chargerPowerKw) &&
-    chargerPowerKw > 0
-      ? calculateChargeFromPower(
-          batteryLevel,
-          chargeLimit,
-          batteryCapacityKwh,
-          chargerPowerKw,
-        ).estimatedHours
-      : timeToFullChargeHours;
+    timeToFullChargeHours != null &&
+    Number.isFinite(timeToFullChargeHours) &&
+    timeToFullChargeHours > 0
+      ? timeToFullChargeHours
+      : charging &&
+          batteryLevel != null &&
+          chargeLimit != null &&
+          batteryCapacityKwh != null &&
+          chargerPowerKw != null &&
+          Number.isFinite(chargerPowerKw) &&
+          chargerPowerKw > 0
+        ? calculateChargeFromPower(
+            batteryLevel,
+            chargeLimit,
+            batteryCapacityKwh,
+            chargerPowerKw,
+          ).estimatedHours
+        : null;
 
   const remaining =
     observedRemainingHours != null &&
@@ -165,12 +170,12 @@ export default function HomeHeroScene({
           ? "🐾"
           : footballTeam === "None"
             ? ""
-    : footballTeam
-        .split(" ")
-        .map((word) => word[0])
-        .join("")
-        .slice(0, 4)
-        .toUpperCase();
+            : footballTeam
+                .split(" ")
+                .map((word) => word[0])
+                .join("")
+                .slice(0, 4)
+                .toUpperCase();
   const clubTicker = footballTeam === "Sunderland"
     ? "HA'WAY THE LADS · SUNDERLAND MODE"
     : `${footballTeam.toUpperCase()} · CLUB MODE`;

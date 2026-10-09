@@ -195,7 +195,6 @@ export default function HomeDashboard({
   const [footballTeam, setFootballTeam] = useState(() =>
     window.localStorage.getItem("ev-home-football-team") || "Sunderland",
   );
-  const [showRecentCharges, setShowRecentCharges] = useState(true);
   const [appSchedules, setAppSchedules] = useState<ChargeSchedule[]>([]);
   const [teslaSchedules, setTeslaSchedules] = useState<TeslaSchedule[]>([]);
   const priceStripRef = useRef<HTMLDivElement | null>(null);
@@ -1141,22 +1140,36 @@ export default function HomeDashboard({
           </button>
         </div>
 
-        <div className="mt-4 space-y-2">
-          {trustedRecentCharges.length === 0 ? (
+        <div className="mt-4 space-y-3">
+          {recentCharges.length === 0 ? (
             <p className="text-xs text-slate-400 py-3 text-center">{lastChargeLabel}</p>
           ) : (
-            trustedRecentCharges.map((session) => {
+            recentCharges.map((session) => {
               const energy = sessionEnergyKwh(session);
               const cost = sessionCostGbp(session);
+              const isTrusted = sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted;
               return (
-                <div key={session.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 px-4 py-3">
-                  <div>
-                    <p className="text-xs font-bold text-white">{session.session_date} · {sessionClock(session, "start")} - {sessionClock(session, "finish")}</p>
-                    <p className="text-[10px] text-slate-400">{sessionDurationLabel(session)} · {session.vehicle_name || "Vehicle"}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
-                    <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
+                <div key={session.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-white">
+                          {session.session_date} · {sessionClock(session, "start")} - {sessionClock(session, "finish")}
+                        </p>
+                        {!isTrusted && (
+                          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/20">
+                            Needs review
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {sessionDurationLabel(session)} · {session.vehicle_name || "Vehicle"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
+                      <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
+                    </div>
                   </div>
                 </div>
               );

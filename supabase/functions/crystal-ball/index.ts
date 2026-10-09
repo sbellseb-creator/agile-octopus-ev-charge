@@ -47,15 +47,11 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Check all possible keys in order of likelihood to catch whichever array contains the rate slots
-    const rawSlots = 
-      data.import_actuals_tomorrow || 
-      data.import_predictions_tomorrow || 
-      data.import_actuals_today || 
-      data.import_predictions_today || 
-      data.rates || [];
+    // agile-rates.uk returns an array of time slots directly in the JSON response or under data.rates / data.data
+    const rawSlots = Array.isArray(data) ? data : (data.rates || data.data || data.results || []);
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
+      // Each item has a `rates` object mapped by region (e.g. r.rates['F'])
       const rateVal = r.rates?.[region] ?? r.rate ?? 0;
       return {
         valid_from: r.start || r.valid_from,
@@ -63,7 +59,7 @@ serve(async (req) => {
         value_inc_vat: Number(rateVal),
         value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
       };
-    }) : [];
+    }).filter(r => r.valid_from) : [];
 
     // Sort chronologically from 00:00 onwards
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());

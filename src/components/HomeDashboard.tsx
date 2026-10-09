@@ -1041,7 +1041,7 @@ export default function HomeDashboard({
         footballTeam={footballTeam}
       />
 
-      {/* Cheapest Window Card */}
+{/* Cheapest Window Card */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -1053,18 +1053,6 @@ export default function HomeDashboard({
         </div>
 
         {ribbon.length > 0 && (
-          <div className="mt-4">
-            <div 
-              ref={priceStripRef} 
-              onWheel={(e) => {
-                if (priceStripRef.current && e.deltaY !== 0) {
-                  priceStripRef.current.scrollLeft += e.deltaY;
-                  e.preventDefault();
-                }
-              }}
-              className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] cursor-grab active:cursor-grabbing select-none"
-            >
-              {ribbon.length > 0 && (
           <div className="mt-4">
             <div 
               ref={priceStripRef} 
@@ -1111,20 +1099,21 @@ export default function HomeDashboard({
                 >
                   ←
                 </button>
-<button
-              onClick={() => {
-                if (priceStripRef.current) {
-                  priceStripRef.current.scrollBy({ left: 200, behavior: 'smooth' });
-                }
-              }}
-              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              →
-            </button>
+                <button
+                  onClick={() => {
+                    if (priceStripRef.current) {
+                      priceStripRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                    }
+                  }}
+                  className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  →
+                </button>
+              </div>
+            </div>
           </div>
+        )}
       </div>
-    </div>
-  </div>
       {/* Summary Section */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">

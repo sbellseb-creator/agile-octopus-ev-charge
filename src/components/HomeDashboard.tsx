@@ -11,7 +11,6 @@ import {
   ChevronUp,
   Clock3,
   PoundSterling,
-  Sparkles,
   TrendingDown,
   Zap,
 } from "lucide-react";
@@ -1062,21 +1061,20 @@ export default function HomeDashboard({
                 return (
                   <div
                     key={rate.valid_from}
-                    className={`min-w-[72px] flex-shrink-0 rounded-2xl border p-2.5 text-center transition-all ${
+                    className={`relative min-w-[72px] flex-shrink-0 rounded-2xl border overflow-hidden pt-2.5 pb-3 px-2 text-center transition-all ${
                       isCurrent
-                        ? "border-emerald-400/50 bg-emerald-500/15"
+                        ? "border-emerald-400/50 bg-slate-950/80"
                         : "border-white/10 bg-slate-950/60"
                     }`}
                   >
                     <p className="text-[10px] font-bold text-slate-400">
                       {isCurrent ? "Now" : isoToUkClock(rate.valid_from)}
                     </p>
-                    <div className="mt-1 flex items-center justify-center gap-1">
-                      <span className={`inline-block h-2 w-2 rounded-full ${colourClass}`} />
-                      <p className="text-xs font-black text-white">
-                        {rate.value_inc_vat.toFixed(1)}p
-                      </p>
-                    </div>
+                    <p className="mt-1 text-xs font-black text-white">
+                      {rate.value_inc_vat.toFixed(1)}p
+                    </p>
+                    {/* Bottom color fill band matching second attachment */}
+                    <div className={`absolute bottom-0 left-0 right-0 h-2 ${colourClass}`} />
                   </div>
                 );
               })}

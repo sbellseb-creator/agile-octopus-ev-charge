@@ -43,20 +43,22 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
+      // Extract array from any possible structure in agile-rates.uk response
       let rawRates: any[] = [];
       if (Array.isArray(arData)) {
         rawRates = arData;
       } else if (arData && typeof arData === 'object') {
-        const foundKey = Object.keys(arData).find(k => Array.isArray(arData[k]));
-        if (foundKey) rawRates = arData[foundKey];
+        rawRates = arData.rates || arData.results || arData.data || Object.values(arData).find(v => Array.isArray(v)) || [];
       }
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp || r.start;
         const validToRaw = r.valid_to || r.to || r.end;
         
+        // Deeply check nested agileRate structure as well as flat properties
         const rateVal = 
           r.agileRate?.result?.rate ?? 
+          r.rate?.value ?? 
           r.value_inc_vat ?? 
           r.rate ?? 
           r.pence_per_kwh ?? 
@@ -71,28 +73,12 @@ serve(async (req) => {
         };
       }).filter(r => r.valid_from);
 
-      // 1. Try exact match
+      // 1. Try matching by target date string
       estimates = parsed.filter(r => String(r.valid_from).includes(targetDateStr));
 
-      // 2. Fallback: Group by date and pick tomorrow's block
+      // 2. Fallback: If exact match fails but we have data, grab tomorrow's chunk (indices 48 to 96) or all available slots
       if (estimates.length === 0 && parsed.length > 0) {
-        const dateMap = new Map<string, any[]>();
-        for (const item of parsed) {
-          const dStr = String(item.valid_from).substring(0, 10);
-          if (!dateMap.has(dStr)) dateMap.set(dStr, []);
-          dateMap.get(dStr)!.push(item);
-        }
-
-        if (dateMap.has(targetDateStr)) {
-          estimates = dateMap.get(targetDateStr)!;
-        } else {
-          const sortedDates = Array.from(dateMap.keys()).sort();
-          if (sortedDates.length >= 2) {
-            estimates = dateMap.get(sortedDates[1]) || parsed.slice(48, 96);
-          } else {
-            estimates = parsed.slice(0, 48);
-          }
-        }
+        estimates = parsed.length >= 96 ? parsed.slice(48, 96) : parsed.slice(0, 48);
       }
     }
 

@@ -25,48 +25,39 @@ serve(async (req) => {
   const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
 
   try {
-    // Generate intelligent wholesale-based crystal ball predictions for the 48 slots
-    const predictedEstimates = Array.from({ length: 48 }, (_, i) => {
-      const hour = Math.floor(i / 2);
-      const minute = i % 2 === 0 ? '00' : '30';
-      const timeStr = `${targetDateStr}T${String(hour).padStart(2, '0')}:${minute}:00Z`;
-      const nextHour = minute === '30' ? hour + 1 : hour;
-      const nextMinute = minute === '30' ? '00' : '30';
-      const toTimeStr = `${targetDateStr}T${String(nextHour).padStart(2, '0')}:${nextMinute}:00Z`;
+    // Fetch from agile-rates.uk API archive/current endpoints for predictions
+    const targetUrl = `https://agile-rates.uk/api/v2/archive?date=${targetDateStr}&region=${region}`;
 
-      // Crystal ball predictive market simulation curve (incorporating solar dips and evening peaks)
-      let baseRate = 16.5;
-      if (hour >= 16 && hour < 19) {
-        baseRate = 38.5; // Evening peak window
-      } else if (hour >= 11 && hour < 15) {
-        baseRate = 4.2;  // Midday solar generation dip / cheap slots
-      } else if (hour >= 1 && hour < 6) {
-        baseRate = 8.0;  // Overnight wind generation
-      }
-
-      // Add slight variance based on region and slot index
-      const regionMultiplier = region === 'J' || region === 'H' ? 1.08 : 1.0;
-      const finalRate = Number((baseRate * regionMultiplier).toFixed(2));
-
-      return {
-        valid_from: timeStr,
-        valid_to: toTimeStr,
-        value_inc_vat: finalRate,
-        value_exc_vat: Number((finalRate / 1.05).toFixed(2)),
-      };
+    const res = await fetch(targetUrl, {
+      headers: { "Accept": "application/json" },
     });
+
+    if (!res.ok) {
+      throw new Error(`agile-rates.uk API error: HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    // Extract rates / predictions from agile-rates response structure
+    const rawRates = data.rates || data.results || data || [];
+
+    const estimates = Array.isArray(rawRates) ? rawRates.map((r: any) => ({
+      valid_from: r.valid_from || r.from,
+      valid_to: r.valid_to || r.to,
+      value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? 0),
+      value_exc_vat: Number((r.value_exc_vat ?? (Number(r.value_inc_vat ?? r.rate ?? 0) / 1.05)).toFixed(2)),
+    })) : [];
 
     return json({
       date: targetDateStr,
-      status: "available",
-      available: true,
+      status: estimates.length > 0 ? "available" : "waiting",
+      available: estimates.length > 0,
       region,
-      estimated: true, // Clearly flag as model predictions
-      source: "crystal-ball-predictive-model",
+      estimated: true,
+      source: "agile-rates.uk",
       is_mock: false,
       updated_at: now.toISOString(),
-      results: predictedEstimates,
-      rates: predictedEstimates,
+      results: estimates,
+      rates: estimates,
     });
   } catch (err: any) {
     return json({
@@ -75,7 +66,7 @@ serve(async (req) => {
       available: false,
       region,
       estimated: true,
-      error: err.message || "Failed to generate predictions",
+      error: err.message || "Failed to fetch from agile-rates.uk",
       updated_at: now.toISOString(),
       results: [],
       rates: [],

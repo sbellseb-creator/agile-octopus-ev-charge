@@ -162,8 +162,400 @@ function sessionClock(session: ChargeSession, edge: "start" | "finish"): string 
   if (timestamp) return formatUK(timestamp, "HH:mm");
   return (edge === "start" ? session.start_time : session.end_time) || "—";
 }
-
 export default function HomeDashboard({
+  vehicles,
+  sessions,
+  teslaVehicles = [],
+  onSessionsChanged,
+  onManageSchedule,
+  onReviewCharges,
+}: Props) {
+  const settings = getSettings();
+
+  const safeVehicles = (Array.isArray(vehicles) ? vehicles : []).filter(v => v && typeof v === 'object' && v.id);
+  if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400 font-medium bg-slate-950/40 border border-white/5 rounded-3xl animate-pulse text-center">Synchronizing live vehicle data streams...</div>;
+
+  const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(() => {
+    if (Array.isArray(teslaVehicles) && teslaVehicles.length) return teslaVehicles;
+
+    try {
+      const cached = window.localStorage.getItem("ev-home-tesla-snapshot");
+      return cached ? (JSON.parse(cached) as TeslaVehicle[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [liveObservedAt, setLiveObservedAt] = useState<string | null>(null);
+  const [summaryPeriod, setSummaryPeriod] = useState<"week" | "month" | "year">("month");
+  const [homeViewMode, setHomeViewMode] = useState<"driveway" | "cockpit">(() =>
+    window.localStorage.getItem("ev-home-view-mode") === "cockpit" ? "cockpit" : "driveway",
+  );
+  const [footballTeam, setFootballTeam] = useState(() =>
+    window.localStorage.getItem("ev-home-football-team") || "Sunderland",
+  );
+  const [appSchedules, setAppSchedules] = useState<ChargeSchedule[]>([]);
+  const [teslaSchedules, setTeslaSchedules] = useState<TeslaSchedule[]>([]);
+  const priceStripRef = useRef<HTMLDivElement | null>(null);
+  const [lastKnownSoc, setLastKnownSoc] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(
+        window.localStorage.getItem("ev-home-last-known-soc") ?? "{}",
+      ) as Record<string, number>;
+    } catch {
+      return {};
+    }
+  });
+  const [lastKnownConnection, setLastKnownConnection] = useState<Record<string, "charging" | "plugged" | "unplugged">>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem("ev-home-last-known-connection") ?? "{}") as Record<string, "charging" | "plugged" | "unplugged">;
+    } catch {
+      return {};
+    }
+  });
+
+  const vehicle =
+    safeVehicles.find((v) => v.is_default) ?? safeVehicles[0];
+
+  useEffect(() => {
+    let alive = true;
+    const refreshSchedules = async () => {
+      const saved = await loadSchedules();
+      if (alive) setAppSchedules(saved);
+      if (!vehicle?.tesla_vehicle_id) return;
+      try {
+        const result = await readTeslaSchedules(vehicle.tesla_vehicle_id);
+        if (alive && !result.error) {
+          if (result.schedules.length > 0) {
+            setTeslaSchedules(result.schedules);
+            window.localStorage.setItem(
+              `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
+              JSON.stringify(result.schedules),
+            );
+          } else {
+            const cached = window.localStorage.getItem(
+              `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
+            );
+            if (cached) setTeslaSchedules(JSON.parse(cached) as TeslaSchedule[]);
+          }
+        }
+      } catch {
+        const cached = window.localStorage.getItem(
+          `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
+        );
+        if (alive && cached) {
+          try {
+            setTeslaSchedules(JSON.parse(cached) as TeslaSchedule[]);
+          } catch {
+            // App schedules remain useful when Tesla is temporarily offline.
+          }
+        }
+      }
+    };
+    void refreshSchedules();
+    const onUpdated = () => void refreshSchedules();
+    window.addEventListener("schedules:updated", onUpdated);
+    return () => {
+      alive = false;
+      window.removeEventListener("schedules:updated", onUpdated);
+    };
+  }, [vehicle?.tesla_vehicle_id]);
+
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const refresh = async () => {
+      try {
+        const res = await listTeslaVehicles(false);
+
+        if (!alive) return;
+
+        if (res.vehicles.length > 0) {
+          setLiveVehicles(res.vehicles);
+          setLiveObservedAt(res.last_updated ?? new Date().toISOString());
+
+          setLastKnownSoc((previous) => {
+            const next = { ...previous };
+            let changed = false;
+
+            for (const teslaVehicle of res.vehicles) {
+              if (
+                teslaVehicle.battery_level != null &&
+                Number.isFinite(teslaVehicle.battery_level) &&
+                next[teslaVehicle.id] !== teslaVehicle.battery_level
+              ) {
+                next[teslaVehicle.id] = teslaVehicle.battery_level;
+                changed = true;
+              }
+            }
+
+            if (changed) {
+              try {
+                window.localStorage.setItem(
+                  "ev-home-last-known-soc",
+                  JSON.stringify(next),
+                );
+              } catch {
+                // Keep snapshot
+              }
+            }
+
+            return changed ? next : previous;
+          });
+
+          setLastKnownConnection((previous) => {
+            const next = { ...previous };
+            let changed = false;
+            for (const teslaVehicle of res.vehicles) {
+              if (teslaVehicle.state?.toLowerCase() !== "online") continue;
+              const charge = teslaVehicle.charging_state?.toLowerCase() ?? "";
+              const connection = charge === "charging" || charge === "starting"
+                ? "charging"
+                : ["stopped", "nopower", "complete"].includes(charge)
+                  ? "plugged"
+                  : "unplugged";
+              if (next[teslaVehicle.id] !== connection) {
+                next[teslaVehicle.id] = connection;
+                changed = true;
+              }
+            }
+            if (changed) {
+              try {
+                window.localStorage.setItem("ev-home-last-known-connection", JSON.stringify(next));
+              } catch {
+                // Keep status
+              }
+            }
+            return changed ? next : previous;
+          });
+
+          try {
+            window.localStorage.setItem(
+              "ev-home-tesla-snapshot",
+              JSON.stringify(res.vehicles),
+            );
+          } catch {
+            // localStorage unavailable
+          }
+
+          const changed = await linkTeslaVehicleIds(
+            vehicles,
+            res.vehicles,
+          );
+
+          if (changed) {
+            window.dispatchEvent(
+              new Event("vehicles:updated"),
+            );
+          }
+        }
+
+        const current =
+          res.vehicles.find(
+            (t) => t.id === vehicle?.tesla_vehicle_id,
+          ) ??
+          (res.vehicles.length === 1
+            ? res.vehicles[0]
+            : undefined);
+
+        const state =
+          current?.state?.toLowerCase() ?? "";
+
+        const chargeState =
+          current?.charging_state?.toLowerCase() ?? "";
+
+        const active =
+          state === "online" ||
+          chargeState === "charging" ||
+          chargeState === "starting";
+
+        timer = setTimeout(
+          refresh,
+          active ? 30_000 : 3 * 60_000,
+        );
+      } catch {
+        if (alive) {
+          timer = setTimeout(
+            refresh,
+            3 * 60_000,
+          );
+        }
+      }
+    };
+
+    refresh();
+
+    const handleVisible = () => {
+      if (document.visibilityState !== "visible") return;
+
+      if (timer) clearTimeout(timer);
+      refresh();
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisible,
+    );
+
+    return () => {
+      alive = false;
+
+      if (timer) clearTimeout(timer);
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisible,
+      );
+    };
+  }, [vehicles.length, vehicle?.tesla_vehicle_id]);
+
+  const live = useMemo(() => {
+    if (!vehicle) return undefined;
+
+    return (
+      liveVehicles.find(
+        (t) => t.id === vehicle.tesla_vehicle_id,
+      ) ??
+      (liveVehicles.length === 1 &&
+      vehicle.source === "tesla"
+        ? liveVehicles[0]
+        : undefined)
+    );
+  }, [liveVehicles, vehicle]);
+
+  const displayedBatteryLevel =
+    live?.battery_level ??
+    (live?.id ? lastKnownSoc[live.id] : null) ??
+    null;
+
+  const batteryIsLastKnown =
+    displayedBatteryLevel != null &&
+    (live?.battery_level == null || live?.state?.toLowerCase() !== "online");
+
+  useEffect(() => {
+    if (!vehicle || !live || !liveObservedAt) return;
+
+    const monitorKey = `tesla-charge-monitor:${live.id}`;
+    let previous: ChargeMonitorState;
+
+    try {
+      const stored = window.localStorage.getItem(monitorKey);
+      previous = stored
+        ? (JSON.parse(stored) as ChargeMonitorState)
+        : initialChargeMonitorState();
+    } catch {
+      previous = initialChargeMonitorState();
+    }
+
+    const result = advanceChargeMonitor(previous, {
+      observedAt: liveObservedAt,
+      chargingState: live.charging_state,
+      batteryLevel: live.battery_level,
+      chargerPowerKw: live.charger_power_kw,
+      chargeEnergyAddedKwh:
+        live.charge_energy_added_kwh ?? live.charge_energy_added,
+    });
+
+    try {
+      window.localStorage.setItem(monitorKey, JSON.stringify(result.state));
+    } catch {
+      // Monitoring still works
+    }
+
+    if (!result.closedSession?.actualStart || !result.closedSession.actualFinish) {
+      return;
+    }
+
+    const closed = result.closedSession;
+    const startSoc = closed.startSoc ?? live.battery_level ?? 0;
+    const endSoc = closed.endSoc ?? live.battery_level ?? startSoc;
+    const teslaEnergy =
+      closed.actualEnergyKwh != null && closed.actualEnergyKwh > 0
+        ? closed.actualEnergyKwh
+        : null;
+    const socEnergy =
+      vehicle.battery_kwh != null && endSoc > startSoc
+        ? (vehicle.battery_kwh * (endSoc - startSoc)) / 100
+        : 0;
+    const energyRatio = socEnergy > 0 && teslaEnergy != null
+      ? teslaEnergy / socEnergy
+      : 1;
+    const teslaEnergyConsistent =
+      teslaEnergy != null && energyRatio >= 0.7 && energyRatio <= 1.45;
+    const batteryEnergy = teslaEnergyConsistent ? teslaEnergy! : socEnergy;
+    const startGapMinutes = closed.startObservationGapMinutes;
+    const finishGapMinutes = closed.finishObservationGapMinutes;
+    const timingObservedClosely =
+      startGapMinutes !== undefined && startGapMinutes <= 5 &&
+      finishGapMinutes !== undefined && finishGapMinutes <= 5;
+    const estimatedGridEnergy = batteryEnergy > 0
+      ? batteryEnergy / 0.9
+      : 0;
+
+    if (endSoc <= startSoc || batteryEnergy < 0.25) {
+      return;
+    }
+    const region = settings.region || AGILE_REGION;
+
+    const draft: Omit<ChargeSession, "id"> = {
+      session_date: formatUK(closed.actualStart, "yyyy-MM-dd"),
+      source: "tesla",
+      status: "completed",
+      plugged_in_at: closed.pluggedInAt,
+      started_at: closed.actualStart,
+      ended_at: closed.actualFinish,
+      actual_start: closed.actualStart,
+      actual_finish: closed.actualFinish,
+      start_time: formatUK(closed.actualStart, "HH:mm"),
+      end_time: formatUK(closed.actualFinish, "HH:mm"),
+      vehicle_id: vehicle.id,
+      vehicle_name: vehicle.name,
+      vehicle_registration: vehicle.registration || undefined,
+      charge_mode: "realtime",
+      start_soc: startSoc,
+      end_soc: endSoc,
+      battery_energy_kwh: batteryEnergy,
+      measured_grid_energy_kwh: undefined,
+      estimated_grid_energy_kwh: estimatedGridEnergy,
+      energy_source: teslaEnergyConsistent ? "tesla" : "soc_estimate",
+      energy_added_kwh: batteryEnergy,
+      grid_kwh: estimatedGridEnergy,
+      total_cost_gbp: 0,
+      avg_pence_per_kwh: 0,
+      num_slots: 0,
+      tariff_code: "Octopus Agile",
+      region,
+      slot_prices: [],
+      notes: "Automatically captured from Tesla charging telemetry.",
+      configured_charger_kw: settings.charger_kw,
+      observed_charger_kw: closed.observedChargerKw,
+      actual_energy_kwh: batteryEnergy,
+      confidence_score:
+        teslaEnergyConsistent && timingObservedClosely ? 0.95 :
+          teslaEnergyConsistent ? 0.72 : 0.55,
+      raw_observations: {
+        tesla_charge_energy_baseline_kwh: closed.energyBaselineKwh ?? null,
+        tesla_charge_energy_latest_kwh: closed.energyLatestKwh ?? null,
+        tesla_charge_energy_delta_kwh: teslaEnergy,
+        soc_estimated_battery_kwh: socEnergy,
+        energy_consistent: teslaEnergyConsistent,
+        energy_fallback: teslaEnergyConsistent ? "tesla" : "soc_delta",
+        first_charging_observed_at: closed.firstChargingObservedAt ?? null,
+        last_charging_observed_at: closed.lastChargingObservedAt ?? null,
+        start_observation_gap_minutes: startGapMinutes ?? null,
+        finish_observation_gap_minutes: finishGapMinutes ?? null,
+        observation_count: closed.observationCount ?? 0,
+        timing_observed_closely: timingObservedClosely,
+      },
+    };
+
+    const isDuplicate = () => {
+      const startMs = new Date(closed.actualStart!).getTime();
+      const finishMs = new Date(closed.actualFinish!).getTime();
+      return loadSessions().some((existing) => {
+        if (existing.source !== "tesla" || existing.vehicle_id !== vehicle.id) return false;
+        const existingStart = new
+          export default function HomeDashboard({
   vehicles,
   sessions,
   teslaVehicles = [],
@@ -897,3 +1289,266 @@ export default function HomeDashboard({
       })
       .filter((session) =>
         session.status == null ||
+        session.status === "completed" ||
+        session.status === "manual",
+      )
+      .sort((a, b) => {
+        const aTime =
+          a.actual_finish ??
+          a.ended_at ??
+          `${a.session_date}T${a.end_time ?? "23:59"}:00`;
+        const bTime =
+          b.actual_finish ??
+          b.ended_at ??
+          `${b.session_date}T${b.end_time ?? "23:59"}:00`;
+
+        return bTime.localeCompare(aTime);
+      })
+      .slice(0, 5);
+  }, [sessions, vehicle, vehicles.length]);
+
+  const trustedRecentCharges = recentCharges.filter((session) =>
+    sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted,
+  );
+  const lastCharge = trustedRecentCharges[0] ?? null;
+
+  const lastChargeLabel = useMemo(() => {
+    if (!lastCharge) return "Awaiting first completed Tesla charge";
+
+    const todayKey = formatUK(new Date(), "yyyy-MM-dd");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = formatUK(yesterday, "yyyy-MM-dd");
+    const day =
+      lastCharge.session_date === todayKey
+        ? "Today"
+        : lastCharge.session_date === yesterdayKey
+          ? "Yesterday"
+          : formatUK(`${lastCharge.session_date}T12:00:00Z`, "dd MMM");
+    const energy = sessionEnergyKwh(lastCharge);
+    const cost = sessionCostGbp(lastCharge);
+    const finishTime = isoToUkClock(
+      lastCharge.actual_finish ?? lastCharge.ended_at ?? lastCharge.end_time,
+    );
+
+    const dayLabel = finishTime ? `${day} ${finishTime}` : day;
+
+    return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
+  }, [lastCharge]);
+
+  const vehicleState =
+    live?.state?.toLowerCase() ?? "";
+
+  const chargingState =
+    live?.charging_state?.toLowerCase() ?? "";
+
+  const isCharging =
+    chargingState === "charging" ||
+    chargingState === "starting" ||
+    vehicleState === "online";
+
+  const isPluggedIn =
+    isCharging ||
+    chargingState === "stopped" ||
+    chargingState === "nopower" ||
+    chargingState === "complete" ||
+    live?.charge_port_latch_state?.toLowerCase() === "engaged" ||
+    lastKnownConnection[vehicle?.id ?? ""] === "charging" ||
+    lastKnownConnection[vehicle?.id ?? ""] === "plugged";
+
+  const resolvedScene = resolveHomeScene({
+    weatherCode: homeWeather?.weatherCode,
+    temperatureC: homeWeather?.temperatureC,
+    cloudCover: homeWeather?.cloudCover,
+    sunrise: homeWeather?.sunrise,
+    sunset: homeWeather?.sunset,
+    charging: isCharging,
+    pluggedIn: isPluggedIn,
+  });
+
+  const agilePriceNow = current?.value_inc_vat ?? null;
+
+  const activeSchedule = appSchedules.find((s) => s.enabled) ?? null;
+  const teslaSchedule = teslaSchedules[0] ?? null;
+  const scheduleLabel = activeSchedule
+    ? `${activeSchedule.start_time} – ${activeSchedule.end_time}`
+    : teslaSchedule && teslaSchedule.enabled
+      ? `Tesla: ${teslaSchedule.start_hour.toString().padStart(2, "0")}:${teslaSchedule.start_minute.toString().padStart(2, "0")}`
+      : null;
+
+  return (
+    <div className="space-y-6 pb-12">
+      <div className="flex items-center justify-between gap-3 bg-slate-900/60 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
+        <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+          <button
+            onClick={() => {
+              setHomeViewMode("driveway");
+              window.localStorage.setItem("ev-home-view-mode", "driveway");
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${homeViewMode === "driveway" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-300 hover:text-white"}`}
+          >
+            Driveway
+          </button>
+          <button
+            onClick={() => {
+              setHomeViewMode("cockpit");
+              window.localStorage.setItem("ev-home-view-mode", "cockpit");
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${homeViewMode === "cockpit" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-300 hover:text-white"}`}
+          >
+            Cockpit
+          </button>
+        </div>
+      </div>
+
+      <HomeHeroScene
+        scene={resolvedScene}
+        charging={isCharging}
+        pluggedIn={isPluggedIn}
+        batteryLevel={displayedBatteryLevel}
+        batteryIsLastKnown={batteryIsLastKnown}
+        batteryCapacityKwh={batteryCapacityKwh}
+        chargeLimit={targetSoc}
+        chargerPowerKw={
+          live?.charger_power_kw != null && live.charger_power_kw > settings.charger_kw
+            ? live.charger_power_kw
+            : Math.min(
+                live?.charger_power_kw ?? settings.charger_kw,
+                settings.charger_kw,
+              )
+        }
+        chargerAmps={live?.charger_actual_current}
+        chargerAmpsLive={live?.charger_actual_current != null}
+        timeToFullChargeHours={live?.time_to_full_charge}
+        state={live?.state}
+        viewMode={homeViewMode}
+        agilePricePence={agilePriceNow}
+        cheapestWindowLabel={
+          cheapestSlot
+            ? `${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh`
+            : bestWindow
+              ? `${isoToUkClock(bestWindow.from)} – ${bestWindow.avg.toFixed(2)}p/kWh`
+              : null
+        }
+        scheduleLabel={scheduleLabel}
+        footballTeam={footballTeam}
+      />
+
+      {/* Cheapest Window Card */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Cheapest Window</p>
+            <h3 className="text-xl font-black text-white mt-0.5">
+              {cheapestSlot ? `${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh cheapest` : bestWindow ? `${bestWindow.avg.toFixed(2)}p/kWh later` : "Agile rates loading..."}
+            </h3>
+          </div>
+        </div>
+
+        {ribbon.length > 0 && (
+          <div className="mt-4">
+            <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {ribbon.map((rate) => {
+                const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
+                const isCheapest = cheapestSlot && rate.valid_from === cheapestSlot.valid_from;
+                const colourClass = priceColour(rate.value_inc_vat);
+                return (
+                  <div
+                    key={rate.valid_from}
+                    className={`relative min-w-[72px] flex-shrink-0 rounded-2xl border overflow-hidden pt-2.5 pb-3 px-2 text-center transition-all ${
+                      isCheapest
+                        ? "border-emerald-400 bg-emerald-500/20 animate-pulse shadow-lg shadow-emerald-500/20"
+                        : isCurrent
+                          ? "border-emerald-400/50 bg-slate-950/80"
+                          : "border-white/10 bg-slate-950/60"
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold ${isCheapest ? "text-emerald-300 font-black" : "text-slate-400"}`}>
+                      {isCurrent ? "Now" : isoToUkClock(rate.valid_from)}
+                    </p>
+                    <p className={`mt-1 text-xs font-black ${isCheapest ? "text-emerald-400" : "text-white"}`}>
+                      {rate.value_inc_vat.toFixed(1)}p
+                    </p>
+                    {/* Bottom color fill band */}
+                    <div className={`absolute bottom-0 left-0 right-0 h-2 ${colourClass}`} />
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="mt-2 text-[10px] text-slate-400 font-semibold px-1">
+              Swipe prices →
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Summary Section */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-slate-300">Charging Summary</h3>
+          <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+            {(["week", "month", "year"] as const).map((period) => (
+              <button
+                key={period}
+                onClick={() => setSummaryPeriod(period)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${summaryPeriod === period ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"}`}
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Energy</p>
+            <p className="mt-1 text-xl font-black text-white">{summary.kwh.toFixed(1)} <span className="text-xs text-slate-400">kWh</span></p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Cost</p>
+            <p className="mt-1 text-xl font-black text-emerald-400">£{summary.cost.toFixed(2)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sessions</p>
+            <p className="mt-1 text-xl font-black text-white">{summary.count}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Charges List */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-slate-300">Recent Charges</h3>
+          <button
+            onClick={onReviewCharges}
+            className="text-xs font-bold text-emerald-400 hover:underline"
+          >
+            View all
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {recentCharges.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3 text-center">{lastChargeLabel}</p>
+          ) : (
+            recentCharges.map((session) => {
+              const energy = sessionEnergyKwh(session);
+              const cost = sessionCostGbp(session);
+              const isTrusted = sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted;
+              return (
+                <div key={session.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-white">
+                          {session.session_date} · {sessionClock(session, "start")} - {sessionClock(session, "finish")}
+                        </p>
+                        {!isTrusted && (
+                          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/20">
+                            Needs review
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {sessionDurationLabel

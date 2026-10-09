@@ -1122,14 +1122,9 @@ export default function HomeDashboard({
               →
             </button>
           </div>
-        </div>
       </div>
     </div>
-  );
-}
-        )}
-      </div>
-
+  </div>
       {/* Summary Section */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">

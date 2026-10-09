@@ -13,7 +13,6 @@ const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Get current time in UK timezone (Europe/London)
   const now = new Date();
   const ukHour = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }), 10);
   const today = ukDate(now);
@@ -26,12 +25,10 @@ serve(async (req) => {
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
 
-  // Determine target date: explicit param, or if before 10:00 AM use today, else use tomorrow
   let targetDateStr = today;
   if (isDate(requested)) {
     targetDateStr = requested;
   } else {
-    // Before 10:00 AM, show today's predictions; from 10:00 AM onwards, show tomorrow's
     if (ukHour >= 10) {
       targetDateStr = addDays(today, 1);
     }
@@ -50,8 +47,8 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Extract array slots from agile-rates JSON structure (checking actuals or predictions)
-    const rawSlots = data.import_actuals_today || data.import_predictions_today || data.import_actuals_tomorrow || data.import_predictions_tomorrow || data.rates || [];
+    // Prioritize predictions over actuals for the Crystal Ball forecast view
+    const rawSlots = data.import_predictions_tomorrow || data.import_predictions_today || data.import_actuals_tomorrow || data.import_actuals_today || data.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
       const rateVal = r.rates?.[region] ?? r.rate ?? 0;
@@ -62,6 +59,9 @@ serve(async (req) => {
         value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
       };
     }) : [];
+
+    // Sort chronologically from earliest to latest slot
+    estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({
       date: targetDateStr,

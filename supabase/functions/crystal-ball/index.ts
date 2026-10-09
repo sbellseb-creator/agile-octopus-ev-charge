@@ -47,8 +47,13 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Prioritize predictions over actuals for the Crystal Ball forecast view
-    const rawSlots = data.import_predictions_tomorrow || data.import_predictions_today || data.import_actuals_tomorrow || data.import_actuals_today || data.rates || [];
+    // Check all possible keys in order of likelihood to catch whichever array contains the rate slots
+    const rawSlots = 
+      data.import_actuals_tomorrow || 
+      data.import_predictions_tomorrow || 
+      data.import_actuals_today || 
+      data.import_predictions_today || 
+      data.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
       const rateVal = r.rates?.[region] ?? r.rate ?? 0;
@@ -60,7 +65,7 @@ serve(async (req) => {
       };
     }) : [];
 
-    // Sort chronologically from earliest to latest slot
+    // Sort chronologically from 00:00 onwards
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({

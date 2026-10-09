@@ -13,8 +13,11 @@ const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Get current time in UK timezone (Europe/London)
   const now = new Date();
+  const ukHour = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }), 10);
   const today = ukDate(now);
+
   let body: Record<string, unknown> = {};
   if (req.method === "POST") body = await req.json().catch(() => ({}));
   const url = new URL(req.url);
@@ -22,10 +25,19 @@ serve(async (req) => {
   
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
-  const targetDateStr = isDate(requested) ? requested : addDays(today, 1);
+
+  // Determine target date: explicit param, or if before 10:00 AM use today, else use tomorrow
+  let targetDateStr = today;
+  if (isDate(requested)) {
+    targetDateStr = requested;
+  } else {
+    // Before 10:00 AM, show today's predictions; from 10:00 AM onwards, show tomorrow's
+    if (ukHour >= 10) {
+      targetDateStr = addDays(today, 1);
+    }
+  }
 
   try {
-    // Pass the required query parameters correctly to agile-rates.uk
     const targetUrl = `https://agile-rates.uk/api/v2/archive?date=${targetDateStr}&region=${region}`;
 
     const res = await fetch(targetUrl, {
@@ -37,14 +49,19 @@ serve(async (req) => {
     }
 
     const data = await res.json();
-    const rawRates = data.rates || data.results || data.data || [];
+    
+    // Extract array slots from agile-rates JSON structure (checking actuals or predictions)
+    const rawSlots = data.import_actuals_today || data.import_predictions_today || data.import_actuals_tomorrow || data.import_predictions_tomorrow || data.rates || [];
 
-    const estimates = Array.isArray(rawRates) ? rawRates.map((r: any) => ({
-      valid_from: r.valid_from || r.from || r.time,
-      valid_to: r.valid_to || r.to,
-      value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? 0),
-      value_exc_vat: Number((r.value_exc_vat ?? (Number(r.value_inc_vat ?? r.rate ?? 0) / 1.05)).toFixed(2)),
-    })) : [];
+    const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
+      const rateVal = r.rates?.[region] ?? r.rate ?? 0;
+      return {
+        valid_from: r.start || r.valid_from,
+        valid_to: r.end || r.valid_to,
+        value_inc_vat: Number(rateVal),
+        value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
+      };
+    }) : [];
 
     return json({
       date: targetDateStr,

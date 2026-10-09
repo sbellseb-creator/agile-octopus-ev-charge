@@ -62,7 +62,7 @@ serve(async (req) => {
       status: estimates.length > 0 ? "available" : "waiting",
       available: estimates.length > 0,
       region,
-      estimated: true,
+      estimated: false,
       source: "octopus-energy-api",
       is_mock: false,
       updated_at: now.toISOString(),

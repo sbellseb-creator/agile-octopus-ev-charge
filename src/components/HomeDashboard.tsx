@@ -1054,7 +1054,16 @@ export default function HomeDashboard({
 
         {ribbon.length > 0 && (
           <div className="mt-4">
-            <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div 
+              ref={priceStripRef} 
+              onWheel={(e) => {
+                if (priceStripRef.current && e.deltaY !== 0) {
+                  priceStripRef.current.scrollLeft += e.deltaY;
+                  e.preventDefault();
+                }
+              }}
+              className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] cursor-grab active:cursor-grabbing select-none"
+            >
               {ribbon.map((rate) => {
                 const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
                 const isCheapest = cheapestSlot && rate.valid_from === cheapestSlot.valid_from;

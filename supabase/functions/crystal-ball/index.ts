@@ -43,14 +43,14 @@ serve(async (req) => {
     if (arRes.ok) {
       const arData = await arRes.json();
       
-      // agile-rates.uk returns an object containing a "rates" array
+      // Extract the rates array from the agile-rates.uk JSON structure
       const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
         const validToRaw = r.valid_to || r.to;
         
-        // Correctly extract rate from agile-rates.uk nested structure (agileRate.result.rate)
+        // Correctly extract rate from the official agile-rates.uk nested path: agileRate.result.rate
         const rateVal = 
           r.agileRate?.result?.rate ?? 
           r.value_inc_vat ?? 
@@ -82,7 +82,7 @@ serve(async (req) => {
         return false;
       });
 
-      // Fallback: If exact date match is empty but rates exist, grab the next 48 slots
+      // Fallback: If exact date filtering is empty but rates exist, grab the next 48 slots
       if (estimates.length === 0 && parsed.length > 0) {
         estimates = parsed.slice(0, 48);
       }

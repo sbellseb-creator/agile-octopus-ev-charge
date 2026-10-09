@@ -975,10 +975,10 @@ export default function HomeDashboard({
   });
 
   const agilePriceNow = current?.value_inc_vat ?? null;
-  const cheapestWindowLabel = bestWindow
-    ? `${isoToUkClock(bestWindow.from)} – ${isoToUkClock(bestWindow.to)} · ${bestWindow.avg.toFixed(1)}p avg`
-    : cheapestSlot
-      ? `Best single slot at ${isoToUkClock(cheapestSlot.valid_from)} (${cheapestSlot.value_inc_vat.toFixed(1)}p)`
+  const cheapestWindowLabel = cheapestSlot
+    ? `${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh`
+    : bestWindow
+      ? `${isoToUkClock(bestWindow.from)} – ${bestWindow.avg.toFixed(2)}p/kWh`
       : null;
 
   const activeSchedule = appSchedules.find((s) => s.enabled) ?? null;
@@ -1041,13 +1041,13 @@ export default function HomeDashboard({
         footballTeam={footballTeam}
       />
 
-      {/* Wait for Cheaper Power Card */}
+      {/* Cheapest Window Card */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Wait for cheaper power</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Cheapest Window</p>
             <h3 className="text-xl font-black text-white mt-0.5">
-              {bestWindow ? `${bestWindow.avg.toFixed(2)}p/kWh later` : "Agile rates loading..."}
+              {cheapestSlot ? `${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh cheapest` : bestWindow ? `${bestWindow.avg.toFixed(2)}p/kWh later` : "Agile rates loading..."}
             </h3>
           </div>
         </div>
@@ -1057,23 +1057,26 @@ export default function HomeDashboard({
             <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
               {ribbon.map((rate) => {
                 const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
+                const isCheapest = cheapestSlot && rate.valid_from === cheapestSlot.valid_from;
                 const colourClass = priceColour(rate.value_inc_vat);
                 return (
                   <div
                     key={rate.valid_from}
                     className={`relative min-w-[72px] flex-shrink-0 rounded-2xl border overflow-hidden pt-2.5 pb-3 px-2 text-center transition-all ${
-                      isCurrent
-                        ? "border-emerald-400/50 bg-slate-950/80"
-                        : "border-white/10 bg-slate-950/60"
+                      isCheapest
+                        ? "border-emerald-400 bg-emerald-500/20 animate-pulse shadow-lg shadow-emerald-500/20"
+                        : isCurrent
+                          ? "border-emerald-400/50 bg-slate-950/80"
+                          : "border-white/10 bg-slate-950/60"
                     }`}
                   >
-                    <p className="text-[10px] font-bold text-slate-400">
+                    <p className={`text-[10px] font-bold ${isCheapest ? "text-emerald-300 font-black" : "text-slate-400"}`}>
                       {isCurrent ? "Now" : isoToUkClock(rate.valid_from)}
                     </p>
-                    <p className="mt-1 text-xs font-black text-white">
+                    <p className={`mt-1 text-xs font-black ${isCheapest ? "text-emerald-400" : "text-white"}`}>
                       {rate.value_inc_vat.toFixed(1)}p
                     </p>
-                    {/* Bottom color fill band matching second attachment */}
+                    {/* Bottom color fill band */}
                     <div className={`absolute bottom-0 left-0 right-0 h-2 ${colourClass}`} />
                   </div>
                 );
@@ -1081,7 +1084,7 @@ export default function HomeDashboard({
             </div>
             <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 font-semibold px-1">
               <span>Swipe prices →</span>
-              <span>Cheapest window {bestWindow ? `${isoToUkClock(bestWindow.from)} – ${bestWindow.avg.toFixed(2)}p/kWh` : "—"}</span>
+              <span>Cheapest window {cheapestWindowLabel ?? "—"}</span>
             </div>
           </div>
         )}

@@ -344,7 +344,7 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card (Clean portrait-like constraints for small mobile to avoid crowding the car) */}
+      {/* Charge Status Card */}
       <div className="absolute bottom-2 left-2 z-30 max-w-[48%] min-w-[145px] rounded-xl border border-white/15 bg-slate-950/75 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:top-[58px] sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
         <div className="flex items-center gap-1.5 min-[430px]:gap-2">
           <BatteryCharging
@@ -364,9 +364,9 @@ export default function HomeHeroScene({
           {charging
             ? chargerPowerKw != null
               ? `${chargerPowerKw.toFixed(1)} kW${
-                  chargerAmps != null
+                  chargerAmps != null && chargerAmps > 0
                     ? ` · ${Math.round(chargerAmps)} A${chargerAmpsLive ? " live" : ""}`
-                    : ""
+                    : " · DC rapid"
                 }`
               : "Charging"
             : `${state || "Vehicle status"}${batteryIsLastKnown && !state?.toLowerCase().includes("last known") ? " · Last known" : ""}`}

@@ -1163,7 +1163,7 @@ export default function HomeDashboard({
         </div>
       </div>
 
-      {/* Recent Charges List */}
+     {/* Recent Charges List */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold tracking-wider uppercase text-slate-300">Recent Charges</h3>

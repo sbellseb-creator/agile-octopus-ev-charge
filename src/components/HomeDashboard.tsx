@@ -1051,23 +1051,14 @@ export default function HomeDashboard({
               {bestWindow ? `${bestWindow.avg.toFixed(2)}p/kWh later` : "Agile rates loading..."}
             </h3>
           </div>
-          <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-emerald-400 border border-emerald-500/20">
-            <Sparkles className="h-5 w-5" />
-          </div>
         </div>
 
-        {bestWindow && (
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-xs">
-            <span className="text-slate-300 font-bold">Best {bestWindow.hours}h continuous block · {isoToUkClock(bestWindow.from)}–{isoToUkClock(bestWindow.to)}</span>
-            <span className="font-black text-emerald-400">£{bestWindow.estimatedCostGbp.toFixed(2)}</span>
-          </div>
-        )}
-
         {ribbon.length > 0 && (
-          <div className="mt-3">
+          <div className="mt-4">
             <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
               {ribbon.map((rate) => {
                 const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
+                const colourClass = priceColour(rate.value_inc_vat);
                 return (
                   <div
                     key={rate.valid_from}
@@ -1080,9 +1071,12 @@ export default function HomeDashboard({
                     <p className="text-[10px] font-bold text-slate-400">
                       {isCurrent ? "Now" : isoToUkClock(rate.valid_from)}
                     </p>
-                    <p className="mt-1 text-xs font-black text-white">
-                      {rate.value_inc_vat.toFixed(1)}p
-                    </p>
+                    <div className="mt-1 flex items-center justify-center gap-1">
+                      <span className={`inline-block h-2 w-2 rounded-full ${colourClass}`} />
+                      <p className="text-xs font-black text-white">
+                        {rate.value_inc_vat.toFixed(1)}p
+                      </p>
+                    </div>
                   </div>
                 );
               })}

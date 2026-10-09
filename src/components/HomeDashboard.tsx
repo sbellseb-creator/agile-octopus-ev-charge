@@ -1149,7 +1149,7 @@ export default function HomeDashboard({
               const cost = sessionCostGbp(session);
               const isTrusted = sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted;
               return (
-                <div key={session.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div key={session.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -1170,6 +1170,36 @@ export default function HomeDashboard({
                       <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
                       <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => onReviewCharges?.()}
+                      className="rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-800 transition-all"
+                    >
+                      Review / amend
+                    </button>
+                    {!isTrusted && (
+                      <button
+                        onClick={() => {
+                          session.raw_observations = { ...(session.raw_observations || {}), quality_override: true };
+                          updateSession(session);
+                          onSessionsChanged?.();
+                        }}
+                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                      >
+                        Accept estimate
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        deleteSession(session.id);
+                        onSessionsChanged?.();
+                      }}
+                      className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               );

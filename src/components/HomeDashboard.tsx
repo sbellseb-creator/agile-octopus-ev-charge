@@ -153,7 +153,7 @@ function sessionDurationLabel(session: ChargeSession): string {
   if (!Number.isFinite(minutes)) return "Duration unavailable";
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
-  return hours > 0 ? `${hours}h${remainder}m` : `${remainder}m`;
+  return hours > 0 ? `${hours}h ${remainder}m` : `${remainder}m`;
 }
 
 function sessionClock(session: ChargeSession, edge: "start" | "finish"): string {
@@ -593,6 +593,105 @@ export default function HomeDashboard({
       });
   }, [liveObservedAt, live, vehicle?.id]);
 
+  const { data: homeWeather } = useQuery({
+    queryKey: [
+      "home-current-weather",
+      settings.home_latitude,
+      settings.home_longitude,
+    ],
+    enabled: hasHomeLocation(settings),
+    staleTime: 15 * 60_000,
+    queryFn: async () => {
+      const lat = settings.home_latitude;
+      const lng = settings.home_longitude;
+
+      if (lat == null || lng == null) return null;
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const url =
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/weather-forecast` +
+        `?lat=${encodeURIComponent(lat)}` +
+        `&lng=${encodeURIComponent(lng)}`;
+
+      const response = await fetch(url, {
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+
+      const hourly = data.hourly ?? {};
+      const times = hourly.time ?? [];
+      const codes = hourly.weather_code ?? [];
+      const temps = hourly.temperature_2m ?? [];
+      const cloudCover = hourly.cloud_cover ?? [];
+
+      const daily = data.daily ?? {};
+      const dailyTimes = daily.time ?? [];
+      const sunrises = daily.sunrise ?? [];
+      const sunsets = daily.sunset ?? [];
+
+      const now = Date.now();
+
+      let bestIndex = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      times.forEach((time: string, index: number) => {
+        const ms = new Date(time).getTime();
+        const distance = Math.abs(ms - now);
+
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+
+      const todayLondon = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/London",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+
+      const todayIndex = dailyTimes.findIndex(
+        (day: string) => day === todayLondon,
+      );
+
+      return {
+        weatherCode: Number(codes[bestIndex] ?? 3),
+        temperatureC:
+          temps[bestIndex] == null
+            ? undefined
+            : Number(temps[bestIndex]),
+        cloudCover:
+          cloudCover[bestIndex] == null
+            ? undefined
+            : Number(cloudCover[bestIndex]),
+        sunrise:
+          todayIndex >= 0
+            ? sunrises[todayIndex]
+            : undefined,
+        sunset:
+          todayIndex >= 0
+            ? sunsets[todayIndex]
+            : undefined,
+        source:
+          data.source === "live"
+            ? ("live" as const)
+            : ("estimated" as const),
+      };
+    },
+  });
+
   const { data: rates = [] } = useQuery({
     queryKey: ["agile-home", settings.region],
     queryFn: () =>
@@ -633,7 +732,6 @@ export default function HomeDashboard({
   const targetSoc = live?.charge_limit_soc ?? 100;
   const batteryCapacityKwh = vehicle?.battery_kwh ?? 75;
   
-  // Allow live vehicle power (e.g. DC rapid charger) to bypass settings.charger_kw home limits
   const planningPowerKw = 
     live?.charger_power_kw != null && live.charger_power_kw > settings.charger_kw
       ? live.charger_power_kw
@@ -843,7 +941,7 @@ export default function HomeDashboard({
       lastCharge.actual_finish ?? lastCharge.ended_at ?? lastCharge.end_time,
     );
 
-    const dayLabel = finishTime ? `${day}${finishTime}` : day;
+    const dayLabel = finishTime ? `${day} ${finishTime}` : day;
 
     return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
   }, [lastCharge]);
@@ -857,7 +955,7 @@ export default function HomeDashboard({
   const isCharging =
     chargingState === "charging" ||
     chargingState === "starting" ||
-    (liveStateMatchesCharging(liveState) ?? false);
+    vehicleState === "online";
 
   const isPluggedIn =
     isCharging ||
@@ -870,7 +968,7 @@ export default function HomeDashboard({
 
   const resolvedScene = resolveHomeScene({
     weatherCode: homeWeather?.weatherCode,
-    temperatureC: homeWeather->temperatureC,
+    temperatureC: homeWeather?.temperatureC,
     cloudCover: homeWeather?.cloudCover,
     sunrise: homeWeather?.sunrise,
     sunset: homeWeather?.sunset,
@@ -880,7 +978,7 @@ export default function HomeDashboard({
 
   const agilePriceNow = current?.value_inc_vat ?? null;
   const cheapestWindowLabel = bestWindow
-    ? `${isoToUkClock(bestWindow.from)} – ${isoToUkClock(bestWindow.to)} ·${bestWindow.avg.toFixed(1)}p avg`
+    ? `${isoToUkClock(bestWindow.from)} – ${isoToUkClock(bestWindow.to)} · ${bestWindow.avg.toFixed(1)}p avg`
     : cheapestSlot
       ? `Best single slot at ${isoToUkClock(cheapestSlot.valid_from)} (${cheapestSlot.value_inc_vat.toFixed(1)}p)`
       : null;
@@ -888,4 +986,80 @@ export default function HomeDashboard({
   const activeSchedule = appSchedules.find((s) => s.enabled) ?? null;
   const teslaSchedule = teslaSchedules[0] ?? null;
   const scheduleLabel = activeSchedule
-    ? `${activeSchedule.start_time} –
+    ? `${activeSchedule.start_time} – ${activeSchedule.end_time}`
+    : teslaSchedule && teslaSchedule.enabled
+      ? `Tesla: ${teslaSchedule.start_hour.toString().padStart(2, "0")}:${teslaSchedule.start_minute.toString().padStart(2, "0")}`
+      : null;
+
+  return (
+    <div className="space-y-6 pb-12">
+      <div className="flex items-center justify-between gap-3 bg-slate-900/60 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
+        <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+          <button
+            onClick={() => {
+              setHomeViewMode("driveway");
+              window.localStorage.setItem("ev-home-view-mode", "driveway");
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${homeViewMode === "driveway" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-300 hover:text-white"}`}
+          >
+            Driveway
+          </button>
+          <button
+            onClick={() => {
+              setHomeViewMode("cockpit");
+              window.localStorage.setItem("ev-home-view-mode", "cockpit");
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${homeViewMode === "cockpit" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-300 hover:text-white"}`}
+          >
+            Cockpit
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase hidden sm:inline">Theme</span>
+          <select
+            value={footballTeam}
+            onChange={(e) => {
+              setFootballTeam(e.target.value);
+              window.localStorage.setItem("ev-home-football-team", e.target.value);
+            }}
+            className="bg-slate-950/90 text-xs font-bold text-white border border-white/15 px-3 py-1.5 rounded-xl outline-none focus:border-emerald-500"
+          >
+            <option value="Sunderland">Sunderland (SAFC)</option>
+            <option value="Apple">Apple Mode</option>
+            <option value="Lemon">Lemon Mode</option>
+            <option value="Paw">Paw Mode</option>
+            <option value="None">Standard Minimal</option>
+          </select>
+        </div>
+      </div>
+
+      <HomeHeroScene
+        scene={resolvedScene}
+        charging={isCharging}
+        pluggedIn={isPluggedIn}
+        batteryLevel={displayedBatteryLevel}
+        batteryIsLastKnown={batteryIsLastKnown}
+        batteryCapacityKwh={batteryCapacityKwh}
+        chargeLimit={targetSoc}
+        chargerPowerKw={
+          live?.charger_power_kw != null && live.charger_power_kw > settings.charger_kw
+            ? live.charger_power_kw
+            : Math.min(
+                live?.charger_power_kw ?? settings.charger_kw,
+                settings.charger_kw,
+              )
+        }
+        chargerAmps={live?.charger_actual_current}
+        chargerAmpsLive={live?.charger_actual_current != null}
+        timeToFullChargeHours={live?.time_to_full_charge}
+        state={live?.state}
+        viewMode={homeViewMode}
+        agilePricePence={agilePriceNow}
+        cheapestWindowLabel={cheapestWindowLabel}
+        scheduleLabel={scheduleLabel}
+        footballTeam={footballTeam}
+      />
+    </div>
+  );
+}

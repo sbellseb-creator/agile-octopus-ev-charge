@@ -26,7 +26,6 @@ serve(async (req) => {
 
   try {
     const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
-    console.log(`Fetching from: ${targetUrl}`);
 
     const arRes = await fetch(targetUrl, {
       headers: {
@@ -36,12 +35,12 @@ serve(async (req) => {
     });
 
     if (!arRes.ok) {
-      throw new Error(`HTTP error! status: ${arRes.status}`);
+      throw new Error(`Failed to fetch region data: HTTP ${arRes.status}`);
     }
 
     const arData = await arRes.json();
-    console.log(`Successfully fetched data. Type: ${typeof arData}, IsArray: ${Array.isArray(arData)}`);
-
+    
+    // Extract raw rates array securely from any response wrapper
     let rawRates: any[] = [];
     if (Array.isArray(arData)) {
       rawRates = arData;
@@ -49,12 +48,11 @@ serve(async (req) => {
       rawRates = arData.rates || arData.results || arData.data || Object.values(arData).find(v => Array.isArray(v)) || [];
     }
 
-    console.log(`Raw rates count: ${rawRates.length}`);
-
     const parsed = rawRates.map((r: any) => {
       const validFromRaw = r.valid_from || r.time || r.from || r.timestamp || r.start;
       const validToRaw = r.valid_to || r.to || r.end;
       
+      // Deep extraction supporting agile-rates.uk nested schema and flat fallbacks
       const rateVal = 
         r.agileRate?.result?.rate ?? 
         r.rate?.value ?? 
@@ -72,15 +70,13 @@ serve(async (req) => {
       };
     }).filter(r => r.valid_from);
 
-    // Try matching by target date string
+    // Filter for target date
     let estimates = parsed.filter(r => String(r.valid_from).includes(targetDateStr));
 
-    // If exact match fails, fallback to grabbing the next 48 slots safely
+    // Fallback: If date filter is too strict, safely grab the next 48 slots block
     if (estimates.length === 0 && parsed.length > 0) {
       estimates = parsed.length >= 96 ? parsed.slice(48, 96) : parsed.slice(0, Math.min(48, parsed.length));
     }
-
-    console.log(`Final filtered estimates count: ${estimates.length}`);
 
     return json({
       date: targetDateStr,
@@ -95,14 +91,13 @@ serve(async (req) => {
       rates: estimates,
     });
   } catch (err: any) {
-    console.error(`Edge function error: ${err.message}`);
     return json({
       date: targetDateStr,
       status: "waiting",
       available: false,
       region,
       estimated: true,
-      error: err.message || "Failed to reach agile-rates.uk",
+      error: err.message || "Unknown error",
       updated_at: now.toISOString(),
       results: [],
       rates: [],

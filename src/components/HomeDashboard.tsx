@@ -56,7 +56,6 @@ import { resolveHomeScene } from "@/lib/home-scene";
 import { supabase } from "@/integrations/supabase/client";
 
 import HomeHeroScene from "@/components/home/HomeHeroScene";
-import AgileCrystalBall from "@/components/AgileCrystalBall";
 
 interface Props {
   vehicles: Vehicle[];
@@ -1062,8 +1061,46 @@ export default function HomeDashboard({
         footballTeam={footballTeam}
       />
 
-      {/* Agile Crystal Ball Preview Component */}
-      <AgileCrystalBall />
+      {/* Compact Wait for Cheaper Power Preview Card */}
+      <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Wait for cheaper power</p>
+            <h3 className="text-lg font-black text-white mt-0.5">
+              {bestWindow ? `${bestWindow.avg.toFixed(2)}p/kWh later` : "Agile rates loading..."}
+            </h3>
+          </div>
+          <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+            <Sparkles className="h-5 w-5" />
+          </div>
+        </div>
+
+        {bestWindow && (
+          <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 px-4 py-3 text-xs">
+            <span className="text-slate-300 font-bold">Best {bestWindow.hours}h continuous block · {isoToUkClock(bestWindow.from)}–{isoToUkClock(bestWindow.to)}</span>
+            <span className="font-black text-emerald-400">£{bestWindow.estimatedCostGbp.toFixed(2)}</span>
+          </div>
+        )}
+
+        {ribbon.length > 0 && (
+          <div className="mt-3 overflow-x-auto pb-1">
+            <div className="flex gap-2 min-w-max">
+              {ribbon.slice(0, 12).map((rate) => {
+                const isCurrentSlot = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
+                return (
+                  <div
+                    key={rate.valid_from}
+                    className={`rounded-xl px-3 py-2 text-center border ${isCurrentSlot ? "border-emerald-400 bg-emerald-500/10" : "border-white/5 bg-slate-950/60"}`}
+                  >
+                    <p className="text-[10px] font-bold text-slate-400">{isoToUkClock(rate.valid_from)}</p>
+                    <p className="mt-1 text-xs font-black text-white">{rate.value_inc_vat.toFixed(1)}p</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Summary Section */}
       <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-5 backdrop-blur-xl">

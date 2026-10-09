@@ -847,6 +847,31 @@ export default function HomeDashboard({
     );
   }, [ribbon]);
 
+  // Calculations for the three new suggestions
+  const dailyAvgPrice = useMemo(() => {
+    if (!rates.length) return null;
+    return rates.reduce((sum, r) => sum + r.value_inc_vat, 0) / rates.length;
+  }, [rates]);
+
+  const timeToCheapest = useMemo(() => {
+    if (!cheapestSlot) return null;
+    const diffMs = new Date(cheapestSlot.valid_from).getTime() - now;
+    if (diffMs <= 0) return "Happening now";
+    const totalMins = Math.round(diffMs / 60000);
+    const hrs = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hrs === 0) return `Starts in ${mins}m`;
+    return `Starts in ${hrs}h ${mins}m`;
+  }, [cheapestSlot, now]);
+
+  const estimatedSavings = useMemo(() => {
+    if (!cheapestSlot) return null;
+    const standardFlatRate = 28.0; // standard benchmark p/kWh
+    const kwh = 20; // assumed charge amount
+    const saving = ((standardFlatRate - cheapestSlot.value_inc_vat) * kwh) / 100;
+    return Math.max(0, saving);
+  }, [cheapestSlot]);
+
   const summary = useMemo(() => {
     const today = new Date();
     const todayKey = formatUK(today, "yyyy-MM-dd");
@@ -1055,7 +1080,7 @@ export default function HomeDashboard({
 
         {ribbon.length > 0 && (
           <div className="mt-4">
-            <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <div ref={priceStripRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {ribbon.map((rate) => {
                 const isCurrent = new Date(rate.valid_from).getTime() <= now && new Date(rate.valid_to).getTime() > now;
                 const isCheapest = cheapestSlot && rate.valid_from === cheapestSlot.valid_from;
@@ -1083,11 +1108,27 @@ export default function HomeDashboard({
                 );
               })}
             </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 font-semibold px-1">
+            
+            {/* Expanded bottom bar with suggestions */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400 font-semibold px-1">
               <span>Swipe prices →</span>
-              <span>
-                {cheapestSlot ? `Cheapest window ${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh` : "—"}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                {estimatedSavings != null && (
+                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-emerald-400 border border-emerald-500/30 font-bold">
+                    £{estimatedSavings.toFixed(2)} saved vs flat rate
+                  </span>
+                )}
+                {dailyAvgPrice != null && (
+                  <span className="text-slate-300">
+                    Day avg: <strong className="text-white">{dailyAvgPrice.toFixed(1)}p/kWh</strong>
+                  </span>
+                )}
+                {timeToCheapest && (
+                  <span className="text-emerald-300 font-bold">
+                    {timeToCheapest}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1145,66 +1186,3 @@ export default function HomeDashboard({
             recentCharges.map((session) => {
               const energy = sessionEnergyKwh(session);
               const cost = sessionCostGbp(session);
-              const isTrusted = sessionQuality(session, vehicle?.battery_kwh ?? 75).trusted;
-              return (
-                <div key={session.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-white">
-                          {session.session_date} · {sessionClock(session, "start")} - {sessionClock(session, "finish")}
-                        </p>
-                        {!isTrusted && (
-                          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/20">
-                            Needs review
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {sessionDurationLabel(session)} · {session.vehicle_name || "Vehicle"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
-                      <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                    <button
-                      onClick={() => onReviewCharges?.()}
-                      className="rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-800 transition-all"
-                    >
-                      Review / amend
-                    </button>
-                    {!isTrusted && (
-                      <button
-                        onClick={() => {
-                          session.raw_observations = { ...(session.raw_observations || {}), quality_override: true };
-                          updateSession(session);
-                          onSessionsChanged?.();
-                        }}
-                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all"
-                      >
-                        Accept estimate
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        deleteSession(session.id);
-                        onSessionsChanged?.();
-                      }}
-                      className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

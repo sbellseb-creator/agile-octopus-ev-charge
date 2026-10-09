@@ -554,399 +554,6 @@ export default function HomeDashboard({
       const finishMs = new Date(closed.actualFinish!).getTime();
       return loadSessions().some((existing) => {
         if (existing.source !== "tesla" || existing.vehicle_id !== vehicle.id) return false;
-        const existingStart = new
-          export default function HomeDashboard({
-  vehicles,
-  sessions,
-  teslaVehicles = [],
-  onSessionsChanged,
-  onManageSchedule,
-  onReviewCharges,
-}: Props) {
-  const settings = getSettings();
-
-  const safeVehicles = (Array.isArray(vehicles) ? vehicles : []).filter(v => v && typeof v === 'object' && v.id);
-  if (safeVehicles.length === 0) return <div className="p-6 text-xs text-slate-400 font-medium bg-slate-950/40 border border-white/5 rounded-3xl animate-pulse text-center">Synchronizing live vehicle data streams...</div>;
-
-  const [liveVehicles, setLiveVehicles] = useState<TeslaVehicle[]>(() => {
-    if (Array.isArray(teslaVehicles) && teslaVehicles.length) return teslaVehicles;
-
-    try {
-      const cached = window.localStorage.getItem("ev-home-tesla-snapshot");
-      return cached ? (JSON.parse(cached) as TeslaVehicle[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [liveObservedAt, setLiveObservedAt] = useState<string | null>(null);
-  const [summaryPeriod, setSummaryPeriod] = useState<"week" | "month" | "year">("month");
-  const [homeViewMode, setHomeViewMode] = useState<"driveway" | "cockpit">(() =>
-    window.localStorage.getItem("ev-home-view-mode") === "cockpit" ? "cockpit" : "driveway",
-  );
-  const [footballTeam, setFootballTeam] = useState(() =>
-    window.localStorage.getItem("ev-home-football-team") || "Sunderland",
-  );
-  const [appSchedules, setAppSchedules] = useState<ChargeSchedule[]>([]);
-  const [teslaSchedules, setTeslaSchedules] = useState<TeslaSchedule[]>([]);
-  const priceStripRef = useRef<HTMLDivElement | null>(null);
-  const [lastKnownSoc, setLastKnownSoc] = useState<Record<string, number>>(() => {
-    try {
-      return JSON.parse(
-        window.localStorage.getItem("ev-home-last-known-soc") ?? "{}",
-      ) as Record<string, number>;
-    } catch {
-      return {};
-    }
-  });
-  const [lastKnownConnection, setLastKnownConnection] = useState<Record<string, "charging" | "plugged" | "unplugged">>(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem("ev-home-last-known-connection") ?? "{}") as Record<string, "charging" | "plugged" | "unplugged">;
-    } catch {
-      return {};
-    }
-  });
-
-  const vehicle =
-    safeVehicles.find((v) => v.is_default) ?? safeVehicles[0];
-
-  useEffect(() => {
-    let alive = true;
-    const refreshSchedules = async () => {
-      const saved = await loadSchedules();
-      if (alive) setAppSchedules(saved);
-      if (!vehicle?.tesla_vehicle_id) return;
-      try {
-        const result = await readTeslaSchedules(vehicle.tesla_vehicle_id);
-        if (alive && !result.error) {
-          if (result.schedules.length > 0) {
-            setTeslaSchedules(result.schedules);
-            window.localStorage.setItem(
-              `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
-              JSON.stringify(result.schedules),
-            );
-          } else {
-            const cached = window.localStorage.getItem(
-              `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
-            );
-            if (cached) setTeslaSchedules(JSON.parse(cached) as TeslaSchedule[]);
-          }
-        }
-      } catch {
-        const cached = window.localStorage.getItem(
-          `ev-home-tesla-schedules:${vehicle.tesla_vehicle_id}`,
-        );
-        if (alive && cached) {
-          try {
-            setTeslaSchedules(JSON.parse(cached) as TeslaSchedule[]);
-          } catch {
-            // App schedules remain useful when Tesla is temporarily offline.
-          }
-        }
-      }
-    };
-    void refreshSchedules();
-    const onUpdated = () => void refreshSchedules();
-    window.addEventListener("schedules:updated", onUpdated);
-    return () => {
-      alive = false;
-      window.removeEventListener("schedules:updated", onUpdated);
-    };
-  }, [vehicle?.tesla_vehicle_id]);
-
-  useEffect(() => {
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const refresh = async () => {
-      try {
-        const res = await listTeslaVehicles(false);
-
-        if (!alive) return;
-
-        if (res.vehicles.length > 0) {
-          setLiveVehicles(res.vehicles);
-          setLiveObservedAt(res.last_updated ?? new Date().toISOString());
-
-          setLastKnownSoc((previous) => {
-            const next = { ...previous };
-            let changed = false;
-
-            for (const teslaVehicle of res.vehicles) {
-              if (
-                teslaVehicle.battery_level != null &&
-                Number.isFinite(teslaVehicle.battery_level) &&
-                next[teslaVehicle.id] !== teslaVehicle.battery_level
-              ) {
-                next[teslaVehicle.id] = teslaVehicle.battery_level;
-                changed = true;
-              }
-            }
-
-            if (changed) {
-              try {
-                window.localStorage.setItem(
-                  "ev-home-last-known-soc",
-                  JSON.stringify(next),
-                );
-              } catch {
-                // Keep snapshot
-              }
-            }
-
-            return changed ? next : previous;
-          });
-
-          setLastKnownConnection((previous) => {
-            const next = { ...previous };
-            let changed = false;
-            for (const teslaVehicle of res.vehicles) {
-              if (teslaVehicle.state?.toLowerCase() !== "online") continue;
-              const charge = teslaVehicle.charging_state?.toLowerCase() ?? "";
-              const connection = charge === "charging" || charge === "starting"
-                ? "charging"
-                : ["stopped", "nopower", "complete"].includes(charge)
-                  ? "plugged"
-                  : "unplugged";
-              if (next[teslaVehicle.id] !== connection) {
-                next[teslaVehicle.id] = connection;
-                changed = true;
-              }
-            }
-            if (changed) {
-              try {
-                window.localStorage.setItem("ev-home-last-known-connection", JSON.stringify(next));
-              } catch {
-                // Keep status
-              }
-            }
-            return changed ? next : previous;
-          });
-
-          try {
-            window.localStorage.setItem(
-              "ev-home-tesla-snapshot",
-              JSON.stringify(res.vehicles),
-            );
-          } catch {
-            // localStorage unavailable
-          }
-
-          const changed = await linkTeslaVehicleIds(
-            vehicles,
-            res.vehicles,
-          );
-
-          if (changed) {
-            window.dispatchEvent(
-              new Event("vehicles:updated"),
-            );
-          }
-        }
-
-        const current =
-          res.vehicles.find(
-            (t) => t.id === vehicle?.tesla_vehicle_id,
-          ) ??
-          (res.vehicles.length === 1
-            ? res.vehicles[0]
-            : undefined);
-
-        const state =
-          current?.state?.toLowerCase() ?? "";
-
-        const chargeState =
-          current?.charging_state?.toLowerCase() ?? "";
-
-        const active =
-          state === "online" ||
-          chargeState === "charging" ||
-          chargeState === "starting";
-
-        timer = setTimeout(
-          refresh,
-          active ? 30_000 : 3 * 60_000,
-        );
-      } catch {
-        if (alive) {
-          timer = setTimeout(
-            refresh,
-            3 * 60_000,
-          );
-        }
-      }
-    };
-
-    refresh();
-
-    const handleVisible = () => {
-      if (document.visibilityState !== "visible") return;
-
-      if (timer) clearTimeout(timer);
-      refresh();
-    };
-
-    document.addEventListener(
-      "visibilitychange",
-      handleVisible,
-    );
-
-    return () => {
-      alive = false;
-
-      if (timer) clearTimeout(timer);
-
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisible,
-      );
-    };
-  }, [vehicles.length, vehicle?.tesla_vehicle_id]);
-
-  const live = useMemo(() => {
-    if (!vehicle) return undefined;
-
-    return (
-      liveVehicles.find(
-        (t) => t.id === vehicle.tesla_vehicle_id,
-      ) ??
-      (liveVehicles.length === 1 &&
-      vehicle.source === "tesla"
-        ? liveVehicles[0]
-        : undefined)
-    );
-  }, [liveVehicles, vehicle]);
-
-  const displayedBatteryLevel =
-    live?.battery_level ??
-    (live?.id ? lastKnownSoc[live.id] : null) ??
-    null;
-
-  const batteryIsLastKnown =
-    displayedBatteryLevel != null &&
-    (live?.battery_level == null || live?.state?.toLowerCase() !== "online");
-
-  useEffect(() => {
-    if (!vehicle || !live || !liveObservedAt) return;
-
-    const monitorKey = `tesla-charge-monitor:${live.id}`;
-    let previous: ChargeMonitorState;
-
-    try {
-      const stored = window.localStorage.getItem(monitorKey);
-      previous = stored
-        ? (JSON.parse(stored) as ChargeMonitorState)
-        : initialChargeMonitorState();
-    } catch {
-      previous = initialChargeMonitorState();
-    }
-
-    const result = advanceChargeMonitor(previous, {
-      observedAt: liveObservedAt,
-      chargingState: live.charging_state,
-      batteryLevel: live.battery_level,
-      chargerPowerKw: live.charger_power_kw,
-      chargeEnergyAddedKwh:
-        live.charge_energy_added_kwh ?? live.charge_energy_added,
-    });
-
-    try {
-      window.localStorage.setItem(monitorKey, JSON.stringify(result.state));
-    } catch {
-      // Monitoring still works
-    }
-
-    if (!result.closedSession?.actualStart || !result.closedSession.actualFinish) {
-      return;
-    }
-
-    const closed = result.closedSession;
-    const startSoc = closed.startSoc ?? live.battery_level ?? 0;
-    const endSoc = closed.endSoc ?? live.battery_level ?? startSoc;
-    const teslaEnergy =
-      closed.actualEnergyKwh != null && closed.actualEnergyKwh > 0
-        ? closed.actualEnergyKwh
-        : null;
-    const socEnergy =
-      vehicle.battery_kwh != null && endSoc > startSoc
-        ? (vehicle.battery_kwh * (endSoc - startSoc)) / 100
-        : 0;
-    const energyRatio = socEnergy > 0 && teslaEnergy != null
-      ? teslaEnergy / socEnergy
-      : 1;
-    const teslaEnergyConsistent =
-      teslaEnergy != null && energyRatio >= 0.7 && energyRatio <= 1.45;
-    const batteryEnergy = teslaEnergyConsistent ? teslaEnergy! : socEnergy;
-    const startGapMinutes = closed.startObservationGapMinutes;
-    const finishGapMinutes = closed.finishObservationGapMinutes;
-    const timingObservedClosely =
-      startGapMinutes !== undefined && startGapMinutes <= 5 &&
-      finishGapMinutes !== undefined && finishGapMinutes <= 5;
-    const estimatedGridEnergy = batteryEnergy > 0
-      ? batteryEnergy / 0.9
-      : 0;
-
-    if (endSoc <= startSoc || batteryEnergy < 0.25) {
-      return;
-    }
-    const region = settings.region || AGILE_REGION;
-
-    const draft: Omit<ChargeSession, "id"> = {
-      session_date: formatUK(closed.actualStart, "yyyy-MM-dd"),
-      source: "tesla",
-      status: "completed",
-      plugged_in_at: closed.pluggedInAt,
-      started_at: closed.actualStart,
-      ended_at: closed.actualFinish,
-      actual_start: closed.actualStart,
-      actual_finish: closed.actualFinish,
-      start_time: formatUK(closed.actualStart, "HH:mm"),
-      end_time: formatUK(closed.actualFinish, "HH:mm"),
-      vehicle_id: vehicle.id,
-      vehicle_name: vehicle.name,
-      vehicle_registration: vehicle.registration || undefined,
-      charge_mode: "realtime",
-      start_soc: startSoc,
-      end_soc: endSoc,
-      battery_energy_kwh: batteryEnergy,
-      measured_grid_energy_kwh: undefined,
-      estimated_grid_energy_kwh: estimatedGridEnergy,
-      energy_source: teslaEnergyConsistent ? "tesla" : "soc_estimate",
-      energy_added_kwh: batteryEnergy,
-      grid_kwh: estimatedGridEnergy,
-      total_cost_gbp: 0,
-      avg_pence_per_kwh: 0,
-      num_slots: 0,
-      tariff_code: "Octopus Agile",
-      region,
-      slot_prices: [],
-      notes: "Automatically captured from Tesla charging telemetry.",
-      configured_charger_kw: settings.charger_kw,
-      observed_charger_kw: closed.observedChargerKw,
-      actual_energy_kwh: batteryEnergy,
-      confidence_score:
-        teslaEnergyConsistent && timingObservedClosely ? 0.95 :
-          teslaEnergyConsistent ? 0.72 : 0.55,
-      raw_observations: {
-        tesla_charge_energy_baseline_kwh: closed.energyBaselineKwh ?? null,
-        tesla_charge_energy_latest_kwh: closed.energyLatestKwh ?? null,
-        tesla_charge_energy_delta_kwh: teslaEnergy,
-        soc_estimated_battery_kwh: socEnergy,
-        energy_consistent: teslaEnergyConsistent,
-        energy_fallback: teslaEnergyConsistent ? "tesla" : "soc_delta",
-        first_charging_observed_at: closed.firstChargingObservedAt ?? null,
-        last_charging_observed_at: closed.lastChargingObservedAt ?? null,
-        start_observation_gap_minutes: startGapMinutes ?? null,
-        finish_observation_gap_minutes: finishGapMinutes ?? null,
-        observation_count: closed.observationCount ?? 0,
-        timing_observed_closely: timingObservedClosely,
-      },
-    };
-
-    const isDuplicate = () => {
-      const startMs = new Date(closed.actualStart!).getTime();
-      const finishMs = new Date(closed.actualFinish!).getTime();
-      return loadSessions().some((existing) => {
-        if (existing.source !== "tesla" || existing.vehicle_id !== vehicle.id) return false;
         const existingStart = new Date(existing.actual_start ?? existing.started_at ?? "").getTime();
         const existingFinish = new Date(existing.actual_finish ?? existing.ended_at ?? "").getTime();
         if (!Number.isFinite(existingStart) || !Number.isFinite(existingFinish)) return false;
@@ -1551,4 +1158,50 @@ export default function HomeDashboard({
                         )}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        {sessionDurationLabel
+                        {sessionDurationLabel(session)} · {session.vehicle_name || "Vehicle"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black text-emerald-400">{energy.toFixed(1)} kWh</p>
+                      <p className="text-[10px] font-bold text-slate-300">£{cost.toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => onReviewCharges?.()}
+                      className="rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-800 transition-all"
+                    >
+                      Review / amend
+                    </button>
+                    {!isTrusted && (
+                      <button
+                        onClick={() => {
+                          session.raw_observations = { ...(session.raw_observations || {}), quality_override: true };
+                          updateSession(session);
+                          onSessionsChanged?.();
+                        }}
+                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                      >
+                        Accept estimate
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        deleteSession(session.id);
+                        onSessionsChanged?.();
+                      }}
+                      className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

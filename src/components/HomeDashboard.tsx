@@ -1111,27 +1111,22 @@ export default function HomeDashboard({
                 >
                   ←
                 </button>
-                <button
-                  onClick={() => {
-                    if (priceStripRef.current) {
-                      priceStripRef.current.scrollBy({ left: 200, behavior: 'smooth' });
-                    }
-                  }}
-                  className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
-                >
-                  →
-                </button>
-              </div>
-            </div>
+<button
+              onClick={() => {
+                if (priceStripRef.current) {
+                  priceStripRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                }
+              }}
+              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-0.5 text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              →
+            </button>
           </div>
-        )}
-              })}
-            </div>
-            
-            <div className="mt-2 text-[10px] text-slate-400 font-semibold px-1">
-              Swipe prices →
-            </div>
-          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
         )}
       </div>
 

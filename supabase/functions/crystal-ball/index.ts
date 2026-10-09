@@ -42,11 +42,7 @@ serve(async (req) => {
 
     if (arRes.ok) {
       const arData = await arRes.json();
-      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || []);
-
-      // Parse boundaries for target date (e.g., 2026-10-09 00:00:00 to 2026-10-09 23:59:59)
-      const targetStart = new Date(`${targetDateStr}T00:00:00Z`).getTime();
-      const targetEnd = new Date(`${targetDateStr}T23:59:59Z`).getTime();
+      const rawRates: any[] = Array.isArray(arData) ? arData : (arData?.rates || arData?.results || []);
 
       const parsed = rawRates.map((r: any) => {
         const validFromRaw = r.valid_from || r.time || r.from || r.timestamp;
@@ -64,22 +60,18 @@ serve(async (req) => {
         };
       });
 
-      // Match items within requested date timestamp range, or with string match
+      // Match items strictly for the target date string or matching day
       estimates = parsed.filter((r) => {
-        if (r.timestampMs !== null) {
-          // Allow 1-hour timezone offset buffer for BST/UTC shifts
-          return r.timestampMs >= (targetStart - 3600000) && r.timestampMs <= (targetEnd + 3600000);
+        if (r.valid_from && typeof r.valid_from === 'string') {
+          return r.valid_from.startsWith(targetDateStr);
         }
-        return r.valid_from && String(r.valid_from).includes(targetDateStr);
+        if (r.timestampMs !== null) {
+          const slotDateStr = new Date(r.timestampMs).toISOString().split('T')[0];
+          return slotDateStr === targetDateStr;
+        }
+        return false;
       });
 
-      // Fallback: If filtering produced 0 rows but rates exist in file, return all upcoming future rates
-      if (estimates.length === 0 && parsed.length > 0) {
-        const nowMs = now.getTime();
-        estimates = parsed.filter((r) => r.timestampMs === null || r.timestampMs >= (nowMs - 7200000));
-      }
-
-      // Clean up helper key before sending response
       estimates = estimates.map(({ timestampMs, ...rest }) => rest);
     }
 

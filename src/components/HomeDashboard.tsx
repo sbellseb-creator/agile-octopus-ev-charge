@@ -975,11 +975,6 @@ export default function HomeDashboard({
   });
 
   const agilePriceNow = current?.value_inc_vat ?? null;
-  const cheapestWindowLabel = cheapestSlot
-    ? `${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh`
-    : bestWindow
-      ? `${isoToUkClock(bestWindow.from)} – ${bestWindow.avg.toFixed(2)}p/kWh`
-      : null;
 
   const activeSchedule = appSchedules.find((s) => s.enabled) ?? null;
   const teslaSchedule = teslaSchedules[0] ?? null;
@@ -1036,7 +1031,13 @@ export default function HomeDashboard({
         state={live?.state}
         viewMode={homeViewMode}
         agilePricePence={agilePriceNow}
-        cheapestWindowLabel={cheapestWindowLabel}
+        cheapestWindowLabel={
+          cheapestSlot
+            ? `${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh`
+            : bestWindow
+              ? `${isoToUkClock(bestWindow.from)} – ${bestWindow.avg.toFixed(2)}p/kWh`
+              : null
+        }
         scheduleLabel={scheduleLabel}
         footballTeam={footballTeam}
       />
@@ -1084,7 +1085,9 @@ export default function HomeDashboard({
             </div>
             <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 font-semibold px-1">
               <span>Swipe prices →</span>
-              <span>Cheapest window {cheapestWindowLabel ?? "—"}</span>
+              <span>
+                {cheapestSlot ? `Cheapest window ${isoToUkClock(cheapestSlot.valid_from)} – ${cheapestSlot.value_inc_vat.toFixed(2)}p/kWh` : "—"}
+              </span>
             </div>
           </div>
         )}

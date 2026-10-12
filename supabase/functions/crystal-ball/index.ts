@@ -25,6 +25,7 @@ serve(async (req) => {
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
 
+  // Default to today before 10:00 AM, switch to tomorrow after 10:00 AM
   let targetDateStr = today;
   if (isDate(requested)) {
     targetDateStr = requested;
@@ -47,12 +48,12 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Extract the correct array from agile-rates.uk object structure
+    // Check all possible array keys in order of likelihood
     const rawSlots = 
-      data.import_predictions_tomorrow || 
       data.import_actuals_tomorrow || 
-      data.import_predictions_today || 
+      data.import_predictions_tomorrow || 
       data.import_actuals_today || 
+      data.import_predictions_today || 
       data.rates || 
       [];
 
@@ -66,7 +67,7 @@ serve(async (req) => {
       };
     }).filter(r => r.valid_from) : [];
 
-    // Sort chronologically from 00:00 onwards
+    // Ensure slots are strictly ordered chronologically (00:00 -> 23:30)
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({

@@ -1,98 +1,104 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { addDays, ukDate } from "../_shared/agile-core.ts";
+import React, { useEffect, useState } from 'react';
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { 
-    status, 
-    headers: { ...corsHeaders, "Content-Type": "application/json" } 
-  });
+interface RateSlot {
+  valid_from: string;
+  valid_to: string;
+  value_inc_vat: number;
+  value_exc_vat: number;
+}
 
-const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+export const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
+  const [rates, setRates] = useState<RateSlot[]>([]);
+  const [targetDate, setTargetDate] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  useEffect(() => {
+    async function fetchPredictions() {
+      setLoading(true);
+      setError(null);
+      try {
+        // Calls your deployed Supabase Edge Function
+        const res = await fetch(`https://<YOUR-SUPABASE-PROJECT-REF>.supabase.co/functions/v1/crystal-ball?region=${region}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const data = await res.json();
+        setTargetDate(data.date || '');
 
-  const now = new Date();
-  const ukHour = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }), 10);
-  const today = ukDate(now);
-
-  let body: Record<string, unknown> = {};
-  if (req.method === "POST") body = await req.json().catch(() => ({}));
-  const url = new URL(req.url);
-  const param = (k: string) => (body[k] as string | undefined) ?? url.searchParams.get(k) ?? undefined;
-  
-  const region = (param("region") || "F").toUpperCase();
-  const requested = param("date");
-
-  // Default to today before 10:00 AM, switch to tomorrow after 10:00 AM
-  let targetDateStr = today;
-  if (isDate(requested)) {
-    targetDateStr = requested;
-  } else {
-    if (ukHour >= 10) {
-      targetDateStr = addDays(today, 1);
-    }
-  }
-
-  try {
-    const targetUrl = `https://agile-rates.uk/api/v2/archive?date=${targetDateStr}&region=${region}`;
-
-    const res = await fetch(targetUrl, {
-      headers: { "Accept": "application/json" },
-    });
-
-    if (!res.ok) {
-      throw new Error(`agile-rates.uk API error: HTTP ${res.status}`);
+        if (data.rates && Array.isArray(data.rates)) {
+          setRates(data.rates);
+        } else {
+          setRates([]);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch prediction rates');
+      } finally {
+        setLoading(false);
+      }
     }
 
-    const data = await res.json();
-    
-    // Check all possible array keys returned by agile-rates.uk
-    const rawSlots = 
-      data.import_actuals_tomorrow || 
-      data.import_predictions_tomorrow || 
-      data.import_actuals_today || 
-      data.import_predictions_today || 
-      data.rates || 
-      [];
+    fetchPredictions();
+  }, [region]);
 
-    const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      const rateVal = r.rates?.[region] ?? r.rate ?? 0;
-      return {
-        valid_from: r.start || r.valid_from,
-        valid_to: r.end || r.valid_to,
-        value_inc_vat: Number(rateVal),
-        value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
-      };
-    }).filter(r => r.valid_from) : [];
+  const getTier = (value: number) => {
+    if (value <= 0) return { label: 'Sub-zero', color: '#38bdf8' };
+    if (value < 15) return { label: 'Bargain', color: '#22c55e' };
+    if (value < 25) return { label: 'Standard', color: '#eab308' };
+    return { label: 'Premium', color: '#ef4444' };
+  };
 
-    // Ensure slots are strictly ordered chronologically (00:00 -> 23:30)
-    estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
-
-    return json({
-      date: targetDateStr,
-      status: estimates.length > 0 ? "available" : "waiting",
-      available: estimates.length > 0,
-      region,
-      estimated: true,
-      source: "agile-rates.uk",
-      is_mock: false,
-      updated_at: now.toISOString(),
-      results: estimates,
-      rates: estimates,
-    });
-  } catch (err: any) {
-    return json({
-      date: targetDateStr,
-      status: "waiting",
-      available: false,
-      region,
-      estimated: true,
-      error: err.message || "Failed to fetch from agile-rates.uk",
-      updated_at: now.toISOString(),
-      results: [],
-      rates: [],
-    });
+  if (loading) {
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions...</div>;
   }
-});
+
+  if (error || rates.length === 0) {
+    return (
+      <div className="p-8 text-center text-gray-400">
+        <h3 className="text-xl font-bold mb-2">Tomorrow's metrics are published around 10:00.</h3>
+        <p className="text-sm">Wholesale auction results for tomorrow's energy rates will appear here automatically once released.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-emerald-400">
+          Tomorrow's Crystal Ball ({targetDate})
+        </h2>
+        <span className="text-xs bg-emerald-950 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-800">
+          Live Feed
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {rates.map((slot, i) => {
+          const timeStr = new Date(slot.valid_from).toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+          const tier = getTier(slot.value_inc_vat);
+
+          return (
+            <div key={i} className="bg-slate-900 border border-slate-800 rounded-lg p-3 relative flex flex-col justify-between">
+              <div>
+                <div className="text-xs text-slate-400">{timeStr}</div>
+                <div className="text-xl font-bold mt-1 text-slate-100">
+                  {slot.value_inc_vat.toFixed(2)}
+                  <span className="text-xs font-normal text-slate-400 ml-0.5">p</span>
+                </div>
+              </div>
+              <div className="mt-3 pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                <span style={{ color: tier.color }} className="font-medium">
+                  {tier.label}
+                </span>
+                <div className="h-1.5 w-12 rounded-full" style={{ backgroundColor: tier.color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

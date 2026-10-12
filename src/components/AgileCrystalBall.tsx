@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client'; // Adjust import if your client is located elsewhere
+import { supabase } from '@/integrations/supabase/client';
 
 interface RateSlot {
   valid_from: string;
@@ -19,20 +19,17 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       setLoading(true);
       setError(null);
       try {
-        // Call the Edge Function using the Supabase client
         const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
           body: { region },
         });
 
         if (funcError) throw funcError;
 
-        if (data) {
+        if (data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
           setTargetDate(data.date || '');
-          if (data.rates && Array.isArray(data.rates)) {
-            setRates(data.rates);
-          } else {
-            setRates([]);
-          }
+          setRates(data.rates);
+        } else {
+          setRates([]);
         }
       } catch (err: any) {
         console.error('Crystal Ball fetch error:', err);
@@ -45,10 +42,11 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     fetchPredictions();
   }, [region]);
 
+  // Official agile-rates.uk thresholds: Bargain (<10p), Standard (10-20p), Premium (>20p)
   const getTier = (value: number) => {
     if (value <= 0) return { label: 'Sub-zero', color: '#38bdf8' };
-    if (value < 15) return { label: 'Bargain', color: '#22c55e' };
-    if (value < 25) return { label: 'Standard', color: '#eab308' };
+    if (value < 10) return { label: 'Bargain', color: '#22c55e' };
+    if (value < 20) return { label: 'Standard', color: '#eab308' };
     return { label: 'Premium', color: '#ef4444' };
   };
 

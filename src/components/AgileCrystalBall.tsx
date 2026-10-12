@@ -42,7 +42,6 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     fetchPredictions();
   }, [region]);
 
-  // Official agile-rates.uk thresholds: Bargain (<10p), Standard (10-20p), Premium (>20p)
   const getTier = (value: number) => {
     if (value <= 0) return { label: 'Sub-zero', color: '#38bdf8' };
     if (value < 10) return { label: 'Bargain', color: '#22c55e' };

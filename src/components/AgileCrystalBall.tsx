@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client'; // Adjust import if your client is located elsewhere
 
 interface RateSlot {
   valid_from: string;
@@ -18,19 +19,23 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       setLoading(true);
       setError(null);
       try {
-        // Point to your Supabase Edge Function URL
-        const res = await fetch(`https://<YOUR-SUPABASE-PROJECT-REF>.supabase.co/functions/v1/crystal-ball?region=${region}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        
-        const data = await res.json();
-        setTargetDate(data.date || '');
+        // Call the Edge Function using the Supabase client
+        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
+          body: { region },
+        });
 
-        if (data.rates && Array.isArray(data.rates)) {
-          setRates(data.rates);
-        } else {
-          setRates([]);
+        if (funcError) throw funcError;
+
+        if (data) {
+          setTargetDate(data.date || '');
+          if (data.rates && Array.isArray(data.rates)) {
+            setRates(data.rates);
+          } else {
+            setRates([]);
+          }
         }
       } catch (err: any) {
+        console.error('Crystal Ball fetch error:', err);
         setError(err.message || 'Failed to fetch prediction rates');
       } finally {
         setLoading(false);

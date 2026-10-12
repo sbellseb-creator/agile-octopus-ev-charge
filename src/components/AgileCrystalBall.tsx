@@ -7,7 +7,7 @@ interface RateSlot {
   value_exc_vat: number;
 }
 
-export const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
+const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [rates, setRates] = useState<RateSlot[]>([]);
   const [targetDate, setTargetDate] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
@@ -18,7 +18,7 @@ export const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }
       setLoading(true);
       setError(null);
       try {
-        // Calls your deployed Supabase Edge Function
+        // Point to your Supabase Edge Function URL
         const res = await fetch(`https://<YOUR-SUPABASE-PROJECT-REF>.supabase.co/functions/v1/crystal-ball?region=${region}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
@@ -102,3 +102,5 @@ export const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }
     </div>
   );
 };
+
+export default AgileCrystalBall;

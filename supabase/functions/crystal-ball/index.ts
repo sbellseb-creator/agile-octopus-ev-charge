@@ -35,7 +35,6 @@ serve(async (req) => {
   }
 
   try {
-    // Switch back to the live current region endpoint which supplies predictions reliably
     const targetUrl = `https://agile-rates.uk/api/v2/current/${region}`;
 
     const res = await fetch(targetUrl, {
@@ -48,26 +47,25 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Extract rates mapped by target date or fall back to general arrays
-    const slotsMap = data.rates || data.results || data;
-    let rawSlots = [];
-
-    if (Array.isArray(slotsMap)) {
-      rawSlots = slotsMap;
-    } else {
-      rawSlots = slotsMap[targetDateStr] || data.import_predictions_tomorrow || data.import_actuals_tomorrow || data.import_predictions_today || data.import_actuals_today || [];
-    }
+    // Extract array from agile-rates.uk v2 current response structure
+    const rawSlots = 
+      data.import_predictions_tomorrow || 
+      data.import_actuals_tomorrow || 
+      data.import_predictions_today || 
+      data.import_actuals_today || 
+      (Array.isArray(data) ? data : []);
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      const rateVal = r.rates?.[region] ?? r.rate ?? r.value ?? 0;
+      const rateVal = r.rate ?? r.rates?.[region] ?? r.value ?? 0;
       return {
-        valid_from: r.start || r.valid_from || r.time,
+        valid_from: r.start || r.valid_from,
         valid_to: r.end || r.valid_to,
         value_inc_vat: Number(rateVal),
         value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
       };
     }).filter(r => r.valid_from) : [];
 
+    // Ensure chronological sorting from 00:00 -> 23:30
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({

@@ -980,6 +980,14 @@ export default function HomeDashboard({
       lastKnownConnection[vehicle?.id ?? ""] === "charging" ||
       lastKnownConnection[vehicle?.id ?? ""] === "plugged");
 
+const displayState = useMemo(() => {
+    const rawState = live?.state?.toLowerCase() ?? "";
+    if (isAtHome && !isPluggedIn && rawState === "online") {
+      return "At Home";
+    }
+    return live?.state;
+  }, [isAtHome, isPluggedIn, live?.state]);
+  
   const resolvedScene = resolveHomeScene({
     weatherCode: homeWeather?.weatherCode,
     temperatureC: homeWeather?.temperatureC,

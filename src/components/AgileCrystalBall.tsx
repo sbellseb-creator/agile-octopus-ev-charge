@@ -20,53 +20,20 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     async function fetchPredictions() {
       setLoading(true);
       try {
-        // Try calling Supabase backend function
+        // Fetch strictly from the backend Supabase function (no random client-side generation)
         const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
           body: { region },
         });
 
-        if (!funcError && data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-          setTargetDate(data.date || '2026-10-14');
+        if (funcError) throw funcError;
+
+        if (data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
+          setTargetDate(data.date || '');
           setRates(data.rates);
           setIsPredictedActive(data.is_predicted ?? true);
-          setLoading(false);
-          return;
+        } else {
+          setRates([]);
         }
-
-        // Fallback: Generate tomorrow's day-ahead curve so it never goes blank during the 10am-4pm window
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dateStr = tomorrow.toISOString().split('T')[0];
-        setTargetDate(dateStr);
-
-        const generatedSlots: RateSlot[] = Array.from({ length: 48 }).map((_, i) => {
-          const hour = Math.floor(i / 2);
-          const minute = i % 2 === 0 ? '00' : '30';
-          const timePrefix = `${dateStr}T${String(hour).padStart(2, '0')}:${minute}:00Z`;
-          const toHour = minute === '30' ? hour + 1 : hour;
-          const toMinute = minute === '30' ? '00' : '30';
-          const timeToPrefix = `${dateStr}T${String(toHour).padStart(2, '0')}:${toMinute}:00Z`;
-
-          // Realistic UK wholesale clearing curve
-          let basePrice = 22.0;
-          if (hour >= 0 && hour < 5) basePrice = 26.4;
-          else if (hour >= 5 && hour < 10) basePrice = 35.0;
-          else if (hour >= 10 && hour < 12) basePrice = 18.0;
-          else if (hour >= 12 && hour < 16) basePrice = 15.5;
-          else if (hour >= 16 && hour < 19) basePrice = 48.0;
-          else basePrice = 32.0;
-
-          return {
-            valid_from: timePrefix,
-            valid_to: timeToPrefix,
-            value_inc_vat: Number((basePrice + (Math.sin(i) * 1.5)).toFixed(2)),
-            value_exc_vat: Number((basePrice * 0.83).toFixed(2)),
-            is_predicted: true,
-          };
-        });
-
-        setRates(generatedSlots);
-        setIsPredictedActive(true);
       } catch (err: any) {
         console.error('Crystal Ball fetch error:', err);
         setRates([]);
@@ -88,15 +55,15 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-amber-400 mb-4">
           <Clock className="w-6 h-6 animate-pulse" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-1">Tomorrow's metrics are published around 10:00.</h3>
+        <h3 className="text-lg font-bold text-white mb-1">Tomorrow's metrics are published around 10:00[cite: 11].</h3>
         <p className="text-sm text-slate-400 max-w-md">
-          Wholesale auction results for tomorrow's energy rates will appear here automatically once released.
+          Wholesale auction results for tomorrow's energy rates will appear here automatically once released[cite: 11].
         </p>
       </div>
     );
   }
 
-  // Calculate summary metrics
+  // Calculate summary metrics strictly from real backend data
   const prices = rates.map((r) => r.value_inc_vat);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
@@ -111,7 +78,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const minTime = minRateSlot ? formatTimeOnly(minRateSlot.valid_from) : '—';
   const maxTime = maxRateSlot ? formatTimeOnly(maxRateSlot.valid_from) : '—';
 
-  // Group slots into time categories
+  // Group slots into time categories matching agile-rates.uk[cite: 12]
   const morningSlots = rates.filter((r) => {
     const h = new Date(r.valid_from).getHours();
     return h >= 0 && h < 12;
@@ -204,7 +171,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         </div>
       </div>
 
-      {/* Cheapest Windows Summary Pills */}
+      {/* Cheapest Windows Summary Pills[cite: 12] */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
           <div className="text-xs text-slate-400 font-medium">⚡ 1 hr window</div>
@@ -230,7 +197,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
       {/* MORNING WINDOW (00:00 - 12:00) */}
       <div className="space-y-3">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Morning · 00:00 – 12:00</h3>
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Morning · 00:00 – 12:00[cite: 12]</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {morningSlots.map((slot, i) => renderSlotCard(slot, i))}
         </div>
@@ -238,7 +205,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
       {/* AFTERNOON WINDOW (12:00 - 16:00) */}
       <div className="space-y-3 pt-4">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Afternoon · 12:00 – 16:00</h3>
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Afternoon · 12:00 – 16:00[cite: 12]</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {afternoonSlots.map((slot, i) => renderSlotCard(slot, i))}
         </div>
@@ -246,7 +213,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
       {/* PEAK WINDOW (16:00 - 19:00) */}
       <div className="space-y-3 pt-4">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Peak Window · 16:00 – 19:00</h3>
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Peak Window · 16:00 – 19:00[cite: 12]</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {peakSlots.map((slot, i) => renderSlotCard(slot, i))}
         </div>
@@ -254,7 +221,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
       {/* NIGHT WINDOW (19:00 - 24:00) */}
       <div className="space-y-3 pt-4">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Night · 19:00 – 24:00</h3>
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Night · 19:00 – 24:00[cite: 12]</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {nightSlots.map((slot, i) => renderSlotCard(slot, i))}
         </div>

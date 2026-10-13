@@ -35,7 +35,7 @@ serve(async (req) => {
   }
 
   try {
-    // Correct v2 endpoint for current and day-ahead prediction rates
+    // Correct v2 current endpoint providing live predicted rates
     const targetUrl = `https://agile-rates.uk/api/v2/current/${region}`;
 
     const res = await fetch(targetUrl, {
@@ -48,17 +48,17 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // v2 structure groups tomorrow rates under the 'tomorrow' or regional container
+    // Extract tomorrow's rates payload from v2 response structure
     const targetBlock = data.tomorrow || data[region]?.tomorrow || data.data?.tomorrow || data;
     const rawSlots = targetBlock.rates || data.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      const rateVal = r.value_inc_vat ?? r.rate ?? 0;
+      const rateVal = r.value_inc_vat ?? r.valueIncVat ?? r.rate ?? 0;
       return {
-        valid_from: r.valid_from || r.from || r.start,
-        valid_to: r.valid_to || r.to || r.end,
+        valid_from: r.valid_from || r.validFrom || r.from || r.start,
+        valid_to: r.valid_to || r.validTo || r.to || r.end,
         value_inc_vat: Number(rateVal),
-        value_exc_vat: r.value_exc_vat ? Number(r.value_exc_vat) : Number((Number(rateVal) / 1.05).toFixed(2)),
+        value_exc_vat: r.value_exc_vat ?? r.valueExcVat ? Number(r.value_exc_vat ?? r.valueExcVat) : Number((Number(rateVal) / 1.05).toFixed(2)),
       };
     }).filter(r => r.valid_from) : [];
 

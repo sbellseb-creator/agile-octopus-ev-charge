@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Clock, Calendar } from 'lucide-react';
 
 interface RateSlot {
@@ -16,33 +17,42 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchDirectApiRates() {
+    async function fetchPredictions() {
       setLoading(true);
       try {
-        // Fetch directly from agile-rates.uk public API feed for the specified region code (e.g., F)
-        const response = await fetch(`https://agile-rates.uk/api/v1/forecast/${region}`);
-        const data = await response.json();
+        // Call your Supabase Edge Function
+        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
+          body: { region },
+        });
 
-        if (data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-          setTargetDate(data.date || '');
-          setRates(data.rates);
-          setIsPredictedActive(true);
+        if (funcError) {
+          console.error("Supabase function error:", funcError);
+          throw funcError;
+        }
+
+        // Check various possible response shapes from your backend
+        const rawRates = data?.rates || data?.data || (Array.isArray(data) ? data : []);
+
+        if (rawRates.length > 0) {
+          setTargetDate(data.date || '2026-10-14');
+          setRates(rawRates);
+          setIsPredictedActive(data.is_predicted ?? true);
         } else {
           setRates([]);
         }
-      } catch (err) {
-        console.error('Failed to fetch from agile-rates.uk API:', err);
+      } catch (err: any) {
+        console.error('Crystal Ball fetch error:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchDirectApiRates();
+    fetchPredictions();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from agile-rates.uk...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions...</div>;
   }
 
   if (rates.length === 0) {

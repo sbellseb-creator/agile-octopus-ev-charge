@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Clock, Calendar } from 'lucide-react';
 
 interface RateSlot {
@@ -17,74 +16,33 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchPredictions() {
+    async function fetchDirectApiRates() {
       setLoading(true);
       try {
-        // 1. Try Supabase Edge Function first
-        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
-          body: { region },
-        });
+        // Fetch directly from agile-rates.uk public API feed for the specified region code (e.g., F)
+        const response = await fetch(`https://agile-rates.uk/api/v1/forecast/${region}`);
+        const data = await response.json();
 
-        if (!funcError && data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-          setTargetDate(data.date || '2026-10-14');
+        if (data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
+          setTargetDate(data.date || '');
           setRates(data.rates);
-          setIsPredictedActive(data.is_predicted ?? true);
-          setLoading(false);
-          return;
+          setIsPredictedActive(true);
+        } else {
+          setRates([]);
         }
-
-        // 2. Realistic Dynamic Fallback Curve (matching true Agile profile: midday solar dip, evening peak)
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dateStr = tomorrow.toISOString().split('T')[0];
-        setTargetDate(dateStr);
-
-        const generatedSlots: RateSlot[] = Array.from({ length: 48 }).map((_, i) => {
-          const hour = Math.floor(i / 2);
-          const minute = i % 2 === 0 ? '00' : '30';
-          const timePrefix = `${dateStr}T${String(hour).padStart(2, '0')}:${minute}:00Z`;
-          const toHour = minute === '30' ? hour + 1 : hour;
-          const toMinute = minute === '30' ? '00' : '30';
-          const timeToPrefix = `${dateStr}T${String(toHour).padStart(2, '0')}:${toMinute}:00Z`;
-
-          // Authentic Octopus Agile price curve shaping
-          let basePrice = 26.5;
-          if (hour >= 1 && hour < 5) basePrice = 22.5;       // Early morning moderate
-          else if (hour >= 5 && hour < 10) basePrice = 35.0;  // Morning ramp
-          else if (hour >= 10 && hour < 12) basePrice = 22.0; // Late morning dip
-          else if (hour >= 12 && hour < 16) basePrice = 14.8; // Midday solar wind/solar drop (Cheapest window)
-          else if (hour >= 16 && hour < 19) basePrice = 48.5; // Evening peak (16:00 - 19:00)
-          else if (hour >= 19 && hour < 22) basePrice = 38.0; // Post-peak wind down
-          else basePrice = 28.0;                              // Night hours
-
-          // Add slight natural variation per slot
-          const jitter = (Math.sin(i * 1.5) * 1.8);
-          const finalPrice = Math.max(8.0, Number((basePrice + jitter).toFixed(2)));
-
-          return {
-            valid_from: timePrefix,
-            valid_to: timeToPrefix,
-            value_inc_vat: finalPrice,
-            value_exc_vat: Number((finalPrice * 0.83).toFixed(2)),
-            is_predicted: true,
-          };
-        });
-
-        setRates(generatedSlots);
-        setIsPredictedActive(true);
-      } catch (err: any) {
-        console.error('Crystal Ball error:', err);
+      } catch (err) {
+        console.error('Failed to fetch from agile-rates.uk API:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchPredictions();
+    fetchDirectApiRates();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from agile-rates.uk...</div>;
   }
 
   if (rates.length === 0) {
@@ -101,7 +59,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  // Calculate summary metrics
+  // Calculate metrics
   const prices = rates.map((r) => r.value_inc_vat);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);

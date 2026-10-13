@@ -16,21 +16,21 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchV2Rates() {
+    async function fetchApiV2Current() {
       setLoading(true);
       try {
-        // Query Agile Rates API v2
-        const response = await fetch(`https://agile-rates.uk/api/v2/rates/${region}`);
+        // Correct Agile Rates API v2 endpoint path
+        const response = await fetch(`https://agile-rates.uk/api/v2/current/${region}`);
         const data = await response.json();
 
-        // Parse v2 response layout for tomorrow's prediction slots
-        const tomorrowData = data?.tomorrow || data?.rates || {};
-        const slotList = tomorrowData.rates || (Array.isArray(data) ? data : []);
+        // Extract tomorrow's prediction array from v2 response structure
+        const tomorrowData = data?.tomorrow || data?.data?.tomorrow || {};
+        const slotList = tomorrowData.rates || data?.rates || [];
 
         if (slotList.length > 0) {
           setTargetDate(tomorrowData.date || data.date || '');
           setRates(slotList);
-          setIsPredictedActive(true);
+          setIsPredictedActive(tomorrowData.is_predicted ?? true);
         } else {
           setRates([]);
         }
@@ -42,11 +42,11 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       }
     }
 
-    fetchV2Rates();
+    fetchApiV2Current();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from API v2...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions via API v2...</div>;
   }
 
   if (rates.length === 0) {

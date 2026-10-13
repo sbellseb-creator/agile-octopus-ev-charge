@@ -16,37 +16,58 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchApiV2Current() {
+    async function fetchAgileRatesJson() {
       setLoading(true);
       try {
-        // Correct Agile Rates API v2 endpoint path
-        const response = await fetch(`https://agile-rates.uk/api/v2/current/${region}`);
+        // Fetch directly from the official regional json endpoint
+        const response = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
         const data = await response.json();
 
-        // Extract tomorrow's prediction array from v2 response structure
-        const tomorrowData = data?.tomorrow || data?.data?.tomorrow || {};
-        const slotList = tomorrowData.rates || data?.rates || [];
+        // Extract rates array from the payload (checking standard structures)
+        const allRates = data?.rates || data?.data || [];
+        
+        // Filter or locate tomorrow's predicted/actual slots
+        const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        const tomorrowSlots = allRates.filter((r: any) => 
+          (r.valid_from || r.from || '').startsWith(tomorrowStr)
+        );
 
-        if (slotList.length > 0) {
-          setTargetDate(tomorrowData.date || data.date || '');
-          setRates(slotList);
-          setIsPredictedActive(tomorrowData.is_predicted ?? true);
+        if (tomorrowSlots.length > 0) {
+          setTargetDate(tomorrowStr);
+          setRates(tomorrowSlots.map((s: any) => ({
+            valid_from: s.valid_from || s.from,
+            valid_to: s.valid_to || s.to,
+            value_inc_vat: s.value_inc_vat ?? s.rate ?? 0,
+            value_exc_vat: s.value_exc_vat ?? (s.rate ? s.rate * 0.83 : 0),
+            is_predicted: s.is_predicted ?? true
+          })));
+          setIsPredictedActive(true);
+        } else if (allRates.length > 0) {
+          // Fallback to latest available batch if date matching is structured differently
+          setTargetDate(tomorrowStr);
+          setRates(allRates.slice(0, 48).map((s: any) => ({
+            valid_from: s.valid_from || s.from,
+            valid_to: s.valid_to || s.to,
+            value_inc_vat: s.value_inc_vat ?? s.rate ?? 0,
+            value_exc_vat: s.value_exc_vat ?? (s.rate ? s.rate * 0.83 : 0),
+            is_predicted: true
+          })));
         } else {
           setRates([]);
         }
       } catch (err) {
-        console.error('Failed to fetch from agile-rates.uk API v2:', err);
+        console.error('Failed to fetch regional Agile Rates JSON:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchApiV2Current();
+    fetchAgileRatesJson();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions via API v2...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from agile-rates.uk...</div>;
   }
 
   if (rates.length === 0) {

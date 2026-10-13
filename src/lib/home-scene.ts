@@ -132,7 +132,7 @@ export function getUKDayPhase(
 }
 
 export function resolveHomeScene(args: {
-  preference: HomeThemePreference;
+  preference?: HomeThemePreference; // Make preference optional
   weatherCode?: number;
   temperatureC?: number;
   cloudCover?: number;
@@ -141,19 +141,22 @@ export function resolveHomeScene(args: {
   source?: "live" | "estimated";
   now?: Date;
 }): HomeScene {
+  // Default to automatic if preference was omitted
+  const preference = args.preference ?? "automatic";
+
   const phase = getUKDayPhase(
     args.now,
     args.sunrise,
     args.sunset,
   );
 
-  if (args.preference !== "automatic") {
+  if (preference !== "automatic") {
     return {
       mode: "forced",
-      theme: args.preference,
+      theme: preference,
       weather:
-        args.preference === "winter" ||
-        args.preference === "christmas"
+        preference === "winter" ||
+        preference === "christmas"
           ? "snow"
           : "clear",
       phase,

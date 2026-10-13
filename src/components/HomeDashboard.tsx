@@ -860,7 +860,7 @@ export default function HomeDashboard({
     } else if (summaryPeriod === "year") {
       firstKey = `${formatUK(today, "yyyy")}-01-01`;
     } else {
-      firstKey = `${formatUK(today, "yyyy-MM")}-01`;
+      firstKey = `${formatUK(today, "yyyy")}-01`;
     }
 
     const rows = sessions.filter((session) => {
@@ -980,7 +980,7 @@ export default function HomeDashboard({
       lastKnownConnection[vehicle?.id ?? ""] === "charging" ||
       lastKnownConnection[vehicle?.id ?? ""] === "plugged");
 
-const displayState = useMemo(() => {
+  const displayState = useMemo(() => {
     const rawState = live?.state?.toLowerCase() ?? "";
     if (isAtHome && !isPluggedIn && rawState === "online") {
       return "At Home";
@@ -1050,7 +1050,7 @@ const displayState = useMemo(() => {
         chargerAmps={live?.charger_actual_current}
         chargerAmpsLive={live?.charger_actual_current != null}
         timeToFullChargeHours={live?.time_to_full_charge}
-        state={live?.state}
+        state={displayState}
         viewMode={homeViewMode}
         agilePricePence={agilePriceNow}
         cheapestWindowLabel={

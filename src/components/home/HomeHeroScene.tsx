@@ -330,23 +330,23 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card */}
-      <div className="absolute bottom-2 left-2 z-30 max-w-[48%] min-w-[145px] rounded-xl border border-white/15 bg-slate-950/75 px-2.5 py-2 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[52%] min-[430px]:px-3 sm:top-[58px] sm:left-4 sm:max-w-[38%] sm:rounded-2xl sm:px-3 sm:py-2.5 md:max-w-[42%] md:px-4 md:py-3">
-        <div className="flex items-center gap-1.5 min-[430px]:gap-2">
+      {/* Charge Status Card (Compact sizing on mobile, expanding smoothly on larger viewports) */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[130px] sm:max-w-[210px] rounded-xl border border-white/15 bg-slate-950/75 px-2 py-1.5 sm:px-3 sm:py-2.5 shadow-2xl backdrop-blur-xl">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           <BatteryCharging
             className={
               charging
-                ? "h-4 w-4 shrink-0 text-emerald-300 sm:h-5 sm:w-5"
-                : "h-4 w-4 shrink-0 text-white/80 sm:h-5 sm:w-5"
+                ? "h-3.5 w-3.5 shrink-0 text-emerald-300 sm:h-5 sm:w-5"
+                : "h-3.5 w-3.5 shrink-0 text-white/80 sm:h-5 sm:w-5"
             }
           />
 
-          <span className="text-base font-black tracking-tight text-white min-[430px]:text-xl md:text-2xl">
+          <span className="text-sm font-black tracking-tight text-white sm:text-2xl truncate">
             {battery}
           </span>
         </div>
 
-        <div className="mt-0.5 text-[10px] font-semibold text-white/85 min-[430px]:mt-1 min-[430px]:text-xs">
+        <div className="mt-0.5 text-[9px] sm:text-xs font-semibold text-white/85 truncate">
           {charging
             ? chargerPowerKw != null
               ? `${chargerPowerKw.toFixed(1)} kW${
@@ -359,13 +359,13 @@ export default function HomeHeroScene({
         </div>
 
         {charging && remaining && (
-          <div className="mt-0.5 text-[10px] font-semibold text-emerald-200 min-[430px]:mt-1 min-[430px]:text-[11px]">
+          <div className="mt-0.5 text-[9px] sm:text-[11px] font-semibold text-emerald-200 truncate">
             {remaining}
           </div>
         )}
 
         {!charging && chargeLimit != null && (
-          <div className="mt-0.5 text-[10px] text-white/65 min-[430px]:mt-1">
+          <div className="mt-0.5 text-[9px] sm:text-xs text-white/65 truncate">
             Target {Math.round(chargeLimit)}%
           </div>
         )}

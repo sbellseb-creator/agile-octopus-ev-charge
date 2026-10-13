@@ -2,15 +2,12 @@ import type { HomeScene } from "@/lib/home-scene";
 
 export function homeSceneBackground(
   scene: HomeScene,
-  state: {
+  _state: {
     pluggedIn?: boolean;
     charging?: boolean;
   } = {},
 ): string {
-  // We keep this variable if needed for other logic, but we will always 
-  // load the clean base background assets featuring your white charger unit.
-  const connected = Boolean(state.pluggedIn || state.charging);
-
+  // Always return the standard base background assets featuring your white charger unit.
   if (scene.mode === "forced") {
     const isNight = scene.phase === "night";
 
@@ -28,15 +25,6 @@ export function homeSceneBackground(
 
     if (scene.theme === "autumn") {
       return "/home-scenes/dashboard-reference-sunset-charging.png";
-    }
-
-    if (
-      scene.theme === "winter" ||
-      scene.theme === "easter" ||
-      scene.theme === "halloween" ||
-      scene.theme === "christmas"
-    ) {
-      return "/home-scenes/dashboard-reference-partly-cloudy-day.png";
     }
 
     return "/home-scenes/dashboard-reference-partly-cloudy-day.png";

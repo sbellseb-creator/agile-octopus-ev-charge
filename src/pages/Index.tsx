@@ -195,9 +195,9 @@ export default function Index() {
       <main className="container py-6 space-y-6">
         <Tabs value={tab === "planner" ? "charging" : tab} onValueChange={setTab} className="space-y-6">
           
-          {/* 🔥 HIGH-CONTRAST NEON FLOATING COMMAND BAR */}
-          <div className="sticky top-3 z-50 bg-slate-900/95 backdrop-blur-2xl border border-emerald-500/30 rounded-2xl p-2.5 shadow-[0_0_30px_rgba(0,0,0,0.8),0_0_15px_rgba(16,185,129,0.15)] flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+          {/* 🔥 RESPONSIVE WRAP GRID COMMAND DOCK (NO SCROLLING) */}
+          <div className="sticky top-3 z-50 bg-slate-900/95 backdrop-blur-2xl border border-emerald-500/30 rounded-2xl p-2.5 shadow-[0_0_30px_rgba(0,0,0,0.8),0_0_15px_rgba(16,185,129,0.15)] flex flex-col gap-2.5">
+            <div className="grid grid-cols-4 sm:flex sm:flex-wrap items-center gap-1.5 w-full">
               {mainTabs.map((t) => {
                 const Icon = t.icon;
                 const isActive = (tab === "planner" ? "charging" : tab) === t.id;
@@ -205,25 +205,24 @@ export default function Index() {
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap ${
+                    className={`flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap ${
                       isActive
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)] scale-105 font-black'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)] scale-105 font-black col-span-2 sm:col-span-1'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80 col-span-1'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950 stroke-[2.5]' : 'text-emerald-400'}`} />
-                    <span>{t.label}</span>
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-slate-950 stroke-[2.5]' : 'text-emerald-400'}`} />
+                    <span className="truncate">{t.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* 🔥 VIBRANT AMBER/EMERALD SUB-NAV PULLOUT */}
             {tab === "agile" && (
-              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-emerald-500/20 w-full md:w-auto justify-center shadow-inner">
+              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-emerald-500/20 w-full justify-center shadow-inner">
                 <button
                   onClick={() => setAgileSub("rates")}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-extrabold transition-all duration-200 ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all duration-200 ${
                     agileSub === "rates"
                       ? 'bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-105'
                       : 'text-slate-400 hover:text-white hover:bg-slate-900'
@@ -234,7 +233,7 @@ export default function Index() {
                 </button>
                 <button
                   onClick={() => setAgileSub("crystal")}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-extrabold transition-all duration-200 ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all duration-200 ${
                     agileSub === "crystal"
                       ? 'bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-105'
                       : 'text-slate-400 hover:text-white hover:bg-slate-900'

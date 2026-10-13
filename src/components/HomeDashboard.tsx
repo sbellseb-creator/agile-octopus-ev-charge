@@ -162,6 +162,7 @@ function sessionClock(session: ChargeSession, edge: "start" | "finish"): string 
   if (timestamp) return formatUK(timestamp, "HH:mm");
   return (edge === "start" ? session.start_time : session.end_time) || "—";
 }
+
 export default function HomeDashboard({
   vehicles,
   sessions,
@@ -943,25 +944,41 @@ export default function HomeDashboard({
     return `${dayLabel} · ${energy.toFixed(1)} kWh · £${cost.toFixed(2)}`;
   }, [lastCharge]);
 
-  const vehicleState =
-    live?.state?.toLowerCase() ?? "";
+  const isAtHome = useMemo(() => {
+    if (!live?.latitude || !live?.longitude || settings.home_latitude == null || settings.home_longitude == null) {
+      return true;
+    }
+    const R = 6371e3;
+    const lat1 = (settings.home_latitude * Math.PI) / 180;
+    const lat2 = (live.latitude * Math.PI) / 180;
+    const deltaLat = ((live.latitude - settings.home_latitude) * Math.PI) / 180;
+    const deltaLon = ((live.longitude - settings.home_longitude) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanceMeters = R * c;
+
+    return distanceMeters < 200;
+  }, [live?.latitude, live?.longitude, settings.home_latitude, settings.home_longitude]);
 
   const chargingState =
     live?.charging_state?.toLowerCase() ?? "";
 
   const isCharging =
-    chargingState === "charging" ||
-    chargingState === "starting" ||
-    vehicleState === "online";
+    isAtHome &&
+    (chargingState === "charging" || chargingState === "starting");
 
   const isPluggedIn =
-    isCharging ||
-    chargingState === "stopped" ||
-    chargingState === "nopower" ||
-    chargingState === "complete" ||
-    live?.charge_port_latch_state?.toLowerCase() === "engaged" ||
-    lastKnownConnection[vehicle?.id ?? ""] === "charging" ||
-    lastKnownConnection[vehicle?.id ?? ""] === "plugged";
+    isAtHome &&
+    (isCharging ||
+      chargingState === "stopped" ||
+      chargingState === "nopower" ||
+      chargingState === "complete" ||
+      live?.charge_port_latch_state?.toLowerCase() === "engaged" ||
+      lastKnownConnection[vehicle?.id ?? ""] === "charging" ||
+      lastKnownConnection[vehicle?.id ?? ""] === "plugged");
 
   const resolvedScene = resolveHomeScene({
     weatherCode: homeWeather?.weatherCode,
@@ -969,8 +986,6 @@ export default function HomeDashboard({
     cloudCover: homeWeather?.cloudCover,
     sunrise: homeWeather?.sunrise,
     sunset: homeWeather?.sunset,
-    charging: isCharging,
-    pluggedIn: isPluggedIn,
   });
 
   const agilePriceNow = current?.value_inc_vat ?? null;

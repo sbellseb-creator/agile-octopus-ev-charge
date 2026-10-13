@@ -82,7 +82,6 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
-  // Prioritize live vehicle telemetry for time to full (essential for DC rapid charging)
   const observedRemainingHours =
     timeToFullChargeHours != null &&
     Number.isFinite(timeToFullChargeHours) &&
@@ -279,7 +278,22 @@ export default function HomeHeroScene({
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+
+              {/* Luma-Invert Filter: Lifts charcoal faceplate to photographic white glass */}
+              <filter id="photographic-white-charger" x="0%" y="0%" width="100%" height="100%">
+                <feComponentTransfer>
+                  <feFuncR type="linear" slope="2.8" intercept="0.32" />
+                  <feFuncG type="linear" slope="2.8" intercept="0.34" />
+                  <feFuncB type="linear" slope="3.0" intercept="0.38" />
+                </feComponentTransfer>
+              </filter>
+
+              <clipPath id="charger-body-clip">
+                <rect x="495" y="243" width="50" height="132" rx="19" />
+              </clipPath>
             </defs>
+
+            {/* Base Background Image */}
             <image
               href={background}
               x="0"
@@ -289,33 +303,30 @@ export default function HomeHeroScene({
               preserveAspectRatio="xMidYMid slice"
             />
 
-            {/* --- PHOTOGRAPHIC WHITE WALL CONNECTOR TINT --- */}
-            <g transform="translate(492, 241)">
-              <mask id="charger-surface-mask">
-                <rect x="2" y="2" width="52" height="136" rx="20" fill="white" />
-              </mask>
-              <rect
-                x="2"
-                y="2"
-                width="52"
-                height="136"
-                rx="20"
-                fill="rgb(235 240 245)"
-                mixBlendMode="screen"
-                mask="url(#charger-surface-mask)"
-              />
-              <rect
-                x="6"
-                y="6"
-                width="44"
-                height="128"
-                rx="16"
-                fill="white"
-                fillOpacity="0.25"
-                mixBlendMode="overlay"
-                mask="url(#charger-surface-mask)"
-              />
-            </g>
+            {/* Inverted duplicate clipped strictly to the charger body to reveal white glass */}
+            <image
+              href={background}
+              x="0"
+              y="0"
+              width="1672"
+              height="941"
+              preserveAspectRatio="xMidYMid slice"
+              clipPath="url(#charger-body-clip)"
+              filter="url(#photographic-white-charger)"
+            />
+
+            {/* Glossy top edge highlight for Gen 3 tempered glass aesthetic */}
+            <rect
+              x="498"
+              y="246"
+              width="44"
+              height="126"
+              rx="16"
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.45)"
+              strokeWidth="1.2"
+              pointerEvents="none"
+            />
 
             {/* Cable Overlay Path: Blue when waiting, pulsing green when charging */}
             <path

@@ -134,8 +134,6 @@ export default function HomeHeroScene({
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
   }, [scene, background]);
 
-  // Only use the SVG container overlay when actively charging, so the live green glowing cable renders.
-  // When unplugged or waiting, it falls back to the native photographic background with the wrapped black cable.
   const usesAlignedConnectedScene = charging;
 
   const compactStatus = charging
@@ -165,6 +163,22 @@ export default function HomeHeroScene({
   const clubTicker = footballTeam === "Sunderland"
     ? "HA'WAY THE LADS · SUNDERLAND MODE"
     : `${footballTeam.toUpperCase()} · CLUB MODE`;
+
+  // Compute location text: Default to "At Home" when parked/offline at home hero view
+  const rawState = (state || "").toLowerCase();
+  const isOfflineOrAsleep = rawState.includes("offline") || rawState.includes("asleep");
+  
+  const displayLocationStatus = charging
+    ? chargerPowerKw != null
+      ? `${chargerPowerKw.toFixed(1)} kW${
+          chargerAmps != null && chargerAmps > 0
+            ? ` · ${Math.round(chargerAmps)} A${chargerAmpsLive ? " live" : ""}`
+            : " · DC rapid"
+        }`
+      : "Charging"
+    : isOfflineOrAsleep || !state
+      ? "At Home"
+      : state;
 
   if (viewMode === "cockpit") {
     return (
@@ -246,7 +260,7 @@ export default function HomeHeroScene({
   return (
     <div className="relative aspect-[16/9] min-h-[190px] overflow-hidden rounded-[22px] bg-slate-950 min-[430px]:aspect-[16/10] min-[430px]:min-h-[280px] sm:aspect-[16/8.5] sm:min-h-[320px] sm:rounded-[30px] md:min-h-[360px] lg:aspect-[16/7.4] lg:min-h-[480px] lg:max-h-[590px]">
 
-      {/* Real/generated weather scene, with seasonal filters + overlays */}
+      {/* Weather Scene */}
       <SeasonalOverlay
         theme={scene.mode === "forced" ? scene.theme : "automatic"}
         phase={scene.phase}
@@ -305,15 +319,13 @@ export default function HomeHeroScene({
           />
         )}
 
-        {/* Fallback atmosphere while an image is unavailable */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />
       </SeasonalOverlay>
 
-      {/* Premium cinematic grading */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-black/20" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/15" />
 
-      {/* Weather badge (Top-Left across all viewports) */}
+      {/* Weather Badge (Top-Left) */}
       <div className="absolute left-2 top-2 z-30 w-fit max-w-fit whitespace-nowrap flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/65 px-2 py-1.5 text-[10px] text-white/85 shadow-xl backdrop-blur-xl min-[430px]:left-3 min-[430px]:top-3 min-[430px]:px-2.5 min-[430px]:py-2 min-[430px]:text-[11px] sm:left-4 sm:top-4 sm:gap-2 sm:text-xs md:px-3">
         <WeatherIcon scene={scene} />
 
@@ -330,8 +342,8 @@ export default function HomeHeroScene({
         )}
       </div>
 
-      {/* Charge Status Card (Compact sizing on mobile, expanding smoothly on larger viewports) */}
-      <div className="absolute bottom-2 left-2 z-30 max-w-[130px] sm:max-w-[210px] rounded-xl border border-white/15 bg-slate-950/75 px-2 py-1.5 sm:px-3 sm:py-2.5 shadow-2xl backdrop-blur-xl">
+      {/* Charge Status Card: Compact & mobile responsive while keeping desktop top-left positioning */}
+      <div className="absolute bottom-2 left-2 z-30 max-w-[130px] rounded-xl border border-white/15 bg-slate-950/75 px-2 py-1.5 shadow-2xl backdrop-blur-xl min-[430px]:top-[48px] min-[430px]:bottom-auto min-[430px]:left-3 min-[430px]:max-w-[180px] min-[430px]:px-3 min-[430px]:py-2 sm:top-[58px] sm:left-4 sm:max-w-[210px] sm:rounded-2xl sm:px-3 sm:py-2.5 md:px-4 md:py-3">
         <div className="flex items-center gap-1 sm:gap-1.5">
           <BatteryCharging
             className={
@@ -341,31 +353,23 @@ export default function HomeHeroScene({
             }
           />
 
-          <span className="text-sm font-black tracking-tight text-white sm:text-2xl truncate">
+          <span className="text-sm font-black tracking-tight text-white min-[430px]:text-xl md:text-2xl truncate">
             {battery}
           </span>
         </div>
 
-        <div className="mt-0.5 text-[9px] sm:text-xs font-semibold text-white/85 truncate">
-          {charging
-            ? chargerPowerKw != null
-              ? `${chargerPowerKw.toFixed(1)} kW${
-                  chargerAmps != null && chargerAmps > 0
-                    ? ` · ${Math.round(chargerAmps)} A${chargerAmpsLive ? " live" : ""}`
-                    : " · DC rapid"
-                }`
-              : "Charging"
-            : `${state || "Vehicle status"}${batteryIsLastKnown && !state?.toLowerCase().includes("last known") ? " · Last known" : ""}`}
+        <div className="mt-0.5 text-[9px] font-semibold text-white/85 min-[430px]:mt-1 min-[430px]:text-xs truncate">
+          {displayLocationStatus}
         </div>
 
         {charging && remaining && (
-          <div className="mt-0.5 text-[9px] sm:text-[11px] font-semibold text-emerald-200 truncate">
+          <div className="mt-0.5 text-[9px] font-semibold text-emerald-200 min-[430px]:mt-1 min-[430px]:text-[11px] truncate">
             {remaining}
           </div>
         )}
 
         {!charging && chargeLimit != null && (
-          <div className="mt-0.5 text-[9px] sm:text-xs text-white/65 truncate">
+          <div className="mt-0.5 text-[9px] text-white/65 min-[430px]:mt-1 min-[430px]:text-xs truncate">
             Target {Math.round(chargeLimit)}%
           </div>
         )}

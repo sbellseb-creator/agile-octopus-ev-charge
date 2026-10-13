@@ -7,9 +7,7 @@ export function homeSceneBackground(
     charging?: boolean;
   } = {},
 ): string {
-  // Permanently force connected assets off so the base white charger is always used
-  const connected = false;
-
+  // Always use the clean base photographic assets featuring the embedded white charger
   if (scene.mode === "forced") {
     const isNight = scene.phase === "night";
 
@@ -18,8 +16,7 @@ export function homeSceneBackground(
     }
 
     if (scene.phase === "dawn" || scene.phase === "sunset") {
-      // Use the base sunset asset without charging suffix
-      return "/home-scenes/dashboard-reference-sunset-charging.png"; // or base equivalent if available
+      return "/home-scenes/dashboard-reference-sunset-charging.png";
     }
 
     if (scene.theme === "classic") {

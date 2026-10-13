@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, Sparkles, LogOut, Home as HomeIcon, Settings as Cog } from "lucide-react";
+import { Zap, Car, TrendingDown, Gauge, CloudSun, Briefcase, Sparkles, LogOut, Home as HomeIcon, Settings as Cog, TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { loadSessions, addSession, deleteSession, updateSession } from "@/lib/charge-data";
@@ -59,9 +59,8 @@ export default function Index() {
     historicalSessionsRecalculated.current = true;
     const capacityByVehicle = new Map(
       (Array.isArray(vehicles) ? vehicles : []).map((vehicle) => [vehicle?.id, vehicle?.battery_kwh]),
-
     );
-        const corrections = recalculateHistoricalSessions(
+    const corrections = recalculateHistoricalSessions(
       Array.isArray(sessions) ? sessions : [],
       (session) => capacityByVehicle.get(session?.vehicle_id) || 75,
     );
@@ -72,7 +71,7 @@ export default function Index() {
     setSessions(loadSessions());
   }, [sessions, sessionsCloudConfirmed, vehicles]);
 
-    useEffect(() => {
+  useEffect(() => {
     let stop = () => {};
     try {
       stop = startAutoSync() || (() => {});
@@ -83,7 +82,6 @@ export default function Index() {
     const onUpdated = () => {
       try {
         const rawData = loadSessions();
-        // 🛡️ DATA-GUARD NET: Force empty array if database payload is corrupted or missing
         setSessions(Array.isArray(rawData) ? rawData : []);
         setSessionsCloudConfirmed(true);
       } catch (err) {
@@ -144,58 +142,96 @@ export default function Index() {
     setVehicles(updated);
   }, []);
 
+  const mainTabs = [
+    { id: 'home', label: 'Home', icon: HomeIcon },
+    { id: 'agile', label: 'Agile', icon: TrendingDown },
+    { id: 'charging', label: 'Charge', icon: Zap },
+    { id: 'tracker', label: 'Tracker', icon: Gauge },
+    { id: 'vehicles', label: 'Vehicles', icon: Car },
+    { id: 'forecast', label: 'Forecast', icon: CloudSun },
+    { id: 'work', label: 'Work', icon: Briefcase },
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container flex min-w-0 items-center gap-1.5 py-3 sm:gap-3 sm:py-4">
-          <Zap className="h-5 w-5 shrink-0 text-primary sm:h-7 sm:w-7" />
+    <div className="min-h-screen bg-background text-white">
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
+        <div className="container flex min-w-0 items-center gap-2 py-3 sm:gap-3 sm:py-4">
+          <Zap className="h-5 w-5 shrink-0 text-emerald-400 sm:h-7 sm:w-7" />
           <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
-          <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold text-emerald-300 min-[430px]:inline">
+          <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 min-[430px]:inline">
             Release 032
           </span>
           <SyncIndicator />
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="h-8 w-8 shrink-0 text-slate-400 hover:text-white"
             onClick={() => setTab("settings")}
             aria-label="Settings"
           >
             <Cog className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut} aria-label="Sign out">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-slate-400 hover:text-white" onClick={signOut} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      
-
-      <main className="container py-3 sm:py-4">
+      <main className="container py-4 space-y-4">
         <Tabs value={tab === "planner" ? "charging" : tab} onValueChange={setTab} className="space-y-4">
-          <TabsList className="sticky top-2 z-50 grid h-auto w-full grid-cols-4 gap-0.5 border border-white/10 bg-slate-900/95 p-1 shadow-2xl backdrop-blur-xl">
-            <TabsTrigger value="home" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <HomeIcon className="h-4 w-4 shrink-0" /> Home
-            </TabsTrigger>
-            <TabsTrigger value="agile" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <TrendingDown className="h-4 w-4 shrink-0" /> Agile
-            </TabsTrigger>
-            <TabsTrigger value="charging" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Zap className="h-4 w-4 shrink-0" /> Charge
-            </TabsTrigger>
-            <TabsTrigger value="tracker" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Gauge className="h-4 w-4 shrink-0" /> Tracker
-            </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Car className="h-4 w-4 shrink-0" /> Vehicles
-            </TabsTrigger>
-            <TabsTrigger value="forecast" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <CloudSun className="h-4 w-4 shrink-0" /> Forecast
-            </TabsTrigger>
-            <TabsTrigger value="work" className="flex h-9 flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium">
-              <Briefcase className="h-4 w-4 shrink-0" /> Work
-            </TabsTrigger>
-          </TabsList>
+          
+          {/* Sleek Floating Glassmorphism Navigation Dock */}
+          <div className="sticky top-2 z-50 bg-slate-900/90 backdrop-blur-2xl border border-slate-800/80 rounded-2xl p-2 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+              {mainTabs.map((t) => {
+                const Icon = t.icon;
+                const isActive = (tab === "planner" ? "charging" : tab) === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                      isActive
+                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30 shadow-inner'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+                    <span>{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Contextual Sub-menu for Agile View */}
+            {tab === "agile" && (
+              <div className="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800/60 w-full md:w-auto justify-center">
+                <button
+                  onClick={() => setAgileSub("rates")}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                    agileSub === "rates"
+                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Live Rates</span>
+                </button>
+                <button
+                  onClick={() => setAgileSub("crystal")}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                    agileSub === "crystal"
+                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Crystal Ball</span>
+                  <HopefulEvMan />
+                </button>
+              </div>
+            )}
+          </div>
 
           <TabsContent value="home" className="space-y-6">
             <HomeDashboard
@@ -208,25 +244,18 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="agile" className="space-y-6">
-            <Tabs value={agileSub} onValueChange={(v) => setAgileSub(v as "rates" | "crystal")} className="space-y-4">
-              <TabsList className="grid h-auto w-full grid-cols-2 border border-white/10 bg-slate-900/95 p-1">
-                <TabsTrigger value="rates" className="text-xs font-medium">Rates</TabsTrigger>
-                <TabsTrigger value="crystal" className="flex items-center justify-center gap-1.5 text-xs font-medium">
-                  <Sparkles className="h-3.5 w-3.5 shrink-0" /> Crystal Ball
-                  <HopefulEvMan />
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="rates" className="space-y-6">
+            {agileSub === "rates" ? (
+              <div className="space-y-6">
                 <AgileRates vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
                 <TariffComparison />
-              </TabsContent>
-              <TabsContent value="crystal" className="space-y-6">
+              </div>
+            ) : (
+              <div className="space-y-6">
                 <AgileCrystalBall />
-              </TabsContent>
-            </Tabs>
+              </div>
+            )}
           </TabsContent>
 
-          {/* ⚡ RESTORED COMPLETELY BUG-FREE CHARGING CONTENT MODULE WITH PROP INJECTORS */}
           <TabsContent value="charging" className="space-y-6">
             <ChargePlanner vehicles={vehicles} onSessionSaved={() => setSessions(loadSessions())} />
             <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Log a past session manually</h2>
@@ -275,4 +304,3 @@ export default function Index() {
     </div>
   );
 }
-

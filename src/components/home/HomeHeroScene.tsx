@@ -82,6 +82,7 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
+  // Prioritize live vehicle telemetry for time to full (essential for DC rapid charging)
   const observedRemainingHours =
     timeToFullChargeHours != null &&
     Number.isFinite(timeToFullChargeHours) &&
@@ -132,7 +133,23 @@ export default function HomeHeroScene({
 
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
+    console.log("[HomeHeroScene] background style ->", `url("${background}")`);
+    console.log(
+      "[HomeHeroScene] rendered backgroundImage style ->",
+      backgroundLayerRef.current?.style.backgroundImage,
+    );
   }, [scene, background]);
+
+  const usesAlignedConnectedScene =
+    (charging || pluggedIn) &&
+    scene.mode === "weather" &&
+    scene.phase === "day" &&
+    (scene.weather === "fair" ||
+      scene.weather === "partly-cloudy" ||
+      scene.weather === "mostly-cloudy" ||
+      scene.weather === "overcast" ||
+      scene.weather === "rain" ||
+      scene.weather === "storm");
 
   const compactStatus = charging
     ? "Charging"
@@ -247,32 +264,60 @@ export default function HomeHeroScene({
         theme={scene.mode === "forced" ? scene.theme : "automatic"}
         phase={scene.phase}
       >
-        <svg
-          viewBox="0 0 1672 941"
-          preserveAspectRatio="xMaxYMid slice"
-          className="absolute inset-0 h-full w-full transition-all duration-700"
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation=".65" result="cableGlow" />
-              <feMerge>
-                <feMergeNode in="cableGlow" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <image
-            href={background}
-            x="0"
-            y="0"
-            width="1672"
-            height="941"
-            preserveAspectRatio="xMidYMid slice"
-          />
+        {usesAlignedConnectedScene ? (
+          <svg
+            viewBox="0 0 1672 941"
+            preserveAspectRatio="xMaxYMid slice"
+            className="absolute inset-0 h-full w-full transition-all duration-700"
+            aria-hidden="true"
+          >
+            <defs>
+              <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation=".65" result="cableGlow" />
+                <feMerge>
+                  <feMergeNode in="cableGlow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <image
+              href={background}
+              x="0"
+              y="0"
+              width="1672"
+              height="941"
+              preserveAspectRatio="xMidYMid slice"
+            />
 
-          {/* Cable Overlay Path (Only renders/glows when connected or charging) */}
-          {(charging || pluggedIn) && (
+            {/* --- PHOTOGRAPHIC WHITE WALL CONNECTOR TINT --- */}
+            <g transform="translate(492, 241)">
+              <mask id="charger-surface-mask">
+                <rect x="2" y="2" width="52" height="136" rx="20" fill="white" />
+              </mask>
+              <rect
+                x="2"
+                y="2"
+                width="52"
+                height="136"
+                rx="20"
+                fill="rgb(235 240 245)"
+                mixBlendMode="screen"
+                mask="url(#charger-surface-mask)"
+              />
+              <rect
+                x="6"
+                y="6"
+                width="44"
+                height="128"
+                rx="16"
+                fill="white"
+                fillOpacity="0.25"
+                mixBlendMode="overlay"
+                mask="url(#charger-surface-mask)"
+              />
+            </g>
+
+            {/* Cable Overlay Path: Blue when waiting, pulsing green when charging */}
             <path
               d="M526 384 C526 448 525 522 526 570 C527 617 563 640 626 651 C720 668 844 682 934 680 C981 679 1010 657 1024 625 C1040 590 1045 532 1052 489 C1058 458 1065 448 1078 447"
               fill="none"
@@ -292,8 +337,16 @@ export default function HomeHeroScene({
                 />
               )}
             </path>
-          )}
-        </svg>
+          </svg>
+        ) : (
+          <div
+            ref={backgroundLayerRef}
+            className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
+            style={{
+              backgroundImage: `url("${background}")`,
+            }}
+          />
+        )}
 
         {/* Fallback atmosphere while an image is unavailable */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />

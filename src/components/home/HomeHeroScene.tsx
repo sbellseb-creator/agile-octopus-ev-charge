@@ -82,7 +82,6 @@ export default function HomeHeroScene({
         : `${Math.round(batteryLevel)}%`
       : "—";
 
-  // Prioritize live vehicle telemetry for time to full (essential for DC rapid charging)
   const observedRemainingHours =
     timeToFullChargeHours != null &&
     Number.isFinite(timeToFullChargeHours) &&
@@ -133,23 +132,7 @@ export default function HomeHeroScene({
 
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
-    console.log("[HomeHeroScene] background style ->", `url("${background}")`);
-    console.log(
-      "[HomeHeroScene] rendered backgroundImage style ->",
-      backgroundLayerRef.current?.style.backgroundImage,
-    );
   }, [scene, background]);
-
-  const usesAlignedConnectedScene =
-    (charging || pluggedIn) &&
-    scene.mode === "weather" &&
-    scene.phase === "day" &&
-    (scene.weather === "fair" ||
-      scene.weather === "partly-cloudy" ||
-      scene.weather === "mostly-cloudy" ||
-      scene.weather === "overcast" ||
-      scene.weather === "rain" ||
-      scene.weather === "storm");
 
   const compactStatus = charging
     ? "Charging"
@@ -264,30 +247,75 @@ export default function HomeHeroScene({
         theme={scene.mode === "forced" ? scene.theme : "automatic"}
         phase={scene.phase}
       >
-        {usesAlignedConnectedScene ? (
-          <svg
-            viewBox="0 0 1672 941"
-            preserveAspectRatio="xMaxYMid slice"
-            className="absolute inset-0 h-full w-full transition-all duration-700"
-            aria-hidden="true"
-          >
-            <defs>
-              <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation=".65" result="cableGlow" />
-                <feMerge>
-                  <feMergeNode in="cableGlow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-            <image
-              href={background}
+        <svg
+          viewBox="0 0 1672 941"
+          preserveAspectRatio="xMaxYMid slice"
+          className="absolute inset-0 h-full w-full transition-all duration-700"
+          aria-hidden="true"
+        >
+          <defs>
+            <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation=".65" result="cableGlow" />
+              <feMerge>
+                <feMergeNode in="cableGlow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <image
+            href={background}
+            x="0"
+            y="0"
+            width="1672"
+            height="941"
+            preserveAspectRatio="xMidYMid slice"
+          />
+
+          {/* --- WHITE TESLA WALL CONNECTOR FACEPLATE MASK ("PAINTED WHITE") --- */}
+          {/* Sits precisely over the dark charcoal charger box in the background image */}
+          <g transform="translate(493, 242)">
+            <rect
               x="0"
               y="0"
-              width="1672"
-              height="941"
-              preserveAspectRatio="xMidYMid slice"
+              width="56"
+              height="140"
+              rx="22"
+              fill="rgb(248 250 252)"
+              stroke="rgb(226 232 240)"
+              strokeWidth="1.5"
+              filter="drop-shadow(0 4px 8px rgba(0,0,0,0.45))"
             />
+            {/* Subtle inner glass highlight */}
+            <rect
+              x="3"
+              y="3"
+              width="50"
+              height="134"
+              rx="19"
+              fill="white"
+              fillOpacity="0.4"
+            />
+            {/* Tesla 'T' Logo detail */}
+            <path
+              d="M22 18 L34 18 M28 18 L28 38"
+              stroke="rgb(148 163 184)"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            {/* Dynamic Center LED Strip (matches power/charging state) */}
+            <rect
+              x="26.5"
+              y="76"
+              width="3"
+              height="28"
+              rx="1.5"
+              fill={charging ? "rgb(68 255 164)" : pluggedIn ? "rgb(55 170 255)" : "rgb(148 163 184)"}
+              className={charging ? "animate-pulse" : ""}
+            />
+          </g>
+
+          {/* Cable Overlay Path (Only renders/glows when connected or charging) */}
+          {(charging || pluggedIn) && (
             <path
               d="M526 384 C526 448 525 522 526 570 C527 617 563 640 626 651 C720 668 844 682 934 680 C981 679 1010 657 1024 625 C1040 590 1045 532 1052 489 C1058 458 1065 448 1078 447"
               fill="none"
@@ -307,16 +335,8 @@ export default function HomeHeroScene({
                 />
               )}
             </path>
-          </svg>
-        ) : (
-          <div
-            ref={backgroundLayerRef}
-            className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
-            style={{
-              backgroundImage: `url("${background}")`,
-            }}
-          />
-        )}
+          )}
+        </svg>
 
         {/* Fallback atmosphere while an image is unavailable */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />

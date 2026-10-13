@@ -17,38 +17,44 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchPredictions() {
+    async function fetchRates() {
       setLoading(true);
       try {
-        // Call your Supabase Edge Function
-        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
+        // 1. Direct fetch from agilerates.uk API endpoint for the region
+        const response = await fetch(`https://agilerates.uk/api/v1/current/${region}`);
+        const data = await response.json();
+
+        const tomorrowRates = data?.tomorrow?.rates || data?.rates || [];
+
+        if (tomorrowRates.length > 0) {
+          setTargetDate(data.tomorrow?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+          setRates(tomorrowRates);
+          setIsPredictedActive(true);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fallback to Supabase Edge Function if direct API structure is empty
+        const { data: sbData, error: sbError } = await supabase.functions.invoke('crystal-ball', {
           body: { region },
         });
 
-        if (funcError) {
-          console.error("Supabase function error:", funcError);
-          throw funcError;
-        }
-
-        // Check various possible response shapes from your backend
-        const rawRates = data?.rates || data?.data || (Array.isArray(data) ? data : []);
-
-        if (rawRates.length > 0) {
-          setTargetDate(data.date || '2026-10-14');
-          setRates(rawRates);
-          setIsPredictedActive(data.is_predicted ?? true);
+        if (!sbError && sbData?.rates && sbData.rates.length > 0) {
+          setTargetDate(sbData.date || '');
+          setRates(sbData.rates);
+          setIsPredictedActive(sbData.is_predicted ?? true);
         } else {
           setRates([]);
         }
-      } catch (err: any) {
-        console.error('Crystal Ball fetch error:', err);
+      } catch (err) {
+        console.error('Failed to fetch live rates feed:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchPredictions();
+    fetchRates();
   }, [region]);
 
   if (loading) {
@@ -69,7 +75,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  // Calculate metrics
+  // Calculate summary metrics
   const prices = rates.map((r) => r.value_inc_vat);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);

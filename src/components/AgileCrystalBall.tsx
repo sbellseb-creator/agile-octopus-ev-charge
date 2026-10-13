@@ -19,15 +19,16 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     async function fetchApiV2() {
       setLoading(true);
       try {
-        const response = await fetch(`https://agile-rates.uk/api/v2/current/${region}`);
+        const response = await fetch(`https://agilerates.uk/api/v2/current/${region}`);
         const data = await response.json();
+        
+        console.log("RAW AGILE RATES V2 RESPONSE:", data);
 
-        // Check common v2 response containers
-        const targetContainer = data?.tomorrow || data?.[region]?.tomorrow || data?.data?.tomorrow || data;
-        const slotList = targetContainer?.rates || targetContainer?.slotList || (Array.isArray(targetContainer) ? targetContainer : []);
+        // Flatten or locate the rate slots from any potential v2 response layout
+        const slotList = data?.rates || data?.tomorrow?.rates || data?.[region]?.rates || data?.data?.rates || [];
 
         if (slotList.length > 0) {
-          setTargetDate(targetContainer?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+          setTargetDate(data?.tomorrow?.date || data?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
           setRates(
             slotList.map((s: any) => ({
               valid_from: s.valid_from || s.validFrom || s.from,
@@ -37,12 +38,12 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
               is_predicted: s.is_predicted ?? s.isPredicted ?? true,
             }))
           );
-          setIsPredictedActive(targetContainer?.is_predicted ?? targetContainer?.isPredicted ?? true);
+          setIsPredictedActive(true);
         } else {
           setRates([]);
         }
       } catch (err) {
-        console.error('Failed to fetch from agile-rates.uk API v2:', err);
+        console.error('API v2 fetch error:', err);
         setRates([]);
       } finally {
         setLoading(false);

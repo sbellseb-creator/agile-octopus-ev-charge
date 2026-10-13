@@ -24,47 +24,15 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
           body: { region },
         });
 
-        if (!funcError && data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
+        if (funcError) throw funcError;
+
+        if (data && data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
           setTargetDate(data.date || '2026-10-14');
           setRates(data.rates);
           setIsPredictedActive(data.is_predicted ?? true);
-          setLoading(false);
-          return;
+        } else {
+          setRates([]);
         }
-
-        // Fallback matching realistic wholesale curve if backend is empty
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dateStr = tomorrow.toISOString().split('T')[0];
-        setTargetDate(dateStr);
-
-        const generatedSlots: RateSlot[] = Array.from({ length: 48 }).map((_, i) => {
-          const hour = Math.floor(i / 2);
-          const minute = i % 2 === 0 ? '00' : '30';
-          const timePrefix = `${dateStr}T${String(hour).padStart(2, '0')}:${minute}:00Z`;
-          const toHour = minute === '30' ? hour + 1 : hour;
-          const toMinute = minute === '30' ? '00' : '30';
-          const timeToPrefix = `${dateStr}T${String(toHour).padStart(2, '0')}:${toMinute}:00Z`;
-
-          let basePrice = 22.0;
-          if (hour >= 0 && hour < 5) basePrice = 26.4;
-          else if (hour >= 5 && hour < 10) basePrice = 35.0;
-          else if (hour >= 10 && hour < 12) basePrice = 18.0;
-          else if (hour >= 12 && hour < 16) basePrice = 15.5;
-          else if (hour >= 16 && hour < 19) basePrice = 48.0;
-          else basePrice = 32.0;
-
-          return {
-            valid_from: timePrefix,
-            valid_to: timeToPrefix,
-            value_inc_vat: Number((basePrice + (Math.random() * 2 - 1)).toFixed(2)),
-            value_exc_vat: Number((basePrice * 0.83).toFixed(2)),
-            is_predicted: true,
-          };
-        });
-
-        setRates(generatedSlots);
-        setIsPredictedActive(true);
       } catch (err: any) {
         console.error('Crystal Ball fetch error:', err);
         setRates([]);
@@ -94,7 +62,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  // Calculate summary metrics
+  // Calculate summary metrics directly from backend rates
   const prices = rates.map((r) => r.value_inc_vat);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
@@ -139,7 +107,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
         <div className="flex items-center justify-between text-xs text-slate-400">
           <span>{timeStr}</span>
-          {slot.is_predicted && <span title="Wholesale Predicted">🔮</span>}
+          {isPredictedActive && <span title="Wholesale Predicted">🔮</span>}
         </div>
         <div className="my-2">
           <div className="text-2xl font-black text-white tracking-tight">
@@ -158,7 +126,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
   return (
     <div className="space-y-6 text-white max-w-7xl mx-auto pb-12">
-      {/* Top Header & Metrics Bar matching agile-rates.uk */}
+      {/* Top Header & Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
           <div className="flex items-center gap-1.5 text-xs text-slate-400">

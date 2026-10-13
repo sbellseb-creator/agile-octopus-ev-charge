@@ -271,49 +271,6 @@ export default function HomeHeroScene({
             preserveAspectRatio="xMidYMid slice"
           />
 
-          {/* --- WHITE TESLA WALL CONNECTOR FACEPLATE MASK ("PAINTED WHITE") --- */}
-          {/* Sits precisely over the dark charcoal charger box in the background image */}
-          <g transform="translate(493, 242)">
-            <rect
-              x="0"
-              y="0"
-              width="56"
-              height="140"
-              rx="22"
-              fill="rgb(248 250 252)"
-              stroke="rgb(226 232 240)"
-              strokeWidth="1.5"
-              filter="drop-shadow(0 4px 8px rgba(0,0,0,0.45))"
-            />
-            {/* Subtle inner glass highlight */}
-            <rect
-              x="3"
-              y="3"
-              width="50"
-              height="134"
-              rx="19"
-              fill="white"
-              fillOpacity="0.4"
-            />
-            {/* Tesla 'T' Logo detail */}
-            <path
-              d="M22 18 L34 18 M28 18 L28 38"
-              stroke="rgb(148 163 184)"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-            {/* Dynamic Center LED Strip (matches power/charging state) */}
-            <rect
-              x="26.5"
-              y="76"
-              width="3"
-              height="28"
-              rx="1.5"
-              fill={charging ? "rgb(68 255 164)" : pluggedIn ? "rgb(55 170 255)" : "rgb(148 163 184)"}
-              className={charging ? "animate-pulse" : ""}
-            />
-          </g>
-
           {/* Cable Overlay Path (Only renders/glows when connected or charging) */}
           {(charging || pluggedIn) && (
             <path

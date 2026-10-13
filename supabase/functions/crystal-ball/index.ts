@@ -35,7 +35,7 @@ serve(async (req) => {
   }
 
   try {
-    // Switch target to the correct v2 current/region feed which contains tomorrow's prediction array
+    // Correct v2 endpoint for current and day-ahead prediction rates
     const targetUrl = `https://agile-rates.uk/api/v2/current/${region}`;
 
     const res = await fetch(targetUrl, {
@@ -48,8 +48,8 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Check v2 response structures for tomorrow's predictions
-    const targetBlock = data.tomorrow || data.rates || data[region]?.tomorrow || {};
+    // v2 structure groups tomorrow rates under the 'tomorrow' or regional container
+    const targetBlock = data.tomorrow || data[region]?.tomorrow || data.data?.tomorrow || data;
     const rawSlots = targetBlock.rates || data.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {

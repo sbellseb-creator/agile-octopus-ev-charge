@@ -153,36 +153,51 @@ export default function Index() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-white">
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
-        <div className="container flex min-w-0 items-center gap-2 py-3 sm:gap-3 sm:py-4">
-          <Zap className="h-5 w-5 shrink-0 text-emerald-400 sm:h-7 sm:w-7" />
-          <h1 className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight sm:text-xl">EV Charge Tracker</h1>
-          <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 min-[430px]:inline">
-            Release 032
-          </span>
-          <SyncIndicator />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 text-slate-400 hover:text-white"
-            onClick={() => setTab("settings")}
-            aria-label="Settings"
-          >
-            <Cog className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-slate-400 hover:text-white" onClick={signOut} aria-label="Sign out">
-            <LogOut className="h-4 w-4" />
-          </Button>
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-emerald-500 selection:text-slate-950">
+      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl">
+        <div className="container flex min-w-0 items-center gap-3 py-3 sm:py-4">
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+            <Zap className="h-5 w-5 animate-pulse" />
+          </div>
+          <div>
+            <h1 className="text-base font-black tracking-wider uppercase bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent sm:text-xl">
+              EV Charge Hub
+            </h1>
+            <p className="text-[10px] font-semibold text-emerald-400/80 tracking-widest uppercase">Telemetry & Rates</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.15)] min-[430px]:inline">
+              REL 032
+            </span>
+            <SyncIndicator />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              onClick={() => setTab("settings")}
+              aria-label="Settings"
+            >
+              <Cog className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9 shrink-0 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 transition-all" 
+              onClick={signOut} 
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="container py-4 space-y-4">
-        <Tabs value={tab === "planner" ? "charging" : tab} onValueChange={setTab} className="space-y-4">
+      <main className="container py-6 space-y-6">
+        <Tabs value={tab === "planner" ? "charging" : tab} onValueChange={setTab} className="space-y-6">
           
-          {/* Sleek Floating Glassmorphism Navigation Dock */}
-          <div className="sticky top-2 z-50 bg-slate-900/90 backdrop-blur-2xl border border-slate-800/80 rounded-2xl p-2 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+          {/* 🔥 HIGH-CONTRAST NEON FLOATING COMMAND BAR */}
+          <div className="sticky top-3 z-50 bg-slate-900/95 backdrop-blur-2xl border border-emerald-500/30 rounded-2xl p-2.5 shadow-[0_0_30px_rgba(0,0,0,0.8),0_0_15px_rgba(16,185,129,0.15)] flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
               {mainTabs.map((t) => {
                 const Icon = t.icon;
                 const isActive = (tab === "planner" ? "charging" : tab) === t.id;
@@ -190,27 +205,27 @@ export default function Index() {
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap ${
                       isActive
-                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30 shadow-inner'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)] scale-105 font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950 stroke-[2.5]' : 'text-emerald-400'}`} />
                     <span>{t.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Contextual Sub-menu for Agile View */}
+            {/* 🔥 VIBRANT AMBER/EMERALD SUB-NAV PULLOUT */}
             {tab === "agile" && (
-              <div className="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800/60 w-full md:w-auto justify-center">
+              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-emerald-500/20 w-full md:w-auto justify-center shadow-inner">
                 <button
                   onClick={() => setAgileSub("rates")}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-extrabold transition-all duration-200 ${
                     agileSub === "rates"
-                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      ? 'bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-105'
                       : 'text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
                 >
@@ -219,13 +234,13 @@ export default function Index() {
                 </button>
                 <button
                   onClick={() => setAgileSub("crystal")}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-extrabold transition-all duration-200 ${
                     agileSub === "crystal"
-                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      ? 'bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-105'
                       : 'text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
                   <span>Crystal Ball</span>
                   <HopefulEvMan />
                 </button>

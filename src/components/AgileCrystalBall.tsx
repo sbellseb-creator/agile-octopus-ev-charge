@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Clock, Calendar } from 'lucide-react';
 
 interface RateSlot {
@@ -17,48 +16,37 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchRates() {
+    async function fetchV2Rates() {
       setLoading(true);
       try {
-        // 1. Direct fetch from agilerates.uk API endpoint for the region
-        const response = await fetch(`https://agilerates.uk/api/v1/current/${region}`);
+        // Query Agile Rates API v2
+        const response = await fetch(`https://agile-rates.uk/api/v2/rates/${region}`);
         const data = await response.json();
 
-        const tomorrowRates = data?.tomorrow?.rates || data?.rates || [];
+        // Parse v2 response layout for tomorrow's prediction slots
+        const tomorrowData = data?.tomorrow || data?.rates || {};
+        const slotList = tomorrowData.rates || (Array.isArray(data) ? data : []);
 
-        if (tomorrowRates.length > 0) {
-          setTargetDate(data.tomorrow?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
-          setRates(tomorrowRates);
+        if (slotList.length > 0) {
+          setTargetDate(tomorrowData.date || data.date || '');
+          setRates(slotList);
           setIsPredictedActive(true);
-          setLoading(false);
-          return;
-        }
-
-        // 2. Fallback to Supabase Edge Function if direct API structure is empty
-        const { data: sbData, error: sbError } = await supabase.functions.invoke('crystal-ball', {
-          body: { region },
-        });
-
-        if (!sbError && sbData?.rates && sbData.rates.length > 0) {
-          setTargetDate(sbData.date || '');
-          setRates(sbData.rates);
-          setIsPredictedActive(sbData.is_predicted ?? true);
         } else {
           setRates([]);
         }
       } catch (err) {
-        console.error('Failed to fetch live rates feed:', err);
+        console.error('Failed to fetch from agile-rates.uk API v2:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchRates();
+    fetchV2Rates();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from API v2...</div>;
   }
 
   if (rates.length === 0) {

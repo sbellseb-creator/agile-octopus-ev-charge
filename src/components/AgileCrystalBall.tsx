@@ -16,58 +16,44 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
-    async function fetchAgileRatesJson() {
+    async function fetchApiV2() {
       setLoading(true);
       try {
-        // Fetch directly from the official regional json endpoint
-        const response = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
+        const response = await fetch(`https://agile-rates.uk/api/v2/current/${region}`);
         const data = await response.json();
 
-        // Extract rates array from the payload (checking standard structures)
-        const allRates = data?.rates || data?.data || [];
-        
-        // Filter or locate tomorrow's predicted/actual slots
-        const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-        const tomorrowSlots = allRates.filter((r: any) => 
-          (r.valid_from || r.from || '').startsWith(tomorrowStr)
-        );
+        // Check common v2 response containers
+        const targetContainer = data?.tomorrow || data?.[region]?.tomorrow || data?.data?.tomorrow || data;
+        const slotList = targetContainer?.rates || targetContainer?.slotList || (Array.isArray(targetContainer) ? targetContainer : []);
 
-        if (tomorrowSlots.length > 0) {
-          setTargetDate(tomorrowStr);
-          setRates(tomorrowSlots.map((s: any) => ({
-            valid_from: s.valid_from || s.from,
-            valid_to: s.valid_to || s.to,
-            value_inc_vat: s.value_inc_vat ?? s.rate ?? 0,
-            value_exc_vat: s.value_exc_vat ?? (s.rate ? s.rate * 0.83 : 0),
-            is_predicted: s.is_predicted ?? true
-          })));
-          setIsPredictedActive(true);
-        } else if (allRates.length > 0) {
-          // Fallback to latest available batch if date matching is structured differently
-          setTargetDate(tomorrowStr);
-          setRates(allRates.slice(0, 48).map((s: any) => ({
-            valid_from: s.valid_from || s.from,
-            valid_to: s.valid_to || s.to,
-            value_inc_vat: s.value_inc_vat ?? s.rate ?? 0,
-            value_exc_vat: s.value_exc_vat ?? (s.rate ? s.rate * 0.83 : 0),
-            is_predicted: true
-          })));
+        if (slotList.length > 0) {
+          setTargetDate(targetContainer?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+          setRates(
+            slotList.map((s: any) => ({
+              valid_from: s.valid_from || s.validFrom || s.from,
+              valid_to: s.valid_to || s.validTo || s.to,
+              value_inc_vat: s.value_inc_vat ?? s.valueIncVat ?? s.rate ?? s.value ?? 0,
+              value_exc_vat: s.value_exc_vat ?? s.valueExcVat ?? ((s.value_inc_vat ?? s.valueIncVat ?? s.rate ?? 0) * 0.83),
+              is_predicted: s.is_predicted ?? s.isPredicted ?? true,
+            }))
+          );
+          setIsPredictedActive(targetContainer?.is_predicted ?? targetContainer?.isPredicted ?? true);
         } else {
           setRates([]);
         }
       } catch (err) {
-        console.error('Failed to fetch regional Agile Rates JSON:', err);
+        console.error('Failed to fetch from agile-rates.uk API v2:', err);
         setRates([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchAgileRatesJson();
+    fetchApiV2();
   }, [region]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions from agile-rates.uk...</div>;
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions via API v2...</div>;
   }
 
   if (rates.length === 0) {
@@ -93,8 +79,11 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const minRateSlot = rates.find((r) => r.value_inc_vat === minPrice);
   const maxRateSlot = rates.find((r) => r.value_inc_vat === maxPrice);
 
-  const formatTimeOnly = (isoStr: string) =>
-    new Date(isoStr).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const formatTimeOnly = (isoStr: string) => {
+    if (!isoStr) return '—';
+    const date = new Date(isoStr);
+    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
 
   const minTime = minRateSlot ? formatTimeOnly(minRateSlot.valid_from) : '—';
   const maxTime = maxRateSlot ? formatTimeOnly(maxRateSlot.valid_from) : '—';
@@ -102,22 +91,22 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   // Group slots into time categories
   const morningSlots = rates.filter((r) => {
     const h = new Date(r.valid_from).getHours();
-    return h >= 0 && h < 12;
+    return !isNaN(h) && h >= 0 && h < 12;
   });
 
   const afternoonSlots = rates.filter((r) => {
     const h = new Date(r.valid_from).getHours();
-    return h >= 12 && h < 16;
+    return !isNaN(h) && h >= 12 && h < 16;
   });
 
   const peakSlots = rates.filter((r) => {
     const h = new Date(r.valid_from).getHours();
-    return h >= 16 && h < 19;
+    return !isNaN(h) && h >= 16 && h < 19;
   });
 
   const nightSlots = rates.filter((r) => {
     const h = new Date(r.valid_from).getHours();
-    return h >= 19 && h <= 23;
+    return !isNaN(h) && h >= 19 && h <= 23;
   });
 
   const renderSlotCard = (slot: RateSlot, i: number) => {

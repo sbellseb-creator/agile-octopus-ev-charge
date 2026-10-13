@@ -132,23 +132,7 @@ export default function HomeHeroScene({
 
     console.log("[HomeHeroScene] scene:", scene);
     console.log("[HomeHeroScene] homeSceneBackground() ->", background);
-    console.log("[HomeHeroScene] background style ->", `url("${background}")`);
-    console.log(
-      "[HomeHeroScene] rendered backgroundImage style ->",
-      backgroundLayerRef.current?.style.backgroundImage,
-    );
   }, [scene, background]);
-
-  const usesAlignedConnectedScene =
-    (charging || pluggedIn) &&
-    scene.mode === "weather" &&
-    scene.phase === "day" &&
-    (scene.weather === "fair" ||
-      scene.weather === "partly-cloudy" ||
-      scene.weather === "mostly-cloudy" ||
-      scene.weather === "overcast" ||
-      scene.weather === "rain" ||
-      scene.weather === "storm");
 
   const compactStatus = charging
     ? "Charging"
@@ -263,72 +247,72 @@ export default function HomeHeroScene({
         theme={scene.mode === "forced" ? scene.theme : "automatic"}
         phase={scene.phase}
       >
-        {usesAlignedConnectedScene ? (
-          <svg
-            viewBox="0 0 1672 941"
-            preserveAspectRatio="xMaxYMid slice"
-            className="absolute inset-0 h-full w-full transition-all duration-700"
-            aria-hidden="true"
-          >
-            <defs>
-              <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation=".65" result="cableGlow" />
-                <feMerge>
-                  <feMergeNode in="cableGlow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+        <svg
+          viewBox="0 0 1672 941"
+          preserveAspectRatio="xMaxYMid slice"
+          className="absolute inset-0 h-full w-full transition-all duration-700"
+          aria-hidden="true"
+        >
+          <defs>
+            <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation=".65" result="cableGlow" />
+              <feMerge>
+                <feMergeNode in="cableGlow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              {/* Luma-Invert Filter: Lifts charcoal faceplate to photographic white glass */}
-              <filter id="photographic-white-charger" x="0%" y="0%" width="100%" height="100%">
-                <feComponentTransfer>
-                  <feFuncR type="linear" slope="2.8" intercept="0.32" />
-                  <feFuncG type="linear" slope="2.8" intercept="0.34" />
-                  <feFuncB type="linear" slope="3.0" intercept="0.38" />
-                </feComponentTransfer>
-              </filter>
+            {/* Luma Filter: Universally transforms charcoal faceplate to photographic white glass */}
+            <filter id="photographic-white-charger" x="0%" y="0%" width="100%" height="100%">
+              <feComponentTransfer>
+                <feFuncR type="linear" slope="2.8" intercept="0.32" />
+                <feFuncG type="linear" slope="2.8" intercept="0.34" />
+                <feFuncB type="linear" slope="3.0" intercept="0.38" />
+              </feComponentTransfer>
+            </filter>
 
-              <clipPath id="charger-body-clip">
-                <rect x="495" y="243" width="50" height="132" rx="19" />
-              </clipPath>
-            </defs>
+            <clipPath id="charger-body-clip">
+              <rect x="495" y="243" width="50" height="132" rx="19" />
+            </clipPath>
+          </defs>
 
-            {/* Base Background Image */}
-            <image
-              href={background}
-              x="0"
-              y="0"
-              width="1672"
-              height="941"
-              preserveAspectRatio="xMidYMid slice"
-            />
+          {/* Base Background Image */}
+          <image
+            href={background}
+            x="0"
+            y="0"
+            width="1672"
+            height="941"
+            preserveAspectRatio="xMidYMid slice"
+          />
 
-            {/* Inverted duplicate clipped strictly to the charger body to reveal white glass */}
-            <image
-              href={background}
-              x="0"
-              y="0"
-              width="1672"
-              height="941"
-              preserveAspectRatio="xMidYMid slice"
-              clipPath="url(#charger-body-clip)"
-              filter="url(#photographic-white-charger)"
-            />
+          {/* Inverted duplicate clipped strictly to the charger body to reveal white glass */}
+          <image
+            href={background}
+            x="0"
+            y="0"
+            width="1672"
+            height="941"
+            preserveAspectRatio="xMidYMid slice"
+            clipPath="url(#charger-body-clip)"
+            filter="url(#photographic-white-charger)"
+          />
 
-            {/* Glossy top edge highlight for Gen 3 tempered glass aesthetic */}
-            <rect
-              x="498"
-              y="246"
-              width="44"
-              height="126"
-              rx="16"
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.45)"
-              strokeWidth="1.2"
-              pointerEvents="none"
-            />
+          {/* Glossy top edge highlight for Gen 3 tempered glass aesthetic */}
+          <rect
+            x="498"
+            y="246"
+            width="44"
+            height="126"
+            rx="16"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.45)"
+            strokeWidth="1.2"
+            pointerEvents="none"
+          />
 
-            {/* Cable Overlay Path: Blue when waiting, pulsing green when charging */}
+          {/* Cable Overlay Path: Blue when waiting, pulsing green when charging */}
+          {(charging || pluggedIn) && (
             <path
               d="M526 384 C526 448 525 522 526 570 C527 617 563 640 626 651 C720 668 844 682 934 680 C981 679 1010 657 1024 625 C1040 590 1045 532 1052 489 C1058 458 1065 448 1078 447"
               fill="none"
@@ -348,16 +332,8 @@ export default function HomeHeroScene({
                 />
               )}
             </path>
-          </svg>
-        ) : (
-          <div
-            ref={backgroundLayerRef}
-            className="absolute inset-0 bg-cover bg-[42%_center] transition-all duration-700 sm:bg-center"
-            style={{
-              backgroundImage: `url("${background}")`,
-            }}
-          />
-        )}
+          )}
+        </svg>
 
         {/* Fallback atmosphere while an image is unavailable */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 -z-10" />

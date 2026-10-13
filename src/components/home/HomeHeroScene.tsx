@@ -273,7 +273,7 @@ export default function HomeHeroScene({
           >
             <defs>
               <filter id="live-cable-line-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation=".55" result="cableGlow" />
+                <feGaussianBlur stdDeviation=".65" result="cableGlow" />
                 <feMerge>
                   <feMergeNode in="cableGlow" />
                   <feMergeNode in="SourceGraphic" />
@@ -289,20 +289,20 @@ export default function HomeHeroScene({
               preserveAspectRatio="xMidYMid slice"
             />
             <path
-              d="M526 382 C526 445 525 520 526 568 C527 615 563 638 626 649 C720 666 844 680 934 678 C981 677 1010 655 1024 623 C1040 588 1045 530 1052 487 C1058 456 1065 446 1078 445"
+              d="M526 384 C526 448 525 522 526 570 C527 617 563 640 626 651 C720 668 844 682 934 680 C981 679 1010 657 1024 625 C1040 590 1045 532 1052 489 C1058 458 1065 448 1078 447"
               fill="none"
               stroke={charging ? "rgb(68 255 164)" : "rgb(55 170 255)"}
-              strokeWidth={charging ? "2.4" : "2.7"}
+              strokeWidth={charging ? "2.6" : "2.9"}
               strokeLinecap="round"
               strokeLinejoin="round"
               filter="url(#live-cable-line-glow)"
-              opacity={charging ? ".22" : ".88"}
+              opacity={charging ? ".35" : ".92"}
             >
               {charging && (
                 <animate
                   attributeName="opacity"
-                  values=".22;.82;.22"
-                  dur="2.2s"
+                  values=".35;.95;.35"
+                  dur="2.0s"
                   repeatCount="indefinite"
                 />
               )}

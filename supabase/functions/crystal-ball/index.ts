@@ -25,7 +25,6 @@ serve(async (req) => {
   const region = (param("region") || "F").toUpperCase();
   const requested = param("date");
 
-  // Default to today before 10:00 AM, switch to tomorrow after 10:00 AM
   let targetDateStr = today;
   if (isDate(requested)) {
     targetDateStr = requested;
@@ -36,7 +35,8 @@ serve(async (req) => {
   }
 
   try {
-    const targetUrl = `https://agile-rates.uk/api/v2/archive?date=${targetDateStr}&region=${region}`;
+    // Switch target to the correct v2 current/region feed which contains tomorrow's prediction array
+    const targetUrl = `https://agile-rates.uk/api/v2/current/${region}`;
 
     const res = await fetch(targetUrl, {
       headers: { "Accept": "application/json" },
@@ -48,30 +48,24 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Check all possible array keys returned by agile-rates.uk archive payload
-    const rawSlots = 
-      data.import_actuals_tomorrow || 
-      data.import_predictions_tomorrow || 
-      data.import_actuals_today || 
-      data.import_predictions_today || 
-      data.rates || 
-      [];
+    // Check v2 response structures for tomorrow's predictions
+    const targetBlock = data.tomorrow || data.rates || data[region]?.tomorrow || {};
+    const rawSlots = targetBlock.rates || data.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      const rateVal = r.rates?.[region] ?? r.rate ?? 0;
+      const rateVal = r.value_inc_vat ?? r.rate ?? 0;
       return {
-        valid_from: r.start || r.valid_from,
-        valid_to: r.end || r.valid_to,
+        valid_from: r.valid_from || r.from || r.start,
+        valid_to: r.valid_to || r.to || r.end,
         value_inc_vat: Number(rateVal),
-        value_exc_vat: Number((Number(rateVal) / 1.05).toFixed(2)),
+        value_exc_vat: r.value_exc_vat ? Number(r.value_exc_vat) : Number((Number(rateVal) / 1.05).toFixed(2)),
       };
     }).filter(r => r.valid_from) : [];
 
-    // Ensure slots are strictly ordered chronologically (00:00 -> 23:30)
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({
-      date: targetDateStr,
+      date: targetBlock.date || targetDateStr,
       status: estimates.length > 0 ? "available" : "waiting",
       available: estimates.length > 0,
       region,

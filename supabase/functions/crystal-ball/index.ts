@@ -35,8 +35,8 @@ serve(async (req) => {
   }
 
   try {
-    // Correct v2 current endpoint providing live predicted rates
-    const targetUrl = `https://agile-rates.uk/api/v2/current/${region}`;
+    // Correct v2 endpoint for current and tomorrow rates across all regions
+    const targetUrl = `https://agile-rates.uk/api/v2/current`;
 
     const res = await fetch(targetUrl, {
       headers: { "Accept": "application/json" },
@@ -48,9 +48,12 @@ serve(async (req) => {
 
     const data = await res.json();
     
-    // Extract tomorrow's rates payload from v2 response structure
-    const targetBlock = data.tomorrow || data[region]?.tomorrow || data.data?.tomorrow || data;
-    const rawSlots = targetBlock.rates || data.rates || [];
+    // v2 /current structure stores regions inside data or root object (e.g., data.F or data.regions.F)
+    const regionsMap = data.regions || data.data || data;
+    const regionData = regionsMap[region] || regionsMap[region.toLowerCase()] || {};
+    
+    const targetBlock = regionData.tomorrow || regionData.rates || {};
+    const rawSlots = targetBlock.rates || regionData.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
       const rateVal = r.value_inc_vat ?? r.valueIncVat ?? r.rate ?? 0;

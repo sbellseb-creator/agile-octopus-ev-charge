@@ -7,7 +7,6 @@ export function homeSceneBackground(
     charging?: boolean;
   } = {},
 ): string {
-  // Always use the clean base photographic assets featuring the embedded white charger
   if (scene.mode === "forced") {
     const isNight = scene.phase === "night";
 
@@ -19,32 +18,13 @@ export function homeSceneBackground(
       return "/home-scenes/dashboard-reference-sunset-charging.png";
     }
 
-    if (scene.theme === "classic") {
-      return "/home-scenes/dashboard-reference-overcast-day.png";
-    }
-
-    if (scene.theme === "autumn") {
-      return "/home-scenes/dashboard-reference-sunset-charging.png";
-    }
-
-    return "/home-scenes/dashboard-reference-partly-cloudy-day.png";
+    return "/home-scenes/dashboard-reference-overcast-day.png";
   }
 
   if (scene.phase === "day") {
-    if (scene.weather === "rain" || scene.weather === "storm") {
-      return "/home-scenes/dashboard-reference-rain-day-unplugged.png";
-    }
-
-    if (
-      scene.weather === "overcast" ||
-      scene.weather === "mostly-cloudy" ||
-      scene.weather === "fog" ||
-      scene.weather === "snow"
-    ) {
-      return "/home-scenes/dashboard-reference-overcast-day.png";
-    }
-
-    return "/home-scenes/dashboard-reference-partly-cloudy-day.png";
+    // Route all daytime weather variants to use the overcast/base asset 
+    // which features the white charger and natural black wrapped cable.
+    return "/home-scenes/dashboard-reference-overcast-day.png";
   }
 
   if (scene.phase === "night") {

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 interface RateSlot {
-  valid_from: string;
-  valid_to: string;
-  value_inc_vat: number;
-  value_exc_vat?: number;
+  valid_from?: string;
+  from?: string;
+  start?: string;
+  value_inc_vat?: number;
+  rate?: number;
+  [key: string]: any;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
@@ -16,35 +17,35 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchCrystalBallData() {
+    async function fetchRates() {
       setLoading(true);
       try {
-        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
-          body: { region },
-        });
+        const res = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const data = await res.json();
 
-        if (funcError) throw funcError;
+        // Extract date and rates safely
+        const dateStr = data?.tradingDate?.date || data?.date || data?.tradingDate || 'Tomorrow';
+        setTargetDate(typeof dateStr === 'string' ? dateStr : 'Tomorrow');
 
-        // Correctly reading the 'rates' or 'results' array returned by your edge function
-        const slotList = data?.rates || data?.results || [];
-        setTargetDate(data?.date || 'Tomorrow');
+        const slotList = data?.rates || data?.data || data?.results || [];
         setRates(Array.isArray(slotList) ? slotList : []);
       } catch (err: any) {
-        console.error('Crystal Ball fetch error:', err);
+        console.error('Failed to fetch agile rates:', err);
         setError('Tomorrow\'s metrics are published around 10:00.');
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCrystalBallData();
+    fetchRates();
   }, [region]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-16 text-neutral-400">
         <Clock className="w-8 h-8 animate-spin text-amber-400 mb-3" />
-        <p className="text-sm">Loading Crystal Ball predictions (Region F)...</p>
+        <p className="text-sm">Loading Crystal Ball predictions from agile-rates.uk (Region F)...</p>
       </div>
     );
   }
@@ -63,12 +64,22 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  const prices = rates.map(r => r.value_inc_vat).filter(p => typeof p === 'number' && !isNaN(p));
+  const getPrice = (r: any) => {
+    return Number(
+      r.value_inc_vat ??
+      r.rate ??
+      r.agileRate?.result?.rate ??
+      r.value ??
+      0
+    );
+  };
+
+  const prices = rates.map(getPrice).filter(p => !isNaN(p));
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
   const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
 
-  const formatTime = (isoStr: string) => {
+  const formatTime = (isoStr?: string) => {
     if (!isoStr) return '—';
     const date = new Date(isoStr);
     return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -85,7 +96,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
           <div className="mt-2">
             <div className="text-base font-bold text-white">Region F (North East)</div>
             <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Tomorrow's Predictions
+              <Sparkles className="w-3 h-3" /> agile-rates.uk Feed
             </div>
           </div>
         </div>
@@ -126,12 +137,13 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rates.map((slot, i) => {
-            const val = slot.value_inc_vat ?? 0;
+            const val = getPrice(slot);
+            const timeStr = formatTime(slot.valid_from || slot.from || slot.start);
             const isHigh = val > 30;
             return (
               <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs text-neutral-400">
-                  <span>{formatTime(slot.valid_from)}</span>
+                  <span>{timeStr}</span>
                   <span>🔮</span>
                 </div>
                 <div className="my-2">
@@ -141,7 +153,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
                 </div>
                 <div className="pt-2 border-t border-neutral-900 flex items-center justify-between">
                   <span className={`text-[10px] font-bold ${isHigh ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {isHigh ? 'Peak' : 'Cheap'}
+                    {isHigh ? 'Premium' : 'Cheap'}
                   </span>
                   <div className={`h-1 w-8 rounded-full ${isHigh ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                 </div>

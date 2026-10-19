@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 interface RateSlot {
   valid_from: string;
   valid_to: string;
   value_inc_vat: number;
-  value_exc_vat?: number;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
@@ -16,27 +14,37 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchCrystalBallData() {
+    async function fetchDirectRates() {
       setLoading(true);
+      setError(null);
       try {
-        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
-          body: { region },
-        });
+        // Fetching directly from the official region-specific endpoint
+        const res = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        
+        const json = await res.json();
+        
+        // Extracting date and rates from agile-rates.uk structure
+        const dateStr = json?.tradingDate?.date || json?.date || 'Tomorrow';
+        setTargetDate(dateStr);
 
-        if (funcError) throw funcError;
+        const slotList = json?.rates || json?.data?.rates || [];
+        const formattedRates = Array.isArray(slotList) ? slotList.map((r: any) => ({
+          valid_from: r.valid_from || r.from || r.start,
+          valid_to: r.valid_to || r.to || r.end,
+          value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? r.value ?? 0)
+        })).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
 
-        const slotList = data?.rates || data?.results || [];
-        setTargetDate(data?.date || 'Tomorrow');
-        setRates(Array.isArray(slotList) ? slotList : []);
+        setRates(formattedRates);
       } catch (err: any) {
-        console.error('Crystal Ball fetch error:', err);
-        setError('Tomorrow\'s metrics are published around 10:00.');
+        console.error('Direct fetch error:', err);
+        setError(err?.message || 'Failed to fetch prediction feed');
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCrystalBallData();
+    fetchDirectRates();
   }, [region]);
 
   if (loading) {
@@ -56,7 +64,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         </div>
         <h3 className="text-lg font-bold text-white mb-1">Tomorrow's metrics are published around 10:00.</h3>
         <p className="text-sm text-neutral-400">
-          Wholesale auction results and forecasted rates will appear here automatically once released.
+          {error ? `Error: ${error}` : "Wholesale auction results and forecasted rates will appear here automatically once released."}
         </p>
       </div>
     );
@@ -125,7 +133,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rates.map((slot, i) => {
-            const val = slot.value_inc_vat ?? 0;
+            const val = slot.value_inc_vat;
             const isHigh = val > 30;
             return (
               <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">

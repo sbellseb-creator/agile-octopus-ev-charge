@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 interface RateSlot {
-  valid_from?: string;
-  value_inc_vat?: number;
-  [key: string]: any;
+  valid_from: string;
+  valid_to: string;
+  value_inc_vat: number;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
@@ -14,46 +15,39 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchDirectRates() {
+    async function fetchCrystalBallData() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        
-        const json = await res.json();
-        
-        const dateStr = json?.tradingDate?.date || json?.date || 'Tomorrow';
-        setTargetDate(typeof dateStr === 'string' ? dateStr : 'Tomorrow');
+        // Securely invoke your Supabase Edge Function to bypass browser CORS
+        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
+          body: { region },
+        });
 
-        const slotList = json?.rates || json?.data?.rates || [];
+        if (funcError) throw funcError;
+
+        const slotList = data?.rates || data?.results || [];
         
-        const formattedRates = Array.isArray(slotList) ? slotList.map((r: any) => {
-          // Correctly extract price from the official schema nested structure
-          const price = 
-            r.agileRate?.result?.rate ?? 
-            r.value_inc_vat ?? 
-            r.rate ?? 
-            r.value ?? 
-            0;
+        // Ensure slots are strictly sorted chronologically from 00:00 onwards
+        const sortedSlots = Array.isArray(slotList) ? slotList.map((r: any) => ({
+          valid_from: r.valid_from || r.from || r.start,
+          valid_to: r.valid_to || r.to || r.end,
+          value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? r.value ?? 0)
+        })).filter(r => r.valid_from && !isNaN(r.value_inc_vat)).sort((a, b) => {
+          return new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime();
+        }) : [];
 
-          return {
-            valid_from: r.valid_from || r.from || r.start || r.deliveryStart,
-            valid_to: r.valid_to || r.to || r.end || r.deliveryEnd,
-            value_inc_vat: Number(price)
-          };
-        }).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
-
-        setRates(formattedRates);
+        setTargetDate(data?.date || 'Tomorrow');
+        setRates(sortedSlots);
       } catch (err: any) {
-        console.error('Direct fetch error:', err);
-        setError(err?.message || 'Failed to fetch prediction feed');
+        console.error('Crystal Ball fetch error:', err);
+        setError(err?.message || 'Failed to load predictions');
       } finally {
         setLoading(false);
       }
     }
 
-    fetchDirectRates();
+    fetchCrystalBallData();
   }, [region]);
 
   if (loading) {
@@ -84,10 +78,10 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const maxPrice = prices.length ? Math.max(...prices) : 0;
   const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
 
-  const formatTime = (isoStr?: string) => {
+  const formatTime = (isoStr: string) => {
     if (!isoStr) return '—';
     const date = new Date(isoStr);
-    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
   };
 
   return (
@@ -138,11 +132,11 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       {/* Slots Grid */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-bold text-neutral-300 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region F)
+          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region F) - Starting from 00:00
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rates.map((slot, i) => {
-            const val = slot.value_inc_vat;
+            const val = slot.value_inc_vat ?? 0;
             const isHigh = val > 30;
             return (
               <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">

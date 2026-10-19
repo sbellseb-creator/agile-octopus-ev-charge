@@ -3,91 +3,111 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { addDays, ukDate } from "../_shared/agile-core.ts";
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { 
-    status, 
-    headers: { ...corsHeaders, "Content-Type": "application/json" } 
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
   });
 
-const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
-
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-  const now = new Date();
-  const ukHour = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }), 10);
-  const today = ukDate(now);
-
-  let body: Record<string, unknown> = {};
-  if (req.method === "POST") body = await req.json().catch(() => ({}));
-  const url = new URL(req.url);
-  const param = (k: string) => (body[k] as string | undefined) ?? url.searchParams.get(k) ?? undefined;
-  
-  const region = (param("region") || "F").toUpperCase();
-  const requested = param("date");
-
-  let targetDateStr = today;
-  if (isDate(requested)) {
-    targetDateStr = requested;
-  } else {
-    if (ukHour >= 10) {
-      targetDateStr = addDays(today, 1);
-    }
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const targetUrl = `https://agile-rates.uk/api/v2/current`;
-    const res = await fetch(targetUrl, {
-      headers: { "Accept": "application/json" },
-    });
+    let body: Record<string, unknown> = {};
 
-    if (!res.ok) {
-      throw new Error(`agile-rates.uk API error: HTTP ${res.status}`);
+    if (req.method === "POST") {
+      body = await req.json().catch(() => ({}));
     }
 
-    const data = await res.json();
-    
-    // Traverse v2 regional response structures safely
-    const regionsMap = data.regions || data.data || data;
-    const regionObj = regionsMap[region] || regionsMap[region.toLowerCase()] || data[region] || {};
-    
-    const tomorrowBlock = regionObj.tomorrow || data.tomorrow || {};
-    const rawSlots = tomorrowBlock.rates || regionObj.rates || data.rates || [];
+    const url = new URL(req.url);
 
-    const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      const rateVal = r.value_inc_vat ?? r.valueIncVat ?? r.rate ?? r.value ?? 0;
-      return {
-        valid_from: r.valid_from || r.validFrom || r.from || r.start,
-        valid_to: r.valid_to || r.validTo || r.to || r.end,
-        value_inc_vat: Number(rateVal),
-        value_exc_vat: r.value_exc_vat ?? r.valueExcVat ? Number(r.value_exc_vat ?? r.valueExcVat) : Number((Number(rateVal) / 1.05).toFixed(2)),
-      };
-    }).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
+    const region =
+      ((body.region as string) ||
+        url.searchParams.get("region") ||
+        "F").toUpperCase();
 
-    estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
+    const targetUrl =
+      `https://agile-rates.uk/api/v2/current/${region}`;
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Agile API returned HTTP ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    console.log(
+      "Agile API:",
+      JSON.stringify(data, null, 2)
+    );
+
+    const tomorrow =
+      data.import_predictions_tomorrow ||
+      data.import_predictions ||
+      [];
+
+    const rates = tomorrow
+      .map((slot: any) => ({
+        valid_from: slot.start,
+        valid_to: slot.end,
+        value_inc_vat: Number(
+          slot.rates?.[region] ?? 0
+        ),
+        value_exc_vat: Number(
+          (
+            Number(slot.rates?.[region] ?? 0) / 1.05
+          ).toFixed(2)
+        ),
+        is_predicted: true,
+      }))
+      .filter(
+        (r: any) =>
+          r.valid_from &&
+          !Number.isNaN(r.value_inc_vat)
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.valid_from).getTime() -
+          new Date(b.valid_from).getTime()
+      );
+
+    const tomorrowDate = addDays(
+      ukDate(new Date()),
+      1
+    );
 
     return json({
-      date: tomorrowBlock.date || targetDateStr,
-      status: estimates.length > 0 ? "available" : "waiting",
-      available: estimates.length > 0,
+      date: tomorrowDate,
+      status: rates.length ? "available" : "waiting",
+      available: rates.length > 0,
       region,
       estimated: true,
       source: "agile-rates.uk",
       is_mock: false,
-      updated_at: now.toISOString(),
-      results: estimates,
-      rates: estimates,
+      updated_at: new Date().toISOString(),
+      rates,
+      results: rates,
     });
-  } catch (err: any) {
+  } catch (error: any) {
+    console.error(error);
+
     return json({
-      date: targetDateStr,
-      status: "waiting",
+      status: "error",
       available: false,
-      region,
-      estimated: true,
-      error: err.message || "Failed to fetch from agile-rates.uk",
-      updated_at: now.toISOString(),
-      results: [],
+      error: error.message ?? "Unknown error",
       rates: [],
+      results: [],
     });
   }
 });

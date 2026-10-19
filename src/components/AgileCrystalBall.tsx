@@ -25,9 +25,10 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
 
         if (funcError) throw funcError;
 
-        const slotList = data?.rates || data?.data?.rates || (Array.isArray(data) ? data : []);
+        // Correctly reading the 'rates' or 'results' array returned by your edge function
+        const slotList = data?.rates || data?.results || [];
         setTargetDate(data?.date || 'Tomorrow');
-        setRates(slotList);
+        setRates(Array.isArray(slotList) ? slotList : []);
       } catch (err: any) {
         console.error('Crystal Ball fetch error:', err);
         setError('Tomorrow\'s metrics are published around 10:00.');

@@ -11,7 +11,7 @@ interface RateSlot {
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [rates, setRates] = useState<RateSlot[]>([]);
-  const [targetDate, setTargetDate] = useState<string>('');
+  const [targetDate, setTargetDate] = useState<string>('Tomorrow');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,11 +21,14 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       try {
         const res = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
         if (!res.ok) throw new Error('Failed to fetch rates');
-        const data = await res.json();
+        const json = await res.json();
         
+        // Handle nested data structures from agile-rates.uk
+        const data = json?.data || json;
         setTargetDate(data?.tradingDate?.date || data?.date || 'Tomorrow');
-        const slotList = data?.rates || data?.data || (Array.isArray(data) ? data : []);
-        setRates(slotList);
+        
+        const slotList = data?.rates || data?.prediction?.rates || [];
+        setRates(Array.isArray(slotList) ? slotList : []);
       } catch (err: any) {
         console.error('Failed to load agile rates:', err);
         setError('Tomorrow\'s metrics are published around 10:00.');

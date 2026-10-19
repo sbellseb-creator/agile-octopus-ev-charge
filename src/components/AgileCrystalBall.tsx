@@ -19,16 +19,16 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       setLoading(true);
       setError(null);
       try {
-        // Securely invoke your Supabase Edge Function to bypass browser CORS
         const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
           body: { region },
         });
 
         if (funcError) throw funcError;
 
+        console.log("Crystal Ball response:", data);
+
         const slotList = data?.rates || data?.results || [];
         
-        // Ensure slots are strictly sorted chronologically from 00:00 onwards
         const sortedSlots = Array.isArray(slotList) ? slotList.map((r: any) => ({
           valid_from: r.valid_from || r.from || r.start,
           valid_to: r.valid_to || r.to || r.end,
@@ -54,7 +54,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     return (
       <div className="flex flex-col items-center justify-center p-16 text-neutral-400">
         <Clock className="w-8 h-8 animate-spin text-amber-400 mb-3" />
-        <p className="text-sm">Loading Crystal Ball predictions (Region F)...</p>
+        <p className="text-sm">Loading Crystal Ball predictions (Region {region})...</p>
       </div>
     );
   }
@@ -93,7 +93,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
             <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Date: {targetDate}
           </div>
           <div className="mt-2">
-            <div className="text-base font-bold text-white">Region F (North East)</div>
+            <div className="text-base font-bold text-white">Region {region}</div>
             <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
               <Sparkles className="w-3 h-3" /> Tomorrow's Predictions
             </div>
@@ -132,7 +132,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       {/* Slots Grid */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-bold text-neutral-300 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region F) - Starting from 00:00
+          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region {region}) - Starting from 00:00
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rates.map((slot, i) => {

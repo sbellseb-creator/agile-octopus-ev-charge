@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 interface RateSlot {
-  valid_from: string;
-  valid_to: string;
-  value_inc_vat: number;
+  valid_from?: string;
+  value_inc_vat?: number;
+  [key: string]: any;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
@@ -18,22 +18,31 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
       setLoading(true);
       setError(null);
       try {
-        // Fetching directly from the official region-specific endpoint
         const res = await fetch(`https://agilerates.uk/api/agile_rates_region_${region}.json`);
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         
         const json = await res.json();
         
-        // Extracting date and rates from agile-rates.uk structure
         const dateStr = json?.tradingDate?.date || json?.date || 'Tomorrow';
-        setTargetDate(dateStr);
+        setTargetDate(typeof dateStr === 'string' ? dateStr : 'Tomorrow');
 
         const slotList = json?.rates || json?.data?.rates || [];
-        const formattedRates = Array.isArray(slotList) ? slotList.map((r: any) => ({
-          valid_from: r.valid_from || r.from || r.start,
-          valid_to: r.valid_to || r.to || r.end,
-          value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? r.value ?? 0)
-        })).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
+        
+        const formattedRates = Array.isArray(slotList) ? slotList.map((r: any) => {
+          // Correctly extract price from the official schema nested structure
+          const price = 
+            r.agileRate?.result?.rate ?? 
+            r.value_inc_vat ?? 
+            r.rate ?? 
+            r.value ?? 
+            0;
+
+          return {
+            valid_from: r.valid_from || r.from || r.start || r.deliveryStart,
+            valid_to: r.valid_to || r.to || r.end || r.deliveryEnd,
+            value_inc_vat: Number(price)
+          };
+        }).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
 
         setRates(formattedRates);
       } catch (err: any) {
@@ -75,7 +84,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const maxPrice = prices.length ? Math.max(...prices) : 0;
   const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
 
-  const formatTime = (isoStr: string) => {
+  const formatTime = (isoStr?: string) => {
     if (!isoStr) return '—';
     const date = new Date(isoStr);
     return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });

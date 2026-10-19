@@ -11,6 +11,65 @@ const json = (body: unknown, status = 200) =>
     },
   });
 
+function calculateChargePlan(
+  rates: any[],
+  startSoc: number,
+  targetSoc: number,
+  batteryKwh = 75,
+  chargerKw = 6.9
+) {
+  const energyRequired =
+    batteryKwh * ((targetSoc - startSoc) / 100);
+
+  const hoursRequired =
+    energyRequired / chargerKw;
+
+  const slotsRequired =
+    Math.ceil(hoursRequired * 2);
+
+  let bestCost = Number.MAX_VALUE;
+  let bestWindow: any[] = [];
+
+  for (let i = 0; i <= rates.length - slotsRequired; i++) {
+    const window = rates.slice(i, i + slotsRequired);
+
+    const avg =
+      window.reduce(
+        (sum, slot) => sum + slot.value_inc_vat,
+        0
+      ) / window.length;
+
+    const cost =
+      energyRequired * (avg / 100);
+
+    if (cost < bestCost) {
+      bestCost = cost;
+      bestWindow = window;
+    }
+  }
+
+  return {
+    battery_kwh: batteryKwh,
+    start_soc: startSoc,
+    target_soc: targetSoc,
+    energy_required_kwh: Number(
+      energyRequired.toFixed(1)
+    ),
+    charger_kw: chargerKw,
+    charge_hours: Number(
+      hoursRequired.toFixed(2)
+    ),
+    estimated_cost: Number(
+      bestCost.toFixed(2)
+    ),
+    recommended_start:
+      bestWindow[0]?.valid_from ?? null,
+    recommended_end:
+      bestWindow[bestWindow.length - 1]?.valid_to ??
+      null,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,7 +87,28 @@ serve(async (req) => {
     const region =
       ((body.region as string) ||
         url.searchParams.get("region") ||
-        "P").toUpperCase();
+        "F").toUpperCase();
+
+    const startSoc = Number(
+      body.startSoc ??
+        url.searchParams.get("startSoc") ??
+        40
+    );
+
+    const targetSoc = Number(
+      body.targetSoc ??
+        url.searchParams.get("targetSoc") ??
+        80
+    );
+
+    const homeCharging =
+      String(
+        body.homeCharging ??
+          url.searchParams.get("homeCharging") ??
+          "true"
+      ) === "true";
+
+    const chargerKw = homeCharging ? 6.9 : 7.0;
 
     const targetUrl =
       `https://agile-rates.uk/api/v2/current/${region}`;
@@ -46,11 +126,6 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-
-    console.log(
-      "Agile API:",
-      JSON.stringify(data, null, 2)
-    );
 
     const tomorrow =
       data.import_predictions_tomorrow ||
@@ -87,15 +162,64 @@ serve(async (req) => {
       1
     );
 
+    const chargePlan = calculateChargePlan(
+      rates,
+      startSoc,
+      targetSoc,
+      75,
+      chargerKw
+    );
+
+    const minRate = Math.min(
+      ...rates.map((r) => r.value_inc_vat)
+    );
+
+    const maxRate = Math.max(
+      ...rates.map((r) => r.value_inc_vat)
+    );
+
+    const avgRate =
+      rates.reduce(
+        (sum, r) => sum + r.value_inc_vat,
+        0
+      ) / rates.length;
+
+    const priceCap = 26.11;
+
+    const vsPriceCap =
+      ((avgRate - priceCap) / priceCap) * 100;
+
     return json({
       date: tomorrowDate,
-      status: rates.length ? "available" : "waiting",
+      status: rates.length
+        ? "available"
+        : "waiting",
       available: rates.length > 0,
       region,
+
+      summary: {
+        min_rate: Number(
+          minRate.toFixed(2)
+        ),
+        max_rate: Number(
+          maxRate.toFixed(2)
+        ),
+        avg_rate: Number(
+          avgRate.toFixed(2)
+        ),
+        price_cap: priceCap,
+        vs_price_cap: Number(
+          vsPriceCap.toFixed(0)
+        ),
+      },
+
+      charging: chargePlan,
+
       estimated: true,
       source: "agile-rates.uk",
       is_mock: false,
       updated_at: new Date().toISOString(),
+
       rates,
       results: rates,
     });

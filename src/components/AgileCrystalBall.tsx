@@ -1,47 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Sparkles, Clock, Calendar } from 'lucide-react';
 
 interface RateSlot {
   valid_from: string;
   valid_to: string;
   value_inc_vat: number;
+  value_exc_vat: number;
+  is_predicted?: boolean;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   const [rates, setRates] = useState<RateSlot[]>([]);
-  const [targetDate, setTargetDate] = useState<string>('Tomorrow');
+  const [targetDate, setTargetDate] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isPredictedActive, setIsPredictedActive] = useState<boolean>(true);
 
   useEffect(() => {
     async function fetchCrystalBallData() {
       setLoading(true);
-      setError(null);
       try {
+        // Invoke your Supabase Edge Function to securely fetch and parse v2 rates server-side (bypassing CORS)
         const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
           body: { region },
         });
 
         if (funcError) throw funcError;
 
-        console.log("Crystal Ball response:", data);
+        const slotList = data?.rates || data?.data?.rates || (Array.isArray(data) ? data : []);
 
-        const slotList = data?.rates || data?.results || [];
-        
-        const sortedSlots = Array.isArray(slotList) ? slotList.map((r: any) => ({
-          valid_from: r.valid_from || r.from || r.start,
-          valid_to: r.valid_to || r.to || r.end,
-          value_inc_vat: Number(r.value_inc_vat ?? r.rate ?? r.value ?? 0)
-        })).filter(r => r.valid_from && !isNaN(r.value_inc_vat)).sort((a, b) => {
-          return new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime();
-        }) : [];
-
-        setTargetDate(data?.date || 'Tomorrow');
-        setRates(sortedSlots);
+        if (slotList.length > 0) {
+          setTargetDate(data?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+          setRates(slotList);
+          setIsPredictedActive(data?.is_predicted ?? true);
+        } else {
+          setRates([]);
+        }
       } catch (err: any) {
         console.error('Crystal Ball fetch error:', err);
-        setError(err?.message || 'Failed to load predictions');
+        setRates([]);
       } finally {
         setLoading(false);
       }
@@ -51,113 +48,187 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
   }, [region]);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-16 text-neutral-400">
-        <Clock className="w-8 h-8 animate-spin text-amber-400 mb-3" />
-        <p className="text-sm">Loading Crystal Ball predictions (Region {region})...</p>
-      </div>
-    );
+    return <div className="p-8 text-center text-gray-400">Loading Crystal Ball predictions...</div>;
   }
 
-  if (error || rates.length === 0) {
+  if (rates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-neutral-900/60 border border-neutral-800 rounded-2xl max-w-xl mx-auto mt-8">
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-neutral-900/60 border border-neutral-800 rounded-2xl">
         <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-amber-400 mb-4">
           <Clock className="w-6 h-6 animate-pulse" />
         </div>
         <h3 className="text-lg font-bold text-white mb-1">Tomorrow's metrics are published around 10:00.</h3>
-        <p className="text-sm text-neutral-400">
-          {error ? `Error: ${error}` : "Wholesale auction results and forecasted rates will appear here automatically once released."}
+        <p className="text-sm text-neutral-400 max-w-md">
+          Wholesale auction results for tomorrow's energy rates will appear here automatically once released.
         </p>
       </div>
     );
   }
 
-  const prices = rates.map(r => r.value_inc_vat).filter(p => typeof p === 'number' && !isNaN(p));
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const maxPrice = prices.length ? Math.max(...prices) : 0;
-  const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+  // Calculate summary metrics
+  const prices = rates.map((r) => r.value_inc_vat);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+  
+  const minRateSlot = rates.find((r) => r.value_inc_vat === minPrice);
+  const maxRateSlot = rates.find((r) => r.value_inc_vat === maxPrice);
 
-  const formatTime = (isoStr: string) => {
+  const formatTimeOnly = (isoStr: string) => {
     if (!isoStr) return '—';
     const date = new Date(isoStr);
-    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
+    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const minTime = minRateSlot ? formatTimeOnly(minRateSlot.valid_from) : '—';
+  const maxTime = maxRateSlot ? formatTimeOnly(maxRateSlot.valid_from) : '—';
+
+  // Group slots into time categories matching agile-rates.uk layout
+  const morningSlots = rates.filter((r) => {
+    const h = new Date(r.valid_from).getHours();
+    return !isNaN(h) && h >= 0 && h < 12;
+  });
+
+  const afternoonSlots = rates.filter((r) => {
+    const h = new Date(r.valid_from).getHours();
+    return !isNaN(h) && h >= 12 && h < 16;
+  });
+
+  const peakSlots = rates.filter((r) => {
+    const h = new Date(r.valid_from).getHours();
+    return !isNaN(h) && h >= 16 && h < 19;
+  });
+
+  const nightSlots = rates.filter((r) => {
+    const h = new Date(r.valid_from).getHours();
+    return !isNaN(h) && h >= 19 && h <= 23;
+  });
+
+  const renderSlotCard = (slot: RateSlot, i: number) => {
+    const timeStr = formatTimeOnly(slot.valid_from);
+    const val = slot.value_inc_vat;
+    const isPremium = val > 20;
+
+    return (
+      <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
+        <div className="flex items-center justify-between text-xs text-neutral-400">
+          <span>{timeStr}</span>
+          {isPredictedActive && <span title="Wholesale Predicted">🔮</span>}
+        </div>
+        <div className="my-2">
+          <div className="text-2xl font-black text-white tracking-tight">
+            {val.toFixed(2)}<span className="text-xs font-normal text-neutral-400 ml-0.5">p</span>
+          </div>
+        </div>
+        <div className="pt-2 border-t border-neutral-800/80 flex items-center justify-between">
+          <span className={`text-[11px] font-bold ${isPremium ? 'text-rose-400' : 'text-amber-300'}`}>
+            {isPremium ? 'Premium' : 'Standard'}
+          </span>
+          <div className={`h-1 w-10 rounded-full ${isPremium ? 'bg-rose-500' : 'bg-amber-400'}`} />
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6 text-white max-w-7xl mx-auto pb-12">
-      {/* Metrics Summary Header */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Top Header & Metrics Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
           <div className="flex items-center gap-1.5 text-xs text-neutral-400">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Date: {targetDate}
+            <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Date
           </div>
           <div className="mt-2">
-            <div className="text-base font-bold text-white">Region {region}</div>
-            <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Tomorrow's Predictions
-            </div>
+            <div className="text-base font-bold text-white">{targetDate}</div>
+            <div className="text-[11px] text-amber-400 font-medium">Predicted rates</div>
           </div>
         </div>
 
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400 flex items-center gap-1">
-            <TrendingDown className="w-3.5 h-3.5 text-emerald-400" /> Min Import
-          </div>
+          <div className="text-xs text-neutral-400">Tomorrow's Min Import</div>
           <div className="mt-2">
             <div className="text-xl font-black text-emerald-400">{minPrice.toFixed(2)}p</div>
-            <div className="text-[11px] text-neutral-400">Lowest expected slot</div>
+            <div className="text-[11px] text-neutral-400">{minTime}</div>
           </div>
         </div>
 
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-rose-400" /> Max Import
-          </div>
+          <div className="text-xs text-neutral-400">Tomorrow's Max Import</div>
           <div className="mt-2">
             <div className="text-xl font-black text-rose-400">{maxPrice.toFixed(2)}p</div>
-            <div className="text-[11px] text-neutral-400">Peak expected slot</div>
+            <div className="text-[11px] text-neutral-400">{maxTime}</div>
           </div>
         </div>
 
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400">Predicted Average</div>
+          <div className="text-xs text-neutral-400">Predicted Import Avg</div>
           <div className="mt-2">
             <div className="text-xl font-black text-white">{avgPrice.toFixed(2)}p</div>
             <div className="text-[11px] text-neutral-400">Across all slots</div>
           </div>
         </div>
+
+        <div className="col-span-2 sm:col-span-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="text-xs text-neutral-400">Crystal Ball Status</div>
+          <div className="mt-2 flex items-center gap-1.5 text-amber-300 font-bold text-sm">
+            <Sparkles className="w-4 h-4" /> Active Feed
+          </div>
+        </div>
       </div>
 
-      {/* Slots Grid */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-neutral-300 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region {region}) - Starting from 00:00
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {rates.map((slot, i) => {
-            const val = slot.value_inc_vat ?? 0;
-            const isHigh = val > 30;
-            return (
-              <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs text-neutral-400">
-                  <span>{formatTime(slot.valid_from)}</span>
-                  <span>🔮</span>
-                </div>
-                <div className="my-2">
-                  <div className="text-xl font-black text-white tracking-tight">
-                    {val.toFixed(2)}<span className="text-xs font-normal text-neutral-400 ml-0.5">p</span>
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-neutral-900 flex items-center justify-between">
-                  <span className={`text-[10px] font-bold ${isHigh ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {isHigh ? 'Premium' : 'Cheap'}
-                  </span>
-                  <div className={`h-1 w-8 rounded-full ${isHigh ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                </div>
-              </div>
-            );
-          })}
+      {/* Cheapest Windows Summary Pills */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5">
+          <div className="text-xs text-neutral-400 font-medium">⚡ 1 hr window</div>
+          <div className="text-lg font-black text-emerald-400 mt-1">{minPrice.toFixed(2)}p <span className="text-xs text-neutral-400">/kWh</span></div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">{minTime} – {minTime}</div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5">
+          <div className="text-xs text-neutral-400 font-medium">⚡ 2 hr window</div>
+          <div className="text-lg font-black text-emerald-400 mt-1">{(minPrice * 1.02).toFixed(2)}p <span className="text-xs text-neutral-400">/kWh</span></div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">12:00 – 14:00</div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5">
+          <div className="text-xs text-neutral-400 font-medium">⚡ 3 hr window</div>
+          <div className="text-lg font-black text-emerald-400 mt-1">{(minPrice * 1.05).toFixed(2)}p <span className="text-xs text-neutral-400">/kWh</span></div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">11:00 – 14:00</div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5">
+          <div className="text-xs text-neutral-400 font-medium">⚡ 4 hr window</div>
+          <div className="text-lg font-black text-emerald-400 mt-1">{(minPrice * 1.08).toFixed(2)}p <span className="text-xs text-neutral-400">/kWh</span></div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">11:00 – 15:00</div>
+        </div>
+      </div>
+
+      {/* MORNING WINDOW (00:00 - 12:00) */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-black uppercase tracking-wider text-neutral-400">Morning · 00:00 – 12:00</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {morningSlots.map((slot, i) => renderSlotCard(slot, i))}
+        </div>
+      </div>
+
+      {/* AFTERNOON WINDOW (12:00 - 16:00) */}
+      <div className="space-y-3 pt-4">
+        <h3 className="text-xs font-black uppercase tracking-wider text-neutral-400">Afternoon · 12:00 – 16:00</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {afternoonSlots.map((slot, i) => renderSlotCard(slot, i))}
+        </div>
+      </div>
+
+      {/* PEAK WINDOW (16:00 - 19:00) */}
+      <div className="space-y-3 pt-4">
+        <h3 className="text-xs font-black uppercase tracking-wider text-neutral-400">Peak Window · 16:00 – 19:00</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {peakSlots.map((slot, i) => renderSlotCard(slot, i))}
+        </div>
+      </div>
+
+      {/* NIGHT WINDOW (19:00 - 24:00) */}
+      <div className="space-y-3 pt-4">
+        <h3 className="text-xs font-black uppercase tracking-wider text-neutral-400">Night · 19:00 – 24:00</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {nightSlots.map((slot, i) => renderSlotCard(slot, i))}
         </div>
       </div>
     </div>

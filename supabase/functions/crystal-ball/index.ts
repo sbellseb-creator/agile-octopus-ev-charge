@@ -28,7 +28,7 @@ serve(async (req) => {
     const region =
       ((body.region as string) ||
         url.searchParams.get("region") ||
-        "F").toUpperCase();
+        "P").toUpperCase();
 
     const targetUrl =
       `https://agile-rates.uk/api/v2/current/${region}`;

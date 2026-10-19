@@ -18,7 +18,6 @@ serve(async (req) => {
   const region = (param("region") || "F").toUpperCase();
 
   try {
-    // Fetch directly from the official region JSON endpoint which holds tomorrow's full prediction feed
     const targetUrl = `https://agilerates.uk/api/agile_rates_region_${region}.json`;
     const res = await fetch(targetUrl, {
       headers: { "Accept": "application/json" },
@@ -34,7 +33,6 @@ serve(async (req) => {
     const rawSlots = data?.rates || data?.data?.rates || [];
 
     const estimates = Array.isArray(rawSlots) ? rawSlots.map((r: any) => {
-      // Correctly extract price from the nested schema structure
       const rateVal = r.agileRate?.result?.rate ?? r.value_inc_vat ?? r.rate ?? r.value ?? 0;
       return {
         valid_from: r.valid_from || r.from || r.start || r.deliveryStart,
@@ -44,7 +42,6 @@ serve(async (req) => {
       };
     }).filter(r => r.valid_from && !isNaN(r.value_inc_vat)) : [];
 
-    // Ensure chronological sorting from 00:00 onwards
     estimates.sort((a, b) => new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime());
 
     return json({

@@ -1,161 +1,680 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { useMemo, useState, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from "recharts";
+import { fetchAgileRates } from "@/lib/octopus-api";
+import { addSession } from "@/lib/charge-data";
+import type { Vehicle } from "@/lib/vehicle-data";
+import { Zap, Loader2, X, MousePointerClick, Save, ChevronLeft, ChevronRight } from "lucide-react";
+import PriceList from "@/components/PriceList";
+import { formatUK, getUKDayKey, getUKHour } from "@/lib/timezone";
+import { toast } from "sonner";
+import { AGILE_REGION } from "@/lib/agile-config";
 
-interface RateSlot {
-  valid_from: string;
-  valid_to: string;
-  value_inc_vat: number;
+function rateColor(p: number): string {
+  if (p <= 0) return "hsl(var(--neon-green))";
+  if (p < 8) return "hsl(var(--neon-cyan))";
+  if (p < 15) return "hsl(var(--chart-good))";
+  if (p < 25) return "hsl(var(--chart-warning))";
+  return "hsl(var(--chart-danger))";
 }
 
-const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
-  const [rates, setRates] = useState<RateSlot[]>([]);
-  const [targetDate, setTargetDate] = useState<string>('Tomorrow');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+interface SelectedWindow {
+  valid_from: string;
+  valid_to: string;
+  price: number;
+}
 
-  useEffect(() => {
-    async function fetchCrystalBallData() {
-      setLoading(true);
-      try {
-        const { data, error: funcError } = await supabase.functions.invoke('crystal-ball', {
-          body: { region },
-        });
+interface AgileRatesProps {
+  onWindowsChange?: (windows: SelectedWindow[]) => void;
+  vehicles?: Vehicle[];
+  onSessionSaved?: () => void;
+}
 
-        if (funcError) throw funcError;
+// Group continuous windows into ranges for display
+function groupContinuousWindows(windows: SelectedWindow[]): { from: string; to: string; prices: number[]; count: number }[] {
+  if (windows.length === 0) return [];
+  const sorted = [...windows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  const groups: { from: string; to: string; prices: number[]; count: number }[] = [];
+  let current = { from: sorted[0].valid_from, to: sorted[0].valid_to, prices: [sorted[0].price], count: 1 };
 
-        const slotList = data?.rates || data?.results || [];
-        
-        // Ensure slots are strictly sorted chronologically from 00:00 onwards
-        const sortedSlots = Array.isArray(slotList) ? slotList.sort((a, b) => {
-          return new Date(a.valid_from).getTime() - new Date(b.valid_from).getTime();
-        }) : [];
-
-        setTargetDate(data?.date || 'Tomorrow');
-        setRates(sortedSlots);
-      } catch (err: any) {
-        console.error('Crystal Ball fetch error:', err);
-        setError('Tomorrow\'s metrics are published around 10:00.');
-      } finally {
-        setLoading(false);
-      }
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].valid_from === current.to) {
+      current.to = sorted[i].valid_to;
+      current.prices.push(sorted[i].price);
+      current.count++;
+    } else {
+      groups.push(current);
+      current = { from: sorted[i].valid_from, to: sorted[i].valid_to, prices: [sorted[i].price], count: 1 };
     }
-
-    fetchCrystalBallData();
-  }, [region]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-16 text-neutral-400">
-        <Clock className="w-8 h-8 animate-spin text-amber-400 mb-3" />
-        <p className="text-sm">Loading Crystal Ball predictions (Region F)...</p>
-      </div>
-    );
   }
+  groups.push(current);
+  return groups;
+}
 
-  if (error || rates.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-neutral-900/60 border border-neutral-800 rounded-2xl max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-amber-400 mb-4">
-          <Clock className="w-6 h-6 animate-pulse" />
-        </div>
-        <h3 className="text-lg font-bold text-white mb-1">Tomorrow's metrics are published around 10:00.</h3>
-        <p className="text-sm text-neutral-400">
-          Wholesale auction results and forecasted rates will appear here automatically once released.
-        </p>
-      </div>
-    );
-  }
-
-  const prices = rates.map(r => r.value_inc_vat).filter(p => typeof p === 'number' && !isNaN(p));
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const maxPrice = prices.length ? Math.max(...prices) : 0;
-  const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
-
-  const formatTime = (isoStr: string) => {
-    if (!isoStr) return '—';
-    const date = new Date(isoStr);
-    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
-  };
-
+// Custom label to show arrow on current slot
+const CurrentSlotArrow = (props: any) => {
+  const { x, y, width, value, index, chartData } = props;
+  if (!chartData?.[index]?.isCurrent) return null;
+  const cx = x + width / 2;
   return (
-    <div className="space-y-6 text-white max-w-7xl mx-auto pb-12">
-      {/* Metrics Summary Header */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-neutral-400">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Date: {targetDate}
-          </div>
-          <div className="mt-2">
-            <div className="text-base font-bold text-white">Region F (North East)</div>
-            <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Tomorrow's Predictions
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400 flex items-center gap-1">
-            <TrendingDown className="w-3.5 h-3.5 text-emerald-400" /> Min Import
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-emerald-400">{minPrice.toFixed(2)}p</div>
-            <div className="text-[11px] text-neutral-400">Lowest expected slot</div>
-          </div>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-rose-400" /> Max Import
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-rose-400">{maxPrice.toFixed(2)}p</div>
-            <div className="text-[11px] text-neutral-400">Peak expected slot</div>
-          </div>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="text-xs text-neutral-400">Predicted Average</div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-white">{avgPrice.toFixed(2)}p</div>
-            <div className="text-[11px] text-neutral-400">Across all slots</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Slots Grid */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-neutral-300 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Half-Hourly Rate Predictions (Region F) - Starting from 00:00
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {rates.map((slot, i) => {
-            const val = slot.value_inc_vat ?? 0;
-            const isHigh = val > 30;
-            return (
-              <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs text-neutral-400">
-                  <span>{formatTime(slot.valid_from)}</span>
-                  <span>🔮</span>
-                </div>
-                <div className="my-2">
-                  <div className="text-xl font-black text-white tracking-tight">
-                    {val.toFixed(2)}<span className="text-xs font-normal text-neutral-400 ml-0.5">p</span>
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-neutral-900 flex items-center justify-between">
-                  <span className={`text-[10px] font-bold ${isHigh ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {isHigh ? 'Premium' : 'Cheap'}
-                  </span>
-                  <div className={`h-1 w-8 rounded-full ${isHigh ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+    <g>
+      <polygon
+        points={`${cx},${y - 18} ${cx - 6},${y - 8} ${cx + 6},${y - 8}`}
+        fill="hsl(var(--primary))"
+      />
+      <text x={cx} y={y - 22} textAnchor="middle" fontSize={9} fill="hsl(var(--primary))" fontWeight="bold">
+        NOW
+      </text>
+    </g>
   );
 };
 
-export default AgileCrystalBall;
+function PinchZoomChart({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const pinchRef = useRef({ startDist: 0, startScale: 1, startMid: { x: 0, y: 0 }, startTranslate: { x: 0, y: 0 } });
+
+  const getDistance = (t1: React.Touch, t2: React.Touch) =>
+    Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      pinchRef.current = { startDist: dist, startScale: scale, startMid: { x: midX, y: midY }, startTranslate: { ...translate } };
+    }
+  }, [scale, translate]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      const { startDist, startScale, startMid, startTranslate } = pinchRef.current;
+      // Dampen zoom: use square root of ratio for gentler response
+      const ratio = dist / startDist;
+      const dampened = ratio > 1 ? 1 + Math.sqrt(ratio - 1) * 0.5 : 1 - Math.sqrt(1 - ratio) * 0.5;
+      const newScale = Math.min(Math.max(startScale * dampened, 1), 3);
+
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+      const newTranslateX = startTranslate.x + (midX - startMid.x);
+      const newTranslateY = startTranslate.y + (midY - startMid.y);
+
+      setScale(newScale);
+      setTranslate({ x: newTranslateX, y: newTranslateY });
+    }
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }, []);
+
+  const isZoomed = scale > 1;
+
+  return (
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="overflow-hidden"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onDoubleClick={handleDoubleClick}
+      >
+        <div
+          style={{
+            transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
+            transformOrigin: 'center center',
+            transition: isZoomed ? 'none' : 'transform 0.2s ease-out',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+      {isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1">Pinch to zoom · Double-tap to reset</p>
+      )}
+      {!isZoomed && (
+        <p className="text-[10px] text-muted-foreground text-center mt-1 sm:hidden">Pinch to zoom</p>
+      )}
+    </div>
+  );
+}
+
+const UK_REGIONS: { code: string; label: string }[] = [
+  { code: "F", label: "North Eastern" },
+  { code: "A", label: "Eastern" },
+  { code: "B", label: "East Midlands" },
+  { code: "C", label: "London" },
+  { code: "D", label: "Merseyside & N. Wales" },
+  { code: "E", label: "West Midlands" },
+  { code: "G", label: "North Western" },
+  { code: "H", label: "Southern" },
+  { code: "J", label: "South Eastern" },
+  { code: "K", label: "South Wales" },
+  { code: "L", label: "South Western" },
+  { code: "M", label: "Yorkshire" },
+  { code: "N", label: "South Scotland" },
+  { code: "P", label: "North Scotland" },
+];
+
+export default function AgileRates({ onWindowsChange, vehicles = [], onSessionSaved }: AgileRatesProps) {
+  const now = useMemo(() => new Date(), []);
+  const periodFrom = useMemo(() => new Date(now.getTime() - 60 * 60 * 1000).toISOString(), [now]);
+  const periodTo = useMemo(() => {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 30, 0, 0);
+    return tomorrow.toISOString();
+  }, [now]);
+
+  const [region, setRegion] = useState(AGILE_REGION);
+  const [saveNotes, setSaveNotes] = useState("");
+  const [saveVehicleId, setSaveVehicleId] = useState(() => (vehicles.find(v => v.is_default) || vehicles[0])?.id || "");
+
+  const [selectedWindows, setSelectedWindows] = useState<SelectedWindow[]>([]);
+
+  const { data: rates, isLoading, error } = useQuery({
+    queryKey: ["agile-rates", periodFrom, region],
+    queryFn: () => fetchAgileRates(undefined, periodFrom, periodTo, region),
+    refetchInterval: 30 * 60 * 1000,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const [slotOffset, setSlotOffset] = useState(0);
+
+  const currentRateIdx = useMemo(() => {
+    if (!rates) return -1;
+    const sorted = [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    return sorted.findIndex((r) => {
+      const from = new Date(r.valid_from).getTime();
+      const to = new Date(r.valid_to).getTime();
+      return now.getTime() >= from && now.getTime() < to;
+    });
+  }, [rates, now]);
+
+  const sortedRates = useMemo(() => {
+    if (!rates) return [];
+    return [...rates].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  }, [rates]);
+
+  const viewedSlotIdx = currentRateIdx >= 0 ? currentRateIdx + slotOffset : -1;
+  const viewedRate = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length ? sortedRates[viewedSlotIdx] : undefined;
+  const currentRate = currentRateIdx >= 0 ? sortedRates[currentRateIdx] : undefined;
+  const canPrev = viewedSlotIdx > 0;
+  const canNext = viewedSlotIdx >= 0 && viewedSlotIdx < sortedRates.length - 1;
+
+  // Build one page per UK day, each with AM (00–12) and PM (12–24) halves
+  const pages = useMemo(() => {
+    if (sortedRates.length === 0) return [] as { label: string; dateKey: string; am: typeof sortedRates; pm: typeof sortedRates }[];
+    const byDay = new Map<string, typeof sortedRates>();
+    for (const r of sortedRates) {
+      const key = getUKDayKey(r.valid_from);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(r);
+    }
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => {
+        const [ay, am, ad] = a.split("-").map(Number);
+        const [by, bm, bd] = b.split("-").map(Number);
+        return new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime();
+      })
+      .map(([key, slots]) => {
+        const first = new Date(slots[0].valid_from);
+        return {
+          dateKey: key,
+          label: formatUK(first, "EEEE dd MMM"),
+          am: slots.filter((s) => getUKHour(s.valid_from) < 12),
+          pm: slots.filter((s) => getUKHour(s.valid_from) >= 12),
+        };
+      });
+  }, [sortedRates]);
+
+  const currentPageIdx = useMemo(() => {
+    if (pages.length === 0 || !currentRate) return 0;
+    const key = getUKDayKey(currentRate.valid_from);
+    return Math.max(0, pages.findIndex((p) => p.dateKey === key));
+  }, [pages, currentRate]);
+
+  const [pageIdx, setPageIdx] = useState<number | null>(null);
+  const activePageIdx = pageIdx ?? currentPageIdx;
+  const activePage = pages[activePageIdx];
+
+  const buildChartData = (slots: typeof sortedRates) => slots.map((r) => ({
+    time: formatUK(r.valid_from, "HH:mm"),
+    price: r.value_inc_vat,
+    isCurrent: currentRate?.valid_from === r.valid_from,
+    isViewed: viewedRate?.valid_from === r.valid_from,
+    isSelected: selectedWindows.some(w => w.valid_from === r.valid_from),
+    isCheap: r.value_inc_vat < 8 && r.value_inc_vat > 0,
+    isNegative: r.value_inc_vat <= 0,
+    valid_from: r.valid_from,
+    valid_to: r.valid_to,
+  }));
+
+  const amData = activePage ? buildChartData(activePage.am) : [];
+  const pmData = activePage ? buildChartData(activePage.pm) : [];
+  const allDayData = [...amData, ...pmData];
+  const filteredRates = [...(activePage?.am || []), ...(activePage?.pm || [])];
+
+  const avg = allDayData.length > 0
+    ? allDayData.reduce((s, d) => s + d.price, 0) / allDayData.length
+    : 0;
+
+  const minPrice = allDayData.length > 0 ? Math.min(...allDayData.map(d => d.price)) : 0;
+  const maxPrice = allDayData.length > 0 ? Math.max(...allDayData.map(d => d.price)) : 0;
+  const yMin = Math.min(0, Math.floor(minPrice / 5) * 5 - 5);
+  const yMax = Math.ceil(maxPrice / 5) * 5 + 2;
+
+  // Swipe handling (day-to-day)
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const onPageTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) { swipeRef.current = null; return; }
+    swipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onPageTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0 && activePageIdx < pages.length - 1) setPageIdx(activePageIdx + 1);
+      else if (dx > 0 && activePageIdx > 0) setPageIdx(activePageIdx - 1);
+    }
+  };
+
+  // Auto-dismissing tooltip: show on hover/tap, hide after 2s
+  const [tipActive, setTipActive] = useState<boolean | undefined>(undefined);
+  const tipTimer = useRef<number | null>(null);
+  const showTipBriefly = useCallback(() => {
+    setTipActive(true);
+    if (tipTimer.current) window.clearTimeout(tipTimer.current);
+    tipTimer.current = window.setTimeout(() => setTipActive(false), 2000);
+  }, []);
+
+  const handleBarClick = useCallback((data: any) => {
+    if (!data?.activePayload?.[0]?.payload) return;
+    const p = data.activePayload[0].payload;
+    setSelectedWindows(prev => {
+      const exists = prev.some(w => w.valid_from === p.valid_from);
+      const next = exists
+        ? prev.filter(w => w.valid_from !== p.valid_from)
+        : [...prev, { valid_from: p.valid_from, valid_to: p.valid_to, price: p.price }];
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
+  const removeWindow = useCallback((valid_from: string) => {
+    setSelectedWindows(prev => {
+      const next = prev.filter(w => w.valid_from !== valid_from);
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
+  const removeGroup = useCallback((group: { from: string; to: string }) => {
+    setSelectedWindows(prev => {
+      const next = prev.filter(w => w.valid_from < group.from || w.valid_from >= group.to);
+      onWindowsChange?.(next);
+      return next;
+    });
+  }, [onWindowsChange]);
+
+  const selectedCost = useMemo(() => {
+    if (selectedWindows.length === 0) return null;
+    const kwhPerSlot = 6.9 * 0.5;
+    const totalKwh = kwhPerSlot * selectedWindows.length;
+    const totalCost = selectedWindows.reduce((s, w) => s + (w.price * kwhPerSlot) / 100, 0);
+    const avgPrice = selectedWindows.reduce((s, w) => s + w.price, 0) / selectedWindows.length;
+    return { totalKwh: totalKwh.toFixed(1), totalCost: totalCost.toFixed(2), avgPrice: avgPrice.toFixed(2), slots: selectedWindows.length };
+  }, [selectedWindows]);
+
+  const groupedWindows = useMemo(() => groupContinuousWindows(selectedWindows), [selectedWindows]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="neon-border h-full">
+          <CardContent className="flex items-center gap-2 p-3 h-full">
+            <Zap className="h-6 w-6 shrink-0 text-chart-good" />
+            <div>
+              <p className="text-lg font-bold leading-tight">
+                {allDayData.length > 0 ? `${Math.min(...allDayData.map((d) => d.price)).toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">Lowest</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className={`text-lg font-bold leading-tight ${viewedRate && viewedRate.value_inc_vat <= 0 ? 'neon-glow' : ''}`}>
+                {viewedRate ? `${viewedRate.value_inc_vat.toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {slotOffset === 0 ? "Current Rate" : viewedRate ? `${formatUK(viewedRate.valid_from, "HH:mm")}–${formatUK(viewedRate.valid_to, "HH:mm")}` : "—"}
+              </p>
+              {slotOffset !== 0 && (
+                <button className="text-[10px] text-primary underline" onClick={() => setSlotOffset(0)}>Back to now</button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 shrink-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canPrev} onClick={() => setSlotOffset(o => o - 1)}>
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canNext} onClick={() => setSlotOffset(o => o + 1)}>
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-warning" />
+            <div>
+              <p className="text-lg font-bold leading-tight">{avg > 0 ? `${avg.toFixed(2)}p` : "—"}</p>
+              <p className="text-[10px] text-muted-foreground">Average</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="neon-border">
+          <CardContent className="flex items-center gap-2 p-3">
+            <Zap className="h-6 w-6 shrink-0 text-chart-danger" />
+            <div>
+              <p className="text-lg font-bold leading-tight">
+                {allDayData.length > 0 ? `${Math.max(...allDayData.map((d) => d.price)).toFixed(2)}p` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">Highest</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Selected windows summary */}
+      {selectedCost && (
+        <Card className="border-primary/40 neon-border">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <MousePointerClick className="h-4 w-4" />
+              Selected Charge Windows
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div>
+                <p className="text-xl font-bold">{selectedCost.slots}</p>
+                <p className="text-xs text-muted-foreground">Slots</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">{selectedCost.totalKwh} kWh</p>
+                <p className="text-xs text-muted-foreground">Est. Energy</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">£{selectedCost.totalCost}</p>
+                <p className="text-xs text-muted-foreground">Est. Cost</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">{selectedCost.avgPrice}p</p>
+                <p className="text-xs text-muted-foreground">Avg p/kWh</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {groupedWindows.map((g) => {
+                const avgP = g.prices.reduce((s, p) => s + p, 0) / g.prices.length;
+                return (
+                  <Badge
+                    key={g.from}
+                    variant="outline"
+                    className="gap-1 border-primary/40 text-primary cursor-pointer hover:border-destructive hover:text-destructive transition-colors"
+                    onClick={() => removeGroup(g)}
+                  >
+                    {formatUK(g.from, "HH:mm")}–{formatUK(g.to, "HH:mm")}
+                    {g.count > 1 ? ` (${g.count} slots, avg ${avgP.toFixed(2)}p)` : ` (${avgP.toFixed(2)}p)`}
+                    <X className="h-3 w-3" />
+                  </Badge>
+                );
+              })}
+            </div>
+
+            {/* Save as session */}
+            {vehicles.length > 0 && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Vehicle</Label>
+                    <Select value={saveVehicleId} onValueChange={setSaveVehicleId}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                      <SelectContent>
+                        {vehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Notes</Label>
+                    <Textarea className="h-8 text-xs min-h-[32px]" placeholder="Optional..." value={saveNotes} onChange={e => setSaveNotes(e.target.value)} rows={1} />
+                  </div>
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const vehicle = vehicles.find(v => v.id === saveVehicleId);
+                    if (!vehicle || !selectedCost) return;
+                    const sorted = [...selectedWindows].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+                    addSession({
+                      session_date: formatUK(new Date(), "yyyy-MM-dd"),
+                      start_time: sorted.length > 0 ? formatUK(sorted[0].valid_from, "HH:mm") : undefined,
+                      end_time: sorted.length > 0 ? formatUK(sorted[sorted.length - 1].valid_to, "HH:mm") : undefined,
+                      vehicle_id: vehicle.id,
+                      vehicle_name: vehicle.name,
+                      vehicle_registration: vehicle.registration || undefined,
+                      charge_mode: "agile_cheapest",
+                      start_soc: 0,
+                      end_soc: 0,
+                      energy_added_kwh: parseFloat(selectedCost.totalKwh),
+                      grid_kwh: 0,
+                      total_cost_gbp: parseFloat(selectedCost.totalCost),
+                      avg_pence_per_kwh: parseFloat(selectedCost.avgPrice),
+                      num_slots: selectedCost.slots,
+                      tariff_code: "AGILE-24-10-01",
+                      notes: saveNotes,
+                      region,
+                      slot_prices: sorted.map(w => ({ valid_from: w.valid_from, valid_to: w.valid_to, value_inc_vat: w.price })),
+                    });
+                    toast.success("Charge session saved!");
+                    setSelectedWindows([]);
+                    setSaveNotes("");
+                    onSessionSaved?.();
+                  }}
+                >
+                  <Save className="h-4 w-4" /> Save as Charge Session
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="neon-border">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-1 sm:gap-2 flex-wrap">
+              Agile Rates (p/kWh)
+              <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">tap bars to select windows</span>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary">UK time</Badge>
+            </CardTitle>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UK_REGIONS.map(r => (
+                  <SelectItem key={r.code} value={r.code} className="text-xs">{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {pages.length > 0 && (
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx === 0} onClick={() => setPageIdx(activePageIdx - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 text-center">
+                <p className="text-xs font-semibold leading-tight">{activePage?.label}</p>
+                <div className="flex justify-center gap-1 mt-1">
+                  {pages.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === activePageIdx ? 'w-4 bg-primary' : 'w-1.5 bg-muted'}`} />
+                  ))}
+                </div>
+              </div>
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" disabled={activePageIdx >= pages.length - 1} onClick={() => setPageIdx(activePageIdx + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {pageIdx !== null && pageIdx !== currentPageIdx && (
+            <div className="text-center mb-2">
+              <button className="text-[10px] text-primary underline" onClick={() => setPageIdx(null)}>Back to now</button>
+            </div>
+          )}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <p className="text-destructive text-sm py-4 text-center">
+              Failed to load rates. Check your API key and try again.
+            </p>
+          ) : filteredRates.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4 text-center">
+              No rates available.
+            </p>
+          ) : (
+            <div onTouchStart={onPageTouchStart} onTouchEnd={onPageTouchEnd} style={{ touchAction: 'pan-y' }} className="space-y-3">
+              {([
+                { label: "AM · 00:00 – 12:00", data: amData },
+                { label: "PM · 12:00 – 24:00", data: pmData },
+              ]).map(({ label, data }) => (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-1 px-1">
+                    <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+                    {data.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        avg {(data.reduce((s, d) => s + d.price, 0) / data.length).toFixed(1)}p
+                      </p>
+                    )}
+                  </div>
+                  {data.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-6">No rates</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart
+                        data={data}
+                        onClick={handleBarClick}
+                        onMouseMove={(state: any) => { if (state?.isTooltipActive) showTipBriefly(); }}
+                        style={{ cursor: 'pointer' }}
+                        margin={{ top: 24, right: 4, bottom: 5, left: -10 }}
+                        barCategoryGap={1}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          interval={1}
+                          angle={-45}
+                          textAnchor="end"
+                          height={36}
+                        />
+                        <YAxis
+                          unit="p"
+                          tick={{ fontSize: 9, fill: "hsl(var(--foreground))" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          domain={[yMin, yMax]}
+                          width={32}
+                        />
+                        <Tooltip
+                          active={tipActive}
+                          contentStyle={{
+                            borderRadius: "var(--radius)",
+                            border: "1px solid hsl(var(--border))",
+                            background: "hsl(var(--popover))",
+                            color: "hsl(var(--popover-foreground))",
+                            fontSize: "12px",
+                          }}
+                          labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                          formatter={(value: number) => [`${value.toFixed(2)}p/kWh`, "Price"]}
+                        />
+                        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                        <ReferenceLine y={8} stroke="hsl(var(--neon-cyan))" strokeDasharray="2 4" strokeOpacity={0.5} />
+                        <Bar dataKey="price" radius={[2, 2, 0, 0]}>
+                          <LabelList
+                            content={(props: any) => <CurrentSlotArrow {...props} chartData={data} />}
+                          />
+                          {data.map((entry, i) => {
+                            let fill = rateColor(entry.price);
+                            let opacity = 0.85;
+                            let strokeW = 0;
+                            let stroke = "none";
+
+                            if (entry.isSelected) {
+                              fill = "hsl(var(--accent))";
+                              opacity = 1;
+                              stroke = "hsl(var(--accent))";
+                              strokeW = 2;
+                            } else if (entry.isViewed && !entry.isCurrent) {
+                              stroke = "hsl(var(--primary))";
+                              strokeW = 2;
+                              opacity = 1;
+                            } else if (entry.isCurrent) {
+                              stroke = "hsl(var(--foreground))";
+                              strokeW = 2;
+                            }
+
+                            return (
+                              <Cell
+                                key={i}
+                                fill={fill}
+                                opacity={opacity}
+                                stroke={stroke}
+                                strokeWidth={strokeW}
+                                className={`${entry.isCheap && !entry.isSelected ? 'neon-pulse' : ''} ${entry.isNegative && !entry.isSelected ? 'neon-glow-bar' : ''}`}
+                              />
+                            );
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {rates && rates.length > 0 && (
+        <PriceList rates={rates} now={now} />
+      )}
+    </div>
+  );
+}

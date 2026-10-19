@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, Calendar, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 interface RateSlot {
-  valid_from: string;
-  valid_to: string;
-  value_inc_vat: number;
-  value_exc_vat: number;
+  valid_from?: string;
+  valid_to?: string;
+  value_inc_vat?: number;
+  value_exc_vat?: number;
+  price?: number;
 }
 
 const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
@@ -22,8 +23,8 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         if (!res.ok) throw new Error('Failed to fetch rates');
         const data = await res.json();
         
-        setTargetDate(data?.tradingDate?.date || 'Tomorrow');
-        const slotList = data?.rates || [];
+        setTargetDate(data?.tradingDate?.date || data?.date || 'Tomorrow');
+        const slotList = data?.rates || data?.data || (Array.isArray(data) ? data : []);
         setRates(slotList);
       } catch (err: any) {
         console.error('Failed to load agile rates:', err);
@@ -45,7 +46,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  if (error || rates.length === 0) {
+  if (error || !Array.isArray(rates) || rates.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center bg-neutral-900/60 border border-neutral-800 rounded-2xl max-w-xl mx-auto mt-8">
         <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-amber-400 mb-4">
@@ -59,12 +60,16 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
     );
   }
 
-  const prices = rates.map(r => r.value_inc_vat).filter(p => typeof p === 'number');
+  const prices = rates
+    .map(r => r.value_inc_vat ?? r.price ?? 0)
+    .filter(p => typeof p === 'number' && !isNaN(p));
+
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
   const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
 
-  const formatTime = (isoStr: string) => {
+  const formatTime = (isoStr?: string) => {
+    if (!isoStr) return '—';
     const date = new Date(isoStr);
     return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   };
@@ -121,7 +126,7 @@ const AgileCrystalBall: React.FC<{ region?: string }> = ({ region = 'F' }) => {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rates.map((slot, i) => {
-            const val = slot.value_inc_vat;
+            const val = slot.value_inc_vat ?? slot.price ?? 0;
             const isHigh = val > 30;
             return (
               <div key={i} className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 flex flex-col justify-between">

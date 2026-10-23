@@ -22,8 +22,11 @@ export function homeSceneBackground(
   }
 
   if (scene.phase === "day") {
-    // Route all daytime weather variants to use the overcast/base asset 
-    // which features the white charger and natural black wrapped cable.
+    if (scene.weather === "rain" || scene.weather === "storm") {
+      return _state.pluggedIn
+        ? "/home-scenes/dashboard-reference-rain-day-connected.png"
+        : "/home-scenes/dashboard-reference-rain-day-unplugged.png";
+    }
     return "/home-scenes/dashboard-reference-overcast-day.png";
   }
 
